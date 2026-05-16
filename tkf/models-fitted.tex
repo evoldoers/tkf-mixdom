@@ -1,0 +1,121 @@
+\section{Models and Fitting Pipelines}
+\label{sec:models-fitted}
+
+We evaluate a hierarchy of substitution-plus-indel models,
+ranging from a single reversible substitution matrix (Felsenstein)
+to the full Nested TKF model with per-domain substitution profiles.
+Each model is trained on the Pfam seed alignment database
+and evaluated on a held-out test set (Section~\ref{sec:sim-eval}).
+
+\subsection{Model hierarchy}
+
+\begin{center}
+\begin{tabular}{llccp{5cm}}
+\textbf{ID} & \textbf{Description} & $|\ndom|$ & $\symsub$ & \textbf{Order-1 source} \\
+\hline
+F & Felsenstein/LG08 & --- & LG08 & None (order-0) \\
+M3 & MixDom & 3 & shared & Domain structure \\
+M6 & MixDom & 6 & shared & Domain structure \\
+M8s & MixDom, SVI-BW & 8 & per-domain & Domain structure + per-domain $\symsub$ \\
+\end{tabular}
+\end{center}
+
+All MixDom models include the TKF91 top-level indel process
+and TKF92-like per-domain fragment extension.
+Each domain type has its own equilibrium distribution $\eqm_\dom$
+and (optionally) exchangeability $\symsub_\dom$
+(Section~\ref{sec:per-domain-subst}).
+
+\subsection{Felsenstein baseline (F)}
+
+The simplest model: a single reversible substitution matrix (LG08~\cite{LG08})
+applied independently to each column, with no indel model and no
+inter-column correlations.
+Ancestral reconstruction uses standard Felsenstein pruning.
+With discretized gamma rate heterogeneity ($G = 4$ categories),
+this becomes the LG08+$\Gamma$ model.
+
+No training is required; the LG08 matrix and gamma shape parameter
+($\alpha$) are taken from the literature.
+
+\subsection{MixDom (M3, M6)}
+\label{sec:mixdom-static-fitting}
+
+The Nested TKF model with $|\ndom|$ domain types, each with
+a single fragment type and shared exchangeability $\symsub$ (LG08).
+Per-domain parameters: insertion rate $\insrate_\dom$,
+deletion rate $\delrate_\dom$, domain weight $v_\dom$,
+and fragment extension rate $r_\dom$.
+
+\subsubsection{Stage 1: Maraschino (cherry-count fitting)}
+
+Adjacent (cherry) pairs are extracted from Pfam seed alignments
+and binned by estimated divergence time $\tau$ into 32 geometric bins.
+For each bin, pairwise adjacency counts are accumulated:
+match-match, match-insert, match-delete, etc.\
+(see Section~\ref{sec:models-fitted} for the count types).
+
+The MixDom parameters are fitted by maximizing the cherry-count
+log-likelihood via Adam~\cite{Adam} (3000 steps, learning rate $10^{-3}$).
+The cherry-count likelihood marginalizes the pair HMM over
+alignment paths, using the algebraic distillation
+(Section~\ref{sec:distill-hmm}) to compute order-1 adjacency frequencies
+without enumerating alignments.
+
+This stage fits: $\insrate_0, \delrate_0$ (top-level),
+$\insrate_\dom, \delrate_\dom, v_\dom, r_\dom$ (per-domain),
+$\symsub$ (shared exchangeability, initialized from LG08),
+and $\alpha$ (gamma shape).
+
+\subsubsection{Stage 2: SVI Baum--Welch refinement}
+
+The Maraschino-fitted parameters are refined using
+stochastic variational inference Baum--Welch (SVI-BW)
+on the full pair HMM.
+Mini-batches of sequence pairs (batch size 200) are drawn from
+Pfam seed alignments; the E-step runs constrained 1D forward-backward
+on each pair, and the M-step updates parameters from
+the accumulated sufficient statistics.
+
+SVI-BW refines the indel rates, domain weights, and
+(with \texttt{--estimate-subst}) the per-domain substitution model
+$(Q_\dom, \eqm_\dom)$ via bridge expectations.
+The step size decays as $\eta_k = (k + \tau)^{-\kappa}$
+with $\kappa = 0.6$, $\tau = 10$.
+
+Model M8s uses SVI-BW with \texttt{--estimate-subst} to obtain
+8 independently estimated per-domain exchangeability matrices
+$\symsub^{(\dom)}$, giving each domain its own substitution profile.
+
+\subsection{Distillation to order-1 machines}
+\label{sec:distillation-pipeline}
+
+All MixDom models are distilled to order-1 singlet HMMs and pair WFSTs
+for use in TreeVarAnc and alignment.
+The distillation uses the Woodbury identity
+(Section~\ref{sec:distill-hmm}) to compute adjacency frequencies
+$f^{\mat\mat}$, $f^{\mat\ins}$, etc., from which the order-1
+transition probabilities are derived.
+
+Each domain contributes its own per-domain emission tensor
+$e_{\mat}(\anctok, \destok) = \eqm^{(\dom)}_\anctok P_\dom(\evoltime)_{\anctok,\destok}$
+to the adjacency sums, with structural weights from the Woodbury decomposition.
+
+The distilled WFSTs are cached by geometric time bin
+(20 bins from $t = 0.001$ to $t = 8.0$) to avoid redundant
+computation across branches with similar lengths.
+
+\subsection{Domain sweep}
+\label{sec:domain-sweep}
+
+To select the optimal number of domains $|\ndom|$, we performed
+a sweep over $|\ndom| \in \{3, 4, 5, 6, 8, 10, 12\}$.
+For each $|\ndom|$, a MixDom model was fitted via Maraschino
+(2000 Adam steps) on the training split of Pfam seed counts,
+then evaluated on the held-out test split.
+
+The test-set cherry-count log-likelihood peaked at $|\ndom| = 6$,
+with $|\ndom| = 12$ as runner-up ($\Delta = 3117$ nats).
+Models with $|\ndom| > 6$ showed signs of overfitting:
+improving train LL but degrading test LL.
+We use $|\ndom| = 6$ as the default for subsequent experiments.

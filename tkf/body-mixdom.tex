@@ -1,0 +1,787 @@
+\section{The TKF-Mixed Domain Model (MixDom)}
+
+This model was preliminarily described and empirically evaluated in \cite{LargeHolmes2026}.
+
+\subsection{The MixDom Model}
+\label{sec:mixdom}
+\label{sec:nestpairhmm}
+
+The Mixture of TKF92 Domains (MixDom) is a multiply-nested hierarchical mixture model. At the top level is a TKF91-like links process where each link is associated with a domain of random type $\dom \sim \catdist(\domdist_1,\ldots,\domdist_\ndom)$.
+Each top-level link emits its own domain sequence, with model parameters determined by domain type.
+
+\paragraph{Three nesting levels.}
+MixDom is generated as three nested processes:
+\begin{enumerate}
+  \item \textbf{Top-level TKF91 over domains}: a sequence of top-level
+    links, each of domain type $\dom \sim \catdist(\domdist_1,\ldots,\domdist_\ndom)$,
+    evolving under its own per-domain TKF92 indel process.
+  \item \textbf{Per-domain TKF92 over fragments}: within each domain of
+    type $\dom$, a TKF92 process generates a sequence of nested links.
+    Each such nested link is called a \emph{fragment}. Different fragments
+    are statistically independent.
+  \item \textbf{Intra-fragment Markov chain on fragment-types}: a single
+    fragment consists of a sequence of fragment-type characters drawn
+    from a per-domain Markov chain with $\nfrag+2$ states (start, end, and
+    $\nfrag$ emitting states $\frag \in \{1,\ldots,\nfrag\}$). The initial
+    fragment-type is drawn from $\fragdist_{\dom\frag}$. From type
+    $\srcfrag$, the chain advances within the current fragment to type
+    $\destfrag$ with probability $\ext^{(\dom)}_{\srcfrag\destfrag}$, or
+    terminates the fragment with probability
+    $\notext^{(\dom)}_\srcfrag = 1 - \sum_{\destfrag} \ext^{(\dom)}_{\srcfrag\destfrag}$.
+\end{enumerate}
+The chain restarts at Start for each fresh fragment; different fragments
+are independent Markov realisations.
+
+Each emitted site within a fragment of domain $\dom$ and fragment-type
+$\frag$ independently draws a site class
+$\class \sim \catdist(\classdist_{\dom\frag 1}, \ldots, \classdist_{\dom\frag\nclasses})$,
+with $\nclasses$ the number of site classes. The site is then governed by
+the substitution process $\subproc(\exch^{(\class)}, \eqm^{(\class)})$.
+
+We denote the per-domain process (TKF92 fragments with an intra-fragment
+fragment-type chain and per-(domain, fragment-type) site-class mixture) by
+$\hmmproc(\{\exch^{(\class)},\eqm^{(\class)}\}_\class;\ext^{(\dom)},\classdist_\dom)$.
+The full MixDom model is then
+\begin{eqnarray*}
+  M_{\text{dom}} & = & \tkflinks(\hmmproc(\{\exch^{(\class)},\eqm^{(\class)}\}_\class;\ext^{(\dom)},\classdist_\dom);\insrate_\dom,\delrate_\dom) \\
+  \text{MixDom} & = & \tkflinks(\mixture_{\dom\sim\domdist_\dom}(M_{\text{dom}});\insrate_\main,\delrate_\main)
+\end{eqnarray*}
+where $\mixture(\ldots)$ denotes a mixture model, with weights $p$, over parameters $\theta$ for model $M$
+\[
+\state \sim \mixture_{\sumidx\sim p}(\model(\theta_\sumidx);p)\ \Leftrightarrow\
+\sumidx \sim \catdist(p),\ \state \sim \model(\theta_\sumidx)
+\]
+
+\begin{remark}[Relationship to TKF92]
+When $\nfrag = 1$ and $\nclasses = 1$, each fragment's intra-fragment
+chain has a single emitting state, so the fragment length is
+$\geomdist(\ext^{(\dom)}_{11})$ and all sites share the single
+substitution model $\subproc(\exch, \eqm)$, recovering TKF92.
+In general, the $\nfrag \times \nfrag$ transition matrix $\ext^{(\dom)}$
+allows \emph{intra-fragment correlations} between the fragment-types of
+adjacent positions within a single fragment (e.g., fragment-type 1
+positions tend to follow fragment-type 1 positions when $\ext^{(\dom)}_{11}$
+is the dominant row entry), and the per-(fragment-type) class distributions
+$\classdist_{\dom\frag\class}$ allow the resulting substitution patterns
+to vary with fragment-type.
+\emph{Different fragments remain statistically independent under this scheme};
+Markov correlations are strictly \emph{within} a fragment, carried by the
+fragment-type chain.
+\end{remark}
+
+% \subsubsection{Per-domain substitution}
+% \label{sec:per-domain-subst}
+% 
+% Each domain type $\dom$ has its own reversible substitution process,
+% parameterized by a symmetric exchangeability matrix $\exch_\dom$
+% and an equilibrium distribution $\eqm_\dom$ over the alphabet $\alphabet$.
+% The rate matrix is $\revsub_\dom = \exch_\dom \cdot \diag(\eqm_\dom)$,
+% normalized so that $-\sum_\anctok \eqm^{(\dom)}_\anctok (\revsub_\dom)_{\anctok\anctok} = 1$.
+% In the simplest configuration, all domains share a single exchangeability
+% $\exch$ (e.g.\ LG08~\cite{LG08}), differing only in their
+% equilibrium distributions $\eqm_\dom$.
+% More expressive models allow per-domain exchangeabilities $\exch_\dom$,
+% estimated via bridge expectations during SVI Baum--Welch training
+% (Section~\ref{sec:models-fitted}).
+% 
+% Computing $P_\dom(\evoltime) = \exp(\revsub_\dom \evoltime)$ requires one
+% $|\alphabet| \times |\alphabet|$ eigendecomposition per domain type,
+% giving total cost $O(\ndom \cdot |\alphabet|^3)$---linear in the number of domains.
+% 
+% \subsubsection{Discretized gamma rate heterogeneity}
+% \label{sec:gamma-rates}
+% 
+% Rate variation across sites is modeled by discretizing the
+% $\mathrm{Gamma}(\alpha,\alpha)$ distribution into $G$ equal-probability quantile bins,
+% yielding rate multipliers $\rho_1,\ldots,\rho_G$ (normalized to mean~1).
+% Each bin has weight $1/G$, intrinsic to the equal-probability discretization.
+% The rate matrix for domain $\dom$ at a site with gamma class $g$ is
+% $\revsub^{(\dom,g)} = \rho_g \cdot \revsub_\dom$.
+% Since $\revsub_\dom$ does not depend on $g$, a single eigendecomposition per domain
+% suffices for all $G$ transition matrices.
+% When $G = 1$, the single multiplier is $\rho_1 = 1$ (no rate heterogeneity).
+% 
+% The full state at each site is thus the pair $(g, \anctok)$ with cardinality
+% $G \cdot |\alphabet|$.
+% The gamma component is marginalized in the pair HMM emission
+% by averaging over gamma categories (Section~\ref{sec:gamma-rates}).
+% 
+% Null cycles arise in the HMMs associated with this model because the sub-models
+% that describe independently evolving components (domains)
+% allow those components potentially to be empty
+% (unlike in TKF92, where the components are fragments which are constrained to be nonempty).
+% It is therefore useful to develop versions of these HMMs in which the null cycles are effectively summed out, by deleting the direct start$\to$end transitions in the sub-models
+% and increasing the other transition weights accordingly.
+
+\subsection{Singlet HMM for MixDom}
+
+The Singlet HMM generates sequences from the stationary distribution.
+Each domain may be empty with probability
+$\notkappa_\dom \equiv 1-\kappa_\dom$,
+so the probability that a top-level link generates a zero-length domain sequence is
+$\emptyseg_0 = \sum_{\dom \in \ndom} \domdist_\dom \notkappa_\dom$.
+This leads to null cycles (a link is entered but immediately terminates).
+Eliminating these---by the Schur complement procedure described in the next section---yields
+a collapsed Singlet HMM with state space
+$\nonemptystates^{(\mathrm{eqm})} = \{ \sta, \fin \} \cup \{ \ins_{\dom\frag} : \dom \in \ndom, \frag \in \nfrag \}$
+($\ndom\nfrag + 2$ states).
+Each emitting state $\ins_{\dom\frag}$ emits a character from
+$\sum_\class \classdist_{\dom\frag\class}\, \eqm^{(\class)}$.
+The transition matrix $\nonemptytrans^{(\mathrm{eqm})}$ for this collapsed Singlet HMM has entries
+\[
+\nonemptytrans^{(\mathrm{eqm})}_{\ins_{\srcdom\srcfrag},\, \ins_{\destdom\destfrag}}
+= \frac{\notext^{(\srcdom)}_\srcfrag \notkappa_\srcdom \cdot \kappa_\main \cdot \domdist_\destdom \kappa_\destdom \fragdist_{\destdom\destfrag}}{1 - \kappa_\main \emptyseg_0}
++ \delta(\srcdom{=}\destdom)\, \notext^{(\srcdom)}_\srcfrag \kappa_\srcdom \fragdist_{\srcdom\destfrag}
++ \delta(\srcdom{=}\destdom)\, \ext^{(\srcdom)}_{\srcfrag\destfrag}
+\]
+where $\notext^{(\dom)}_\frag = 1 - \sum_{\destfrag} \ext^{(\dom)}_{\frag\destfrag}$
+is the fragment termination probability,
+and the three terms represent (respectively) inter-domain transitions via the null-corrected
+top-level geometric process, same-domain new-fragment transitions, and same-domain intra-fragment Markov transitions on fragment-types.
+The $\sta$ row is $\nonemptytrans^{(\mathrm{eqm})}_{\sta,\, \ins_{\destdom\destfrag}}
+= \kappa_\main \domdist_\destdom \kappa_\destdom \fragdist_{\destdom\destfrag} / (1 - \kappa_\main \emptyseg_0)$
+and $\nonemptytrans^{(\mathrm{eqm})}_{\sta,\fin} = (1-\kappa_\main) / (1 - \kappa_\main \emptyseg_0)$;
+the $\fin$ column is $\nonemptytrans^{(\mathrm{eqm})}_{\ins_{\srcdom\srcfrag},\fin}
+= \notext^{(\srcdom)}_\srcfrag \notkappa_\srcdom (1-\kappa_\main) / (1 - \kappa_\main \emptyseg_0)$.
+
+\subsection{Pair HMM for MixDom}
+
+In the joint TKF92 Pair HMM,
+the start$\to$end weight is $\tkftrans(\insrate,\delrate,\evoltime)_{\sta\fin}$.
+In MixDom, the probability that a $\mat$ state emits no sequence is obtained by summing this TKF92 null output probability over domain types,
+$\emptyseg_\evoltime = \sum_{\dom \in \ndom} \domdist_\dom \tkftrans^{(\dom)}_{\sta\fin}$ where $\tkftrans^{(\dom)} \equiv \tkftrans(\insrate_\dom,\delrate_\dom,\evoltime)$.
+The Singlet HMM's null probability $\emptyseg_0$ also appears in the Pair HMM,
+governing the $\ins$ and $\del$ state null outputs (which involve only one sequence).
+
+Start with the Pair HMM and split the $\mat$, $\ins$, and $\del$ states into non-emitting and emitting states.
+Let $\mnull$, $\inull$, $\dnull$ denote the separated empty-match, empty-insert, and empty-delete states, respectively.
+%Lump the non-emitting $\mat$ and $\ins$ together as state $\minull$,
+%as they both behave like null versions of $\mat$ and $\ins$; in particular, their outgoing transitions have $\beta$-type branching.
+%Let the non-emitting $\del$ be $\dnull$.
+The $8 \times 8$ transition matrix for this null-separated joint pair HMM is
+\begin{equation}
+\exptrans =
+\left(
+    \begin{array}{r|cccccccc}
+    & \sta & \mat & \ins & \del & \fin & \mnull & \inull & \dnull \\
+    \hline
+    \sta & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\sta\mat} & (1 - \emptyseg_0) \tkftrans_{\sta\ins} & (1 - \emptyseg_0) \tkftrans_{\sta\del} & \tkftrans_{\sta\fin} & \emptyseg_\evoltime \tkftrans_{\sta\mat} & \emptyseg_0 \tkftrans_{\sta\ins} & \emptyseg_0 \tkftrans_{\sta\del} \\
+    \mat & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\mat\mat} & (1 - \emptyseg_0) \tkftrans_{\mat\ins} & (1 - \emptyseg_0) \tkftrans_{\mat\del} & \tkftrans_{\mat\fin} & \emptyseg_\evoltime \tkftrans_{\mat\mat} & \emptyseg_0 \tkftrans_{\mat\ins} & \emptyseg_0 \tkftrans_{\mat\del} \\
+    \ins & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\ins\mat} & (1 - \emptyseg_0) \tkftrans_{\ins\ins} & (1 - \emptyseg_0) \tkftrans_{\ins\del} & \tkftrans_{\ins\fin} & \emptyseg_\evoltime \tkftrans_{\ins\mat} & \emptyseg_0 \tkftrans_{\ins\ins} & \emptyseg_0 \tkftrans_{\ins\del} \\
+    \del & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\del\mat} & (1 - \emptyseg_0) \tkftrans_{\del\ins} & (1 - \emptyseg_0) \tkftrans_{\del\del} & \tkftrans_{\del\fin} & \emptyseg_\evoltime \tkftrans_{\del\mat} & \emptyseg_0 \tkftrans_{\del\ins} & \emptyseg_0 \tkftrans_{\del\del} \\
+    \fin & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+    \mnull & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\mat\mat} & (1 - \emptyseg_0) \tkftrans_{\mat\ins} & (1 - \emptyseg_0) \tkftrans_{\mat\del} & \tkftrans_{\mat\fin} & \emptyseg_\evoltime \tkftrans_{\mat\mat} & \emptyseg_0 \tkftrans_{\mat\ins} & \emptyseg_0 \tkftrans_{\mat\del} \\
+    \inull & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\ins\mat} & (1 - \emptyseg_0) \tkftrans_{\ins\ins} & (1 - \emptyseg_0) \tkftrans_{\ins\del} & \tkftrans_{\ins\fin} & \emptyseg_\evoltime \tkftrans_{\ins\mat} & \emptyseg_0 \tkftrans_{\ins\ins} & \emptyseg_0 \tkftrans_{\ins\del} \\
+    \dnull & 0 & (1 - \emptyseg_\evoltime)\tkftrans_{\del\mat} & (1 - \emptyseg_0) \tkftrans_{\del\ins} & (1 - \emptyseg_0) \tkftrans_{\del\del} & \tkftrans_{\del\fin} & \emptyseg_\evoltime \tkftrans_{\del\mat} & \emptyseg_0 \tkftrans_{\del\ins} & \emptyseg_0 \tkftrans_{\del\del} \\
+    \end{array}
+\right)
+\label{eq:exptrans_matrix}
+  \end{equation}
+with $\tkftrans \equiv \tkftrans(\insrate_\main,\delrate_\main,\evoltime)$;
+or, elementwise,
+\begin{eqnarray}
+    \exptrans_{ij} & = & \left\{
+    \begin{array}{ll}
+      0 & \mbox{if $j = \sta$} \\
+      (1 - \emptyseg_\evoltime) \tkftrans_{i\mat} & \mbox{if $j = \mat$} \\
+      (1 - \emptyseg_0) \tkftrans_{ij} & \mbox{if $j \in \{ \ins, \del \}$} \\
+      \tkftrans_{i\fin} & \mbox{if $j=\fin$} \\
+      \emptyseg_\evoltime \tkftrans_{i\mat} & \mbox{if $j = \mnull$} \\
+      \emptyseg_0 \tkftrans_{i\ins} & \mbox{if $j = \inull$} \\
+      \emptyseg_0 \tkftrans_{i\del} & \mbox{if $j = \dnull$}
+    \end{array}
+    \right. \label{eq:exptrans_elementwise}
+\end{eqnarray}
+
+Let $\slicetrans_{\Phi_1,\Phi_2}$ be the matrix formed by zeroing all rows except $i \in \Phi_1$
+and all columns except $j \in \Phi_2$ of $\exptrans$.
+Consider the matrix of transitions between the empty states $\mnull,\inull,\dnull$
+\[
+\slicetrans_{\mnull\inull\dnull,\mnull\inull\dnull} =
+\left(
+    \begin{array}{r|cccc}
+    & \ldots & \mnull & \inull & \dnull \\
+    \hline
+    \ldots & \ldots & \ldots & \ldots & \ldots \\
+    \mnull & \ldots
+    & \emptyseg_\evoltime \tkftrans_{\mat\mat}
+    & \emptyseg_0 \tkftrans_{\mat\ins}
+    & \emptyseg_0 \tkftrans_{\mat\del}
+    \\
+    \inull & \ldots
+    & \emptyseg_\evoltime \tkftrans_{\ins\mat}
+    & \emptyseg_0 \tkftrans_{\ins\ins}
+    & \emptyseg_0 \tkftrans_{\ins\del}
+    \\
+    \dnull & \ldots
+    & \emptyseg_\evoltime \tkftrans_{\del\mat} 
+    & \emptyseg_0 \tkftrans_{\del\ins}
+    & \emptyseg_0 \tkftrans_{\del\del}
+    \end{array}
+\right)
+\]
+where the unshown rows and columns (corresponding to transitions to, from, or between $\sta,\mat,\ins,\del,\fin$) have zero entries.
+Summing over paths of all (including zero) lengths via $\mnull,\inull,\dnull$ (i.e. performing the Schur complement) yields
+\[
+\sum_{\sumidx=0}^\infty \slicetrans_{\mnull\inull\dnull,\mnull\inull\dnull}^\sumidx =
+(I - \slicetrans_{\mnull\inull\dnull,\mnull\inull\dnull})^{-1}
+= \nullpathsum
+\]
+which has a relatively simple closed form (reducing to $3 \times 3$ matrix inversion).
+The effective nonempty $5 \times 5$ transition matrix (with $\mnull,\inull,\dnull$ summed out) is
+\[
+\nonemptytrans \equiv
+\nonemptytrans(\theta,\evoltime) =
+\slicetrans_{\sta\mat\ins\del\fin,\sta\mat\ins\del\fin}
+\ +\ 
+\slicetrans_{\sta\mat\ins\del\fin,\mnull\inull\dnull}
+\cdot \nullpathsum \cdot
+\slicetrans_{\mnull\inull\dnull,\sta\mat\ins\del\fin}
+\]
+where $\theta = (\insrate_\main,\delrate_\main,\{\domdist_\dom\},\{\insrate_\dom,\delrate_\dom\},\{\fragdist_{\dom\frag}\},\{\ext^{(\dom)}_{\srcfrag\destfrag}\},\{\classdist_{\dom\frag\class}\},\{\exch^{(\class)},\eqm^{(\class)}\})$.
+% for $\dom\in\ndom,\frag\in\nfrag$.
+
+Following null state elimination, the collapsed Pair HMM has $5\ndom\nfrag+2$ states, namely
+\[\nonemptystates = \{ \sta\sta, \fin\fin \} \cup \{ \ustate\xstate_{\srcdom\srcfrag}:
+\ustate\xstate \in \{\mat\mat,\mat\ins,\mat\del,\ins\ins,\del\del\}, 1 \leq \srcdom \leq \ndom, 1 \leq \srcfrag \leq \nfrag \}\]
+where $\srcdom$ is a domain index and $\srcfrag$ is a fragment index.
+For notational convenience, we treat the distinguished states $\sta\sta$ and $\fin\fin$ as carrying sentinel indices
+$(\srcdom,\srcfrag)=(0,0)$, which are unused by other states as true domain and fragment indices are 1-based.
+Thus expressions written in terms of a generic state $\ustate\xstate_{\srcdom\srcfrag}$
+are understood to include the cases $\sta\sta$ and $\fin\fin$ by setting $(\srcdom,\srcfrag)=(0,0)$,
+except where formulae explicitly require $1 \leq \srcdom \leq \ndom$ or $1 \leq \srcfrag \leq \nfrag$.
+
+Loosely speaking, and noting the above caveat, every transition $\ustate\xstate_{\srcdom\srcfrag}\to\vstate\ystate_{\destdom\destfrag}$
+involves a potential domain exit transition from $\xstate\to\fin$ in the nested model (weight $\domexit$),
+an inter-domain transition $\ustate\to\vstate$ in the top-level model that factors in paths through empty domains (weight $\nonemptytrans_{\ustate\vstate}$),
+and a potential domain re-entry transition from $\sta\to\ystate$ in the nested model (weight $\domenter$),
+which must include a factor of $(1 - \emptyseg_\evoltime)^{-1}$ (for top-level Match states) or $(1 - \emptyseg_0)^{-1}$ (for top-level Insert/Delete states) to account for domain entry being conditional on the domain being nonempty
+(these factors will precisely cancel out the factors in the $\mat$, $\ins$, and $\del$ columns of $\exptrans$,
+which have been included here solely to preserve row-normalization of $\exptrans$ and $\transnest$).
+If the domain type and top-level state are the same for source and destination state ($\ustate=\vstate$ and $\srcdom=\destdom$), then an additional intra-domain transition which extends the current domain, starting a new fragment, is folded in (weight $p_\text{SameDom}$).
+If the domain is the same ($\srcdom=\destdom$), then an additional intra-fragment
+fragment-type transition from $\srcfrag$ to $\destfrag$ is folded in (weight $p_\text{SameFrag}$),
+governed by the $\nfrag \times \nfrag$ transition matrix $\ext^{(\srcdom)}_{\srcfrag\destfrag}$
+of the Markov chain within the current fragment.
+
+The transition matrix $\transnest(\theta,\evoltime)$ for this collapsed Pair HMM has entries
+\begin{equation}
+\begin{array}{llrclll}
+\mbox{Source}\ i & \mbox{Destination}\ j & \multicolumn{5}{l}{\transnest_{ij} = \domexit \times \nonemptytrans_{\ustate\vstate} \times \domenter + \delta(\ustate=\vstate) \samedom (p_\text{SameDom} + \delta(\xstate=\ystate) p_\text{SameFrag})} \\
+\left( \ustate\xstate_{\srcdom\srcfrag} \right) &
+\left( \vstate\ystate_{\destdom\destfrag} \right) &
+\domexit(\ustate,\xstate,\srcdom,\srcfrag) & \nonemptytrans_{\ustate\vstate} & \domenter(\vstate,\ystate,\destdom,\destfrag) & p_\text{SameDom}(\xstate,\ystate,\srcdom,\srcfrag,\destfrag) & p_\text{SameFrag}(\srcdom,\srcfrag,\destfrag) \\
+\hline
+% SS -> ...
+\sta\sta & \mat\ystate_{\destdom\destfrag} &
+1 & \nonemptytrans_{\sta\mat}
+& (1 - \emptyseg_\evoltime)^{-1} \domdist_\destdom
+\tkftrans_{\sta\ystate}^{(\destdom)}
+\fragdist_{\destdom\destfrag}
+& 0 & 0 \\
+& \ins\ins_{\destdom\destfrag} &
+1 & \nonemptytrans_{\sta\ins} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+& 0 & 0 \\
+& \del\del_{\destdom\destfrag} &
+1 & \nonemptytrans_{\sta\del} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+& 0 & 0 \\
+  & \fin\fin &
+1 & \nonemptytrans_{\sta\fin} &
+1 & 0 & 0  \\
+% MX_lf -> ...
+\mat\xstate_{\srcdom\srcfrag} & \mat\ystate_{\destdom\destfrag} &
+\notext^{(\srcdom)}_\srcfrag
+\tkftrans_{\xstate\fin}^{(\srcdom)}
+& \nonemptytrans_{\mat\mat} &
+(1 - \emptyseg_\evoltime)^{-1} \domdist_\destdom
+\tkftrans_{\sta\ystate}^{(\destdom)}
+\fragdist_{\destdom\destfrag}
+& \notext^{(\srcdom)}_\srcfrag \tkftrans_{\xstate\ystate}^{(\srcdom)} \fragdist_{\srcdom\destfrag}
+& \ext^{(\srcdom)}_{\srcfrag\destfrag}
+\\
+  & \ins\ins_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\tkftrans_{\xstate\fin}^{(\srcdom)}
+& \nonemptytrans_{\mat\ins} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+ & 0 & 0 \\
+  & \del\del_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\tkftrans_{\xstate\fin}^{(\srcdom)}
+& \nonemptytrans_{\mat\del} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+& 0 & 0 \\
+  & \fin\fin & \notext^{(\srcdom)}_\srcfrag
+\tkftrans_{\xstate\fin}^{(\srcdom)}
+& \nonemptytrans_{\mat\fin} & 1
+& 0 & 0 \\
+% II_lf -> ...
+\ins\ins_{\srcdom\srcfrag} & \mat\ystate_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom
+& \nonemptytrans_{\ins\mat} &
+(1 - \emptyseg_\evoltime)^{-1} \domdist_\destdom
+\tkftrans_{\sta\ystate}^{(\destdom)}
+\fragdist_{\destdom\destfrag}
+& 0 & 0 \\
+  & \ins\ins_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom
+& \nonemptytrans_{\ins\ins} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+& \notext^{(\srcdom)}_\srcfrag \kappa_\srcdom \fragdist_{\srcdom\destfrag}
+& \ext^{(\srcdom)}_{\srcfrag\destfrag}
+\\
+  & \del\del_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom
+& \nonemptytrans_{\ins\del} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+ & 0 & 0 \\
+  & \fin\fin & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom & \nonemptytrans_{\ins\fin} & 1
+ & 0 & 0 \\
+% DD_lf -> ...
+\del\del_{\srcdom\srcfrag} & \mat\ystate_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom
+& \nonemptytrans_{\del\mat} &
+(1 - \emptyseg_\evoltime)^{-1} \domdist_\destdom
+\tkftrans_{\sta\ystate}^{(\destdom)}
+\fragdist_{\destdom\destfrag}
+ & 0 & 0 \\
+  & \ins\ins_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom
+& \nonemptytrans_{\del\ins} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+ & 0 & 0 \\
+  & \del\del_{\destdom\destfrag} & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom
+& \nonemptytrans_{\del\del} &
+(1 - \emptyseg_0)^{-1} \domdist_\destdom
+\kappa_\destdom
+\fragdist_{\destdom\destfrag}
+& \notext^{(\srcdom)}_\srcfrag \kappa_\srcdom \fragdist_{\srcdom\destfrag}
+& \ext^{(\srcdom)}_{\srcfrag\destfrag}
+ \\
+  & \fin\fin & \notext^{(\srcdom)}_\srcfrag
+\notkappa_\srcdom & \nonemptytrans_{\del\fin} & 1
+ & 0 & 0\\
+\end{array},
+\label{eq:mixdom_transitions}
+\end{equation}
+where $\tkftrans^{(\dom)} \equiv \tkftrans(\insrate_\dom,\delrate_\dom,\evoltime)$,
+$\notext^{(\dom)}_\srcfrag \equiv 1 - \sum_\destfrag \ext^{(\dom)}_{\srcfrag\destfrag}$
+is the fragment termination probability for fragment state $\srcfrag$ in domain $\dom$,
+and (as before) $\notkappa_\srcdom \equiv 1 - \kappa_\srcdom$.
+
+%A systematic way to derive this transition matrix is to build the ``exploded'' Pair HMM for the MixDom model, exposing every step in the composition tower as its own set of transitions, and then to sum out the null states by Schur complement as described above, identifying the null paths collapsing onto each transition.
+%A description of this exploded Pair HMM and the path elimination map is given in Appendix~\ref{sec:exploded-mixdom}.
+
+The substitution parameters ($\exch^{(\class)}, \eqm^{(\class)}$)
+do not appear in the transition matrix, but in the emission probabilities of the various states.
+The probability of emitting token $(\anctok,\destok)$ from state $\mat\mat_{\dom\frag}$ is
+\begin{equation}
+\label{eq:match-emission}
+P(\anctok,\destok \mid \mat\mat_{\dom\frag}, \evoltime)
+= \sum_{\class=1}^{\nclasses} \classdist_{\dom\frag\class}\,
+  \eqm^{(\class)}_\anctok \exp(\revsub^{(\class)} \evoltime)_{\anctok,\destok}
+\end{equation}
+where $\revsub^{(\class)} = \exch^{(\class)} \cdot \diag(\eqm^{(\class)})$ is the rate matrix for site class $\class$,
+and $\classdist_{\dom\frag\class}$ is the probability that fragment state $\frag$ in domain $\dom$
+generates site class $\class$.
+The probability of emitting ancestral token $\ancordestok$ from states $\{ \mat\del_{\dom\frag}, \del\del_{\dom\frag} \}$, or descendant token $\ancordestok$ from states $\{ \mat\ins_{\dom\frag}, \ins\ins_{\dom\frag} \}$,
+is $\sum_\class \classdist_{\dom\frag\class}\, \eqm^{(\class)}_\ancordestok$.
+
+
+\subsection{Baum-Welch Algorithm for MixDom Pair HMM}
+\label{sec:bw-mixdom}
+
+In order to map HMM transition counts back to the BDI sufficient statistics, we need to correct for the null transition elimination performed in the previous section,
+resolve the transition counts in the nested Pair HMM onto the separate components of the model,
+and then apply the formulas from earlier sections.
+
+\paragraph{E-step.}
+Run Forward-Backward on the collapsed $(5\ndom\nfrag+2)$-state Pair HMM (Section~\ref{sec:mixdom}).
+This yields expected transition counts $\hat{n}''_{ij}$ for all state pairs $i,j$ in the collapsed Pair HMM,
+and expected emission counts $\hat{e}^{i''}_{(\anctok,\destok)}$ for each state $i$ and input-output token pair $(\anctok,\destok)$.
+The sufficient statistics for the mixture component selectors $\{ \domdist_\dom, \fragdist_{\dom\frag} \}$ can be recovered directly at this stage,
+and the emission counts accumulated onto the appropriate $W, U, V$ statistics for the per-domain CTMCs.
+
+Conceptually speaking, we next resolve the collapsed-HMM transition counts $\hat{n}''_{ij}$ to TKF91 Pair HMM-like transition counts $\hat{n}^{(\main)}_{ij}$ for transitions in the top-level inter-domain model;
+TKF92 Pair HMM-like transition counts $\hat{n}^{\mat(\srcdom)'}_{\xstate\ystate}$
+for the nested intra-domain match, insert, and delete states $\mat\xstate_{\srcdom\frag}$ of each domain-match submodel (for $\xstate,\ystate \in \{\mat,\ins,\del\}$);
+and
+singlet-style transition counts for the within-domain fragment Markov chain
+$\hat{n}^{\ins\ins(\srcdom)'}_{0}$, $\hat{n}^{\ins\ins(\srcdom)'}_{1}$,
+$\hat{n}^{\del\del(\srcdom)'}_{0}$, $\hat{n}^{\del\del(\srcdom)'}_{1}$
+for the domain-insert and domain-delete submodels
+(where the ``continuation'' is now governed by the $\nfrag \times \nfrag$ Markov chain
+$\ext^{(\srcdom)}$ rather than a scalar geometric parameter).
+
+The intra-domain transition counts arise solely from the $p_\text{SameDom}$-weighted transitions, and can be isolated proportionally, while the inter-domain counts must correct for the Schur complement null cycle elimination.
+The zero-adjustment length counts
+$\hat{n}^{\ins\ins(\srcdom)'}_{\kappa}$, $\hat{n}^{\ins\ins(\srcdom)'}_{\notkappa}$,
+$\hat{n}^{\del\del(\srcdom)'}_{\kappa}$, $\hat{n}^{\del\del(\srcdom)'}_{\notkappa}$
+accounting for the number of times a domain was empty {\em vs} nonempty must also receive contributions from the Schur complement correction.
+
+The intra-domain counts can then be resolved to TKF91-like counts $\hat{n}^{(\srcdom)}_{ab}$ and
+Intra-fragment fragment-type transition counts $\hat{n}^{(\dom)}_{\srcfrag\destfrag}$ (the expected number of
+transitions from fragment-type $\srcfrag$ to fragment-type $\destfrag$ within a single
+fragment of domain $\dom$),
+together with fragment termination counts $\hat{n}^{(\dom)}_{\notext,\srcfrag}$.
+The singlet-style counts for each domain
+$\hat{n}^{\ins\ins(\srcdom)'}_{0}$, $\hat{n}^{\ins\ins(\srcdom)'}_{1}$,
+$\hat{n}^{\del\del(\srcdom)'}_{0}$, $\hat{n}^{\del\del(\srcdom)'}_{1}$
+can be resolved via a similar procedure to
+$\hat{n}_{\kappa}$, $\hat{n}_{\notkappa}$,
+which are directly link sequence extension/termination counts $L^{(\srcdom)},M^{(\srcdom)}$,
+to be accumulated onto the running totals for those counts.
+Finally, all TKF91-like transition counts for the top-level and nested models are accumulated onto the BDI sufficient statistics $S, B, D, L, M$ as in Section~\ref{sec:bw-tkf91}.
+
+We now consider the null count restorations in more detail.
+In practice, we will use a notational shortcut (that is, nevertheless, correct and reliable, and entirely equivalent to the procedure we just outlined)
+to greatly simplify many of these calculations, bypassing much of this conceptual tower of piecewise count restorations.
+In doing this we again exploit a form of the score function identity---in this case, that the expected transition usage is the derivative of the log-likelihood with respect to the log-transition weight.
+
+\paragraph{Resolving transition counts.}
+Following the notation of Section~\ref{sec:mixdom},
+let $(\slicetrans_{\Phi_1,\Phi_2})_{ij} = \exptrans_{ij} \delta(i \in \Phi_1, j \in \Phi_2)$ be the masked transition matrix
+so that $\nullpathsum = (I - \slicetrans_{\mnull\inull\dnull,\mnull\inull\dnull})^{-1}$ represents sums over null paths
+and $\nonemptytrans = \slicetrans_{\sta\mat\ins\del\fin,\sta\mat\ins\del\fin} + \slicetrans_{\sta\mat\ins\del\fin,\mnull\inull\dnull} \cdot \nullpathsum \cdot \slicetrans_{\mnull\inull\dnull,\sta\mat\ins\del\fin}$
+the null-eliminated transition matrix.
+
+Considering paths in $\exptrans$ that begin and end in $i,j \in \smide$, whose intermediate states (if any) are in $\{ \mnull, \inull, \dnull \}$,
+the expected transition usages and state occupancies are
+\begin{eqnarray*}
+  \expect[n_{ab}|i \to j] & = & \frac{(I + \slicetrans_{\sta\mat\ins\del\fin,\mnull\inull\dnull} \cdot \nullpathsum)_{ia} \nonemptytrans_{ab} (\nullpathsum \cdot \slicetrans_{\mnull\inull\dnull,\sta\mat\ins\del\fin})_{bj}}{\nonemptytrans_{ij}} \\
+  & = & \frac{\partial \log \nonemptytrans_{ij}}{\partial \log \exptrans_{ab}}
+% Commented out state occupancy as we're not using it and it interrupts the flow:
+%  \\ \expect[n_{a}|i \to j] & = & \frac{(\slicetrans_{\sta\mat\ins\del\fin,\mnull\inull\dnull} \cdot \nullpathsum)_{ia} (\nullpathsum \cdot \slicetrans_{\mnull\inull\dnull,\sta\mat\ins\del\fin})_{aj}}{\nonemptytrans_{ij}}.
+\end{eqnarray*}
+
+The expected transition usage is the score function identity, appearing in a new form: the $n_{ab}$ are sufficient statistics for the $\exptrans$ path log-likelihood.
+We can use this identity, with the chain rule, for many of the counts we seek:
+\begin{eqnarray}
+\hat{n}^{(\main)}_{\ustate\vstate} & = & \sum_{i,j} \hat{n}''_{ij} \sum_{k,l} \frac{\partial \log \transnest_{ij}}{\partial \log \nonemptytrans_{kl}} \sum_{a,b} \frac{\partial \log \nonemptytrans_{kl}}{\partial \log \exptrans_{ab}} \frac{\partial \log \exptrans_{ab}}{\partial \log \tkftrans^{(\main)}_{\ustate\vstate}} \label{eq:main-counts} \\
+\hat{n}^{(\srcdom)}_{\ustate\vstate} & = & \sum_{i,j} \hat{n}''_{ij} \frac{\partial \log \transnest_{ij}}{\partial \log \tkftrans^{(\srcdom)}_{\ustate\vstate}} \label{eq:domain-counts} \\
+\hat{n}_{\vartheta} & = & \sum_{i,j} \hat{n}''_{ij} \left( \frac{\partial \log \transnest_{ij}}{\partial \log \vartheta} + \sum_{k,l} \frac{\partial \log \transnest_{ij}}{\partial \log \nonemptytrans_{kl}} \sum_{a,b} \frac{\partial \log \nonemptytrans_{kl}}{\partial \log \exptrans_{ab}} \frac{\partial \log \exptrans_{ab}}{\partial \log \vartheta} \right) \label{eq:var-counts}
+\end{eqnarray}
+for $\vartheta \in \{ \domdist_\dom, \kappa_\dom, \notkappa_\dom, \fragdist_{\dom\frag}, \ext^{(\dom)}_{\srcfrag\destfrag}, \notext^{(\dom)}_\srcfrag \}$.
+A few notes:
+\begin{enumerate}
+  \item In these expressions we have written $\tkftrans^{(\main)}_{\ustate\vstate}$ for the inter-domain TKF91 transition probabilities that just appear as $\tkftrans_{\ustate\vstate}$ in Equation~(\ref{eq:exptrans_matrix}).
+  \item The term $\frac{\partial \log \nonemptytrans_{ij}}{\partial \log \exptrans_{ab}}$ is used to highlight use of the chain rule, but the actual calculation of this term can be done via the matrix formula for $\expect[n_{ab}|i \to j]$ above.
+  \item We must be careful to treat $(\kappa_\dom,\notkappa_\dom)$ as independent free parameters of $\transnest_{ij}$ for the purpose of the partial derivatives in Equation~(\ref{eq:var-counts}), and similarly for $(\ext^{(\dom)}_{\srcfrag\destfrag},\notext^{(\dom)}_\srcfrag)$;
+even though they are deterministically related by $\kappa_\dom + \notkappa_\dom = 1$ and $\notext^{(\dom)}_\srcfrag = 1 - \sum_\destfrag \ext^{(\dom)}_{\srcfrag\destfrag}$, we should not differentiate through those constraints when calculating the derivatives of $\exptrans_{ab}$ with respect to $\kappa_\dom$, $\notkappa_\dom$, $\ext^{(\dom)}_{\srcfrag\destfrag}$, and $\notext^{(\dom)}_\srcfrag$.
+  \item We are also treating $\exptrans_{ab}$ and $\vartheta$ as independent free parameters of $\transnest_{ij}$ for the purpose of Equation~(\ref{eq:var-counts}), which is why we expand the derivative into two terms: one term involving $\frac{\partial \log \transnest_{ij}}{\partial \log \vartheta}$ which captures the direct dependence of $\transnest_{ij}$ on $\vartheta$ (e.g. via $\domdist_\destdom$ or $\fragdist_{\destdom\destfrag}$ in the transition formulas above), and another term which captures the indirect dependence of $\transnest_{ij}$ on $\vartheta$ via $\exptrans_{ab}$.
+  \item Similar points apply to the roles of $\tkftrans^{(\srcdom)}_{\ustate\vstate}$ in Equation~(\ref{eq:domain-counts}), and of $\tkftrans^{(\main)}_{\ustate\vstate}$ in Equation~(\ref{eq:main-counts}): these must be treated as free parameters and not differentiated through.
+  \item In contrast, however, we must differentiate through the $\emptyseg_0$ and $\emptyseg_\evoltime$ terms in $\exptrans$ when calculating the derivatives of $\exptrans_{ab}$ with respect to $\domdist_\dom$, $\notkappa_\dom$, and $\tkftrans^{(\dom)}_{\sta\fin}$.
+  \item Similarly, we must differentiate through $\domexit$, $\domenter$, $p_\text{SameDom}$, and $p_\text{SameFrag}$ when calculating the derivatives of $\nonemptytrans_{ij}$. These terms do not represent free parameters.
+\end{enumerate}
+
+Finally, we use these counts to accumulate onto the BDI sufficient statistics for the top-level inter-domain TKF91 model and nested intra-domain TKF92 models as described in Section~\ref{sec:bw-tkf91}.
+The fragment correction for the intra-domain counts has effectively already been performed by the way we resolved the intra-domain counts from the collapsed Pair HMM counts, which account for the probability of fragment continuation {\em vs} new fragments via the $p_\text{SameDom}$-weighted terms which were differentiated through by the score function identity.
+We also need to accumulate the expected counts for the mixture component selectors $\{ \domdist_\dom, \fragdist_{\dom\frag} \}$, which are $\hat{n}_{\vartheta}$ for $\vartheta \in \{ \domdist_\dom, \fragdist_{\dom\frag} \}$ as calculated above.
+
+\paragraph{Accumulating sufficient statistics.}
+Initialize all sufficient statistics to zero.
+Then, for each training pair $(x, y)$ with evolutionary time $\evoltime$,
+accumulate as follows.
+
+\emph{Top-level BDI (inter-domain TKF91).}
+From the top-level count matrix $\hat{n}^{(\main)}_{ij}$,
+compute BDI expectations using~\eqref{eq:exposure-tkf}--\eqref{eq:deaths-tkf}
+with parameters $(\insrate_\main,\delrate_\main,\evoltime)$, and accumulate:
+\begin{eqnarray*}
+B^{(\main)} & \pluseq & \emcount^B(\hat{\bf n}^{(\main)},\evoltime) \\
+D^{(\main)} & \pluseq & \emcount^D(\hat{\bf n}^{(\main)},\evoltime) \\
+S^{(\main)} & \pluseq & \emcount^S(\hat{\bf n}^{(\main)},\evoltime) \\
+L^{(\main)} & \pluseq & \hat{n}^{(\main)}_{\kappa}
+\quad \text{(expected ancestral \& inserted domain count)} \\
+M^{(\main)} & \pluseq & 1
+\quad \text{(expected top-level terminations)} \\
+T^{(\main)} & \pluseq & \evoltime
+\quad \text{(top-level BDI observation time)}
+\end{eqnarray*}
+Note that $L^{(\main)}$ counts \emph{domains} (top-level links), not residues.
+It is not directly observed, but is recovered from the M and D column sums
+of $\hat{n}^{(\main)}_{ij}$: $\hat{n}^{(\main)}_\kappa = \sum_{i}(\hat{n}^{(\main)}_{i\mat} + \hat{n}^{(\main)}_{i\del})$.
+The time statistic $T^{(\main)}$ is weighted by
+$\hat{n}^{(\main)}_{\notkappa}$, since each independent BDI process contributes one trajectory of duration $\evoltime$.
+
+\emph{Per-domain BDI (intra-domain TKF92, domain $\srcdom$).}
+The intra-domain counts $\hat{n}^{(\srcdom)}_{ij}$ have already had the TKF92 fragment correction applied
+(fragment continuation {\em vs} new fragments was resolved by differentiating through the $p_\text{SameFrag}$ terms).
+Thus:
+\begin{eqnarray*}
+B^{(\srcdom)} & \pluseq & \emcount^B(\hat{\bf n}^{(\srcdom)},\evoltime) \\
+D^{(\srcdom)} & \pluseq & \emcount^D(\hat{\bf n}^{(\srcdom)},\evoltime) \\
+S^{(\srcdom)} & \pluseq & \emcount^S(\hat{\bf n}^{(\srcdom)},\evoltime) \\
+L^{(\srcdom)} & \pluseq & \hat{n}^{(\srcdom)}_\kappa
+\quad \text{(expected ancestral \& inserted fragment count)} \\
+M^{(\srcdom)} & \pluseq & \hat{n}^{(\srcdom)}_{\notkappa}
+\quad \text{(expected domain terminations)} \\
+T^{(\srcdom)} & \pluseq & \evoltime \cdot \hat{n}^{(\srcdom)}_{\notkappa}
+\quad \text{(expected domain-level BDI time)} \\
+F^{(\dom)}_{\srcfrag\destfrag} & \pluseq & \hat{n}^{(\dom)}_{\ext,\srcfrag\destfrag}
+\quad \text{(fragment $\srcfrag \to \destfrag$ transitions)} \\
+E^{(\dom)}_{\srcfrag} & \pluseq & \hat{n}^{(\dom)}_{\notext,\srcfrag}
+\quad \text{(fragment $\srcfrag$ terminations)}
+\end{eqnarray*}
+Here $L^{(\srcdom)}$ counts fragments (links within the domain), not residues.
+Each domain-$\srcdom$ entry runs an independent fragment-level BDI process
+for time $\evoltime$, so $T^{(\srcdom)}$ is weighted by the expected number of entries.
+The fragment-type transition counts $F^{(\dom)}_{\srcfrag\destfrag}$ form an $\nfrag \times \nfrag$ matrix per domain,
+recording the expected number of intra-fragment Markov transitions between fragment-types within a fragment of domain $\dom$.
+
+\emph{Mixture selectors.}
+\begin{eqnarray*}
+\mixcount_{\domdist_\srcdom} & \pluseq & \hat{n}_{\domdist_\srcdom} \\
+\mixcount_{\fragdist_{\srcdom\frag}} & \pluseq & \hat{n}_{\fragdist_{\srcdom\frag}} \\
+\end{eqnarray*}
+
+\emph{CTMC substitution (per site class).}
+For each match emission at state $\mat\mat_{\dom\frag}$ with observed pair $(\anctok,\destok)$,
+the posterior probability of site class $\class$ given the emission is
+$\gamma_\class \propto \classdist_{\dom\frag\class}\, \eqm^{(\class)}_\anctok \exp(\revsub^{(\class)} \evoltime)_{\anctok,\destok}$.
+Using this posterior weight, accumulate endpoint-conditioned CTMC
+expectations~\eqref{eq:em-dwell}--\eqref{eq:em-counts}
+on the $|\alphabet|$-state chain with rate matrix $\revsub^{(\class)}$:
+\begin{eqnarray*}
+W^{(\class)}_\anctok & \pluseq & \text{(dwell in state $\anctok$, weighted by $\gamma_\class$ and HMM posterior)} \\
+U^{(\class)}_{\anctok,\anctok'} & \pluseq & \text{(transition $\anctok \to \anctok'$, weighted by $\gamma_\class$)} \\
+V^{(\class)}_\anctok & \pluseq & \text{(composition count for $\anctok$ at match-position ancestors, insertions, and deletions, weighted by $\gamma_\class$)}
+\end{eqnarray*}
+
+\emph{Site class assignment counts.}
+For each emission at state $\mat\mat_{\dom\frag}$ (or the corresponding insert/delete states),
+accumulate the posterior site class assignment:
+\[
+\mixcount_{\classdist_{\dom\frag\class}} \pluseq \gamma_\class
+\]
+
+\begin{remark}[Genealogical correction terms in nested models]
+\label{rem:genealogical-nested}
+As noted in Section~\ref{sec:bw-tkf91},
+the CTMC sufficient statistics $W$, $U$, $V$ omit genealogical
+correction terms from transient and partially-observed lineages.
+An analogous omission applies at each nesting level of the MixDom model:
+transient domain insertions and deletions (domains that are born and die
+between times $0$ and $\evoltime$ without being directly observed) contribute to the
+top-level BDI sufficient statistics $B$, $D$, $S$ via the null count restoration,
+but their internal fragment-level processes (intra-fragment fragment-type Markov chain and BDI) are not modeled.
+Similarly, domains that are inserted after time $0$ or deleted before time $\evoltime$
+do not accumulate fragment-level statistics for the period of their non-existence.
+This is consistent with the principle that the M-step
+optimizes only the complete-data log-likelihood for structures whose
+existence is certified by the HMM state path.
+\end{remark}
+
+\paragraph{M-step.}
+\label{sec:bw-mixdom-priors}
+All M-step updates use MAP estimates whose priors contribute additive
+pseudocounts to the sufficient statistics, so the maximizer formulas
+are the same as the MLE formulas applied to prior-augmented statistics.
+For the multinomial parameter groups (mixture weights, fragment-type
+transitions, site-class distributions) the priors below are the
+standard Dirichlet conjugates; for the BDI rates and the reversible
+GTR submodel the priors below are non-conjugate regularizers and the
+true conjugate priors are different (see ``Comments on conjugacy''
+below for what the proper conjugate priors look like and why we use
+the simpler ones here).
+
+\emph{Priors.}
+\begin{itemize}[nosep]
+\item Gamma$(\alpha_\insrate, \beta_{\insrate\delrate})$ on $\insrate$ and
+  Gamma$(\alpha_\delrate, \beta_{\insrate\delrate})$ on $\delrate$,
+  sharing the rate parameter $\beta_{\insrate\delrate}$.
+  Augmented statistics:
+  $B \to B + \alpha_\insrate - 1$,
+  $D \to D + \alpha_\delrate - 1$,
+  $S \to S + \beta_{\insrate\delrate}$.
+\item Gamma$(\alpha_\exch, \beta_\exch)$ on each $\exch_{ij}$
+  (shared $\beta_\exch$ per row):
+  $U_{ij} \to U_{ij} + \alpha_\exch - 1$,
+  $W_i \to W_i + \beta_\exch$.
+\item Dirichlet$(\alpha_\eqm)$ on $\eqm$:
+  $V_i \to V_i + \alpha_\eqm - 1$.
+\item Dirichlet$(\alpha_\domdist)$ on domain weights:
+  $\mixcount_{\domdist_\dom} \to \mixcount_{\domdist_\dom} + \alpha_\domdist - 1$.
+\item Dirichlet$(\alpha_\fragdist)$ on fragment weights:
+  $\mixcount_{\fragdist_{\dom\frag}} \to \mixcount_{\fragdist_{\dom\frag}} + \alpha_\fragdist - 1$.
+\item Dirichlet$(\alpha_\ext)$ on each row of the fragment transition matrix
+  (including the termination probability):
+  $F^{(\dom)}_{\srcfrag\destfrag} \to F^{(\dom)}_{\srcfrag\destfrag} + \alpha_\ext - 1$,
+  $E^{(\dom)}_\srcfrag \to E^{(\dom)}_\srcfrag + \alpha_\ext - 1$.
+\item Dirichlet$(\alpha_\classdist)$ on site class distributions:
+  $\mixcount_{\classdist_{\dom\frag\class}} \to \mixcount_{\classdist_{\dom\frag\class}} + \alpha_\classdist - 1$.
+\end{itemize}
+
+\paragraph{Comments on conjugacy.}
+The Dirichlet priors on $\domdist$, $\fragdist$, $\classdist$, and the
+fragment-type transition matrix are conjugate to the corresponding
+multinomial likelihoods in the standard way.  The two remaining cases
+warrant comment:
+
+\emph{Reversible CTMC.}  Treated as an irreversible CTMC (independent
+off-diagonal rates $\revsub_{ij}$), the complete-data
+likelihood~\eqref{eq:ctmc-complete} is a regular exponential family
+and a product of independent Gammas on $\revsub_{ij}$ together with a
+Dirichlet on the initial distribution is conjugate.  For the
+\emph{reversible} parameterization $\revsub_{ij} = \exch_{ij}\eqm_j$
+with symmetric exchangeabilities, the conjugate prior is
+\emph{not} a product of independent Gammas on $\exch_{ij}$ and a
+Dirichlet on $\eqm$: detailed balance couples the two factors, and
+the conjugate prior is the cycle-corrected edge-flow density of
+Diaconis and Rolles~\cite{DiaconisRolles2006},
+which arises as the de Finetti mixing measure for an
+edge-reinforced random walk on the state graph
+\cite{Rolles2003,CoppersmithDiaconis1986}.  Reparameterizing in terms
+of an undirected edge weight $x_e = \eqm_i \exch_{ij} \eqm_j$
+on each edge $e = \{i,j\}$ (with loops $x_{ii} = \eqm_i^2\,
+\revsub^{\mathrm{loop}}_{ii}$ in the Grassmann-uniformized variant) and
+normalising so that $\sum_e x_e = 1$, the prior takes the form
+\[
+\phi_{v_0,a}(x) \;\propto\;
+  \Bigl(\prod_e x_e^{a_e - 1/2}\Bigr)\,
+  x_{v_0}^{a_{v_0}/2}\,
+  \prod_{v \ne v_0} x_v^{-(a_v + 1)/2}
+  \;\sqrt{\det A(x)},
+\]
+where $x_v = \sum_{e \ni v} x_e$ is the total flow at vertex $v$,
+$a_v = \sum_{e \ni v} a_e$ is the corresponding pseudocount, and
+$A(x)$ is a matrix indexed by a basis of cycles in the state graph
+whose determinant equals
+$\sum_{T} \prod_{e \notin T} x_e^{-1}$ (sum over spanning trees $T$),
+by Kirchhoff's matrix-tree theorem.  For the complete graph with
+loops (i.e.\ GTR), $\binom{|\alphabet|-1}{2}$ independent cycles
+contribute and the joint prior cannot be factored across edges.
+The Diaconis--Rolles prior conditions on the initial state $v_0$;
+including a stationary observation of $X(0)=v_0$ multiplies the prior
+by $\eqm(v_0) \propto \sqrt{x_{v_0}}$ in the edge-flow chart, which
+shifts the $v_0$-exponent and stays within the same family with
+adjusted hyperparameters.  The independent Gamma${}\times{}$Dirichlet
+priors used here are non-conjugate regularizers in the reversible
+parameterization and are perfectly valid for MAP, but the closed-form
+posterior is in the Diaconis--Rolles family rather than back in
+Gamma${}\times{}$Dirichlet.
+
+\emph{TKF91 BDI rates.}  The joint complete-data log-likelihood
+$\ell_1(\insrate,\delrate)$ from~\eqref{eq:ell1}, which includes
+the prior probability of the ancestral sequence length,
+is a \emph{curved} exponential family in $(\insrate,\delrate)$
+because the $\log(\delrate-\insrate)$ term couples the natural
+parameters.  A product of independent Gammas on $\insrate$ and
+$\delrate$ is therefore not conjugate; it is conjugate to the
+complete-data likelihood of the underlying linear birth--death process
+\emph{conditioned on} the initial sequence length, but not to the
+joint likelihood that includes a stationary $L$-prior.
+The proper conjugate prior, derived in the queueing-theory literature
+by Armero and Bayarri~\cite{ArmeroBayarri1994} and applied to the
+linear-growth BDI by Conti~\cite{Conti2003}, is most naturally written
+in terms of $\kappa = \insrate/\delrate \in (0,1)$ and $\delrate$:
+\[
+\phi(\kappa,\delrate)
+\;\propto\;
+\kappa^{a-1}(1-\kappa)^{b-1}\,\delrate^{c-1}\,
+\exp\!\bigl(-\delrate\,(\tau_1\,\kappa + \tau_2)\bigr),
+\]
+with five hyperparameters $(a,b,c,\tau_1,\tau_2)$ updated by
+$a \to a + B + L$, $b \to b + M$, $c \to c + B + D$,
+$\tau_1 \to \tau_1 + S + T$, $\tau_2 \to \tau_2 + S$.
+Marginalising $\delrate$ yields a Gauss-hypergeometric distribution
+on $\kappa$ (in the Johnson--Kotz--Balakrishnan family); the
+normaliser is a ${}_2F_1$ value and the posterior is tractable by
+one-dimensional quadrature or Gibbs sampling.  Equivalently, the
+$M\log(\delrate-\insrate) + L\log\insrate$ contribution from
+incorporating the stationary initial-length prior amounts to an extra
+$\mathrm{Beta}(L+1,M+1)$-like factor in $\kappa$ on top of the
+dynamics-only Gamma evidence.  As above, our independent Gamma priors
+on $\insrate$ and $\delrate$ are non-conjugate regularizers in this
+parameterisation.  In the long-time stationary regime where
+$B \approx D$, the $M\log(\delrate-\insrate)$ and $L\log\insrate
+- (L+M)\log\delrate$ stationary contributions are doing the work of
+identifying $\kappa$ separately from the overall rate scale; ignoring
+them entirely (i.e.\ Gamma EM with no $L,M$ counts) silently underuses
+the data when only one long observation is available.
+
+We use simple Gamma${}\times{}$Dirichlet pseudocounts throughout
+because they are easy to set, behave well as MAP regularizers, and
+keep the M-step closed-form
+(the augmented sufficient statistics still have a unique maximiser
+via the same quadratic in $\kappa$ and the same pooled GTR formula).
+A fully Bayesian treatment would substitute the Diaconis--Rolles and
+Armero--Bayarri/Conti priors above; we leave that to future work.
+
+\emph{Indel rates.}
+For the top-level rates $(\insrate_\main, \delrate_\main)$ and each
+per-domain rate pair $(\insrate_\dom, \delrate_\dom)$,
+solve the quadratic~\eqref{eq:kappa-quadratic} with augmented
+$(B, D, L, M, S, T)$ and extract $\kappa,\delrate,\insrate$ via~\eqref{eq:kappa-root}--\eqref{eq:insrate-root}.
+
+\emph{Fragment transition matrix.}
+Row-normalize the augmented fragment-type transition counts per domain:
+$\ext^{(\dom)}_{\srcfrag\destfrag} \leftarrow F^{(\dom)}_{\srcfrag\destfrag} / (E^{(\dom)}_\srcfrag + \sum_{\destfrag'} F^{(\dom)}_{\srcfrag\destfrag'})$
+(with augmented $F$, $E$).
+
+\emph{Mixture weights.}
+Normalize augmented counts:
+$\domdist_\dom \propto \mixcount_{\domdist_\dom}$,
+$\fragdist_{\dom\frag} \propto \mixcount_{\fragdist_{\dom\frag}}$.
+
+\emph{Site class distributions.}
+$\classdist_{\dom\frag\class} \propto \mixcount_{\classdist_{\dom\frag\class}}$.
+
+\emph{CTMC parameters.}
+The sufficient statistics are projected onto parameter groups.
+
+\emph{Per-class equilibrium:}
+$\eqm^{(\class)}_\anctok \propto V^{(\class)}_\anctok + \alpha_\eqm - 1$.
+(This is the standard empirical-frequency estimator; the exact EM M-step
+couples $\eqm$ with $\exch$ through dwell-time statistics, but the approximation
+is standard practice for GTR models.)
+
+\emph{Per-class exchangeability:}
+The rate is $\exch^{(\class)}_{\anctok,\anctok'} \cdot \eqm^{(\class)}_{\anctok'}$.
+The exchangeability is estimated from the bridge-expectation transition and dwell counts:
+\[
+\exch^{(\class)}_{\anctok,\anctok'}
+= \frac{U^{(\class)}_{\anctok,\anctok'} + U^{(\class)}_{\anctok',\anctok}}
+       {W^{(\class)}_\anctok \cdot \eqm^{(\class)}_{\anctok'} + W^{(\class)}_{\anctok'} \cdot \eqm^{(\class)}_\anctok}
+\]
+
+\subsection{WFSTs for MixDom}
+\label{sec:mixdom-wfst}
+
+As with TKF92 (Section~\ref{sec:tkf92-machines}),
+constructing a WFST for MixDom is complicated by latent information---in this case,
+the domain type and fragment type associated with each position.
+We here outline two approaches to this issue.
+
+The first approach is to preserve the latent information by promoting it to the transducer's input/output alphabet:
+each character is decorated with its domain and fragment labels,
+yielding a \emph{Labeled-MixDom WFST} whose state space is comparable to the Pair HMM
+but whose alphabet is enlarged.
+This approach is exact but produces larger machines.
+%The Labeled-MixDom Singlet HMM and WFST are described in Appendix~\ref{sec:labeled-mixdom}.
+
+The second approach integrates out the latent variables and approximates the result
+using compact \emph{order-1} machines whose transitions depend only on the most recently
+emitted characters.
+These are smaller and more efficient for tree-based inference,
+at the cost of approximating the full latent structure via local context.
+%We describe this approach next;
+%Appendix~\ref{sec:algebraic-distillation} gives closed-form algebraic expressions
+%for the order-1 parameters in the simplified case of one fragment type per domain.
+

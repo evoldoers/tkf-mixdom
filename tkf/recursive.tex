@@ -1,0 +1,1230 @@
+
+
+\section{Recursive TKF Models}
+
+Another way to nest TKF models is to borrow from grammar theory and allow recursion.
+This was previously used to develop RNA evolutionary models \cite{Holmes2004}, and is developed here in a general way for proteins
+and genomic DNA.
+
+We illustrate how the TKF-mixed domain model can be interpreted as a stochastic grammar,
+ developing four examples---recursive protein domains (i.e. arbitrary nesting of motifs), a basic model of RNA foldback structure, a second more sophisticated model of RNA structure, and a basic model of a genome---that
+ highlight the structure of such models as a series of stepwise grammar elaborations that constitute tree-adjoining moves on the space of grammars.
+
+\subsection{Example One: Left-Recursive TKF (L-TKF)}
+
+\newcommand\tok{s}
+\newcommand\ntlinks{{\tt L}}
+\newcommand\ntimm{{\tt K}}
+\newcommand\ntmor{{\tt M}}
+\newcommand\ntnew{{\tt N}}
+\newcommand\ntsur{{\tt S}}
+\newcommand\ntexp{{\tt E}}
+\newcommand\ntaln{{\tt A}}
+\newcommand\ntins{{\tt I}}
+\newcommand\ntdel{{\tt D}}
+\newcommand\ntparent{{\tt P}}
+\newcommand\ntchild{{\tt C}}
+
+\newcommand\ntfrag{{\tt F}}
+\newcommand\ntgen{{\tt G}}
+\newcommand\ntrem{{\tt R}}
+
+\newcommand\ntbegin{{\tt B}}
+
+\newcommand\nullability{\eta}
+
+\newcommand\term{{\tt T}}
+
+
+We can imagine a links model where, in a domain of type $\srcdom$,
+each mortal link is either (with probability $\tok_\srcdom$) associated with a character,
+or (with probability $(1 - \tok_\srcdom) \domdist_{\srcdom\destdom}$ associated with its own
+independently-evolving links model of domain type $\destdom$.
+Links models can thus be nested {\em ad infinitum}
+\begin{eqnarray*}
+\model_\srcdom & = &
+\tkflinks(\mixture_{\sumidx\sim\tok}(L^{(\sumidx)}_\srcdom);\insrate_\srcdom,\delrate_\srcdom)
+\\
+L^{(1)}_\srcdom & = & \hmmproc(\{\exch^{(\class)},\eqm^{(\class)}\}_\class;\ext^{(\srcdom)},\classdist_\srcdom) \\
+L^{(0)}_\srcdom & = & \mixture_{\destdom\sim\domdist_\destdom}(\model_\destdom)
+\end{eqnarray*}
+where $\hmmproc$ denotes the Markovian fragment process (Section~\ref{sec:mixdom}),
+and $\mixture_{\sumidx\sim\tok}$ is defined for the Bernoulli index variable $\sumidx$ and probability $\tok$ as it was for categorical index variables
+\[
+\state \sim \mixture_{\sumidx\sim p}(\model(\theta_\sumidx);p)\ \Leftrightarrow\ 
+\sumidx \sim \berndist(p),\ \state \sim \model(\theta_\sumidx)
+\]
+
+We postpone the TKF92-like augmentations of $L^{(1)}_\srcdom$ (fragment types $\frag$ and site classes $\class$) for now, and start with a simplified TKF91-like version
+that allows full recursively-nested domains but allows only single-character fragments with one site class per domain
+\begin{eqnarray*}
+\model'_\srcdom & = &
+\tkflinks(\mixture_{\sumidx\sim\tok}(L'^{(\sumidx)}_\srcdom);\insrate_\srcdom,\delrate_\srcdom)
+\\
+L'^{(1)}_\srcdom & = & \subproc(\exch_\srcdom,\eqm_\srcdom) \\
+L'^{(0)}_\srcdom & = & \mixture_{\destdom\sim\domdist_\srcdom}(\model'_\destdom)
+\end{eqnarray*}
+As with the nested TKF HMM, we have to account for the probability of zero-length components, leading to null cycles during likelihood and inference computations.
+
+The joint distribution over ancestor-descendant alignments under the recursive TKF model
+is described by the following stochastic context-free grammar (SCFG)
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol interpretation} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf L}ink sequence, domain $\srcdom$} &
+\ntlinks_\srcdom & \to & \ntlinks_\srcdom & \ntmor_\srcdom & \kappa_\srcdom \\
+& & | & \ntimm_\srcdom & & 1 - \kappa_\srcdom \\
+\mbox{Immortal lin\underline{\bf k}} &
+\ntimm_\srcdom & \to & \ntnew_\srcdom & & \beta_\srcdom \\
+& & | & \epsilon & & 1 - \beta_\srcdom \\
+\mbox{\underline{\bf M}ortal link} &
+\ntmor_\srcdom & \to & \ntsur_\srcdom & & \alpha_\srcdom \\
+& & | & \ntexp_\srcdom & & 1 - \alpha_\srcdom \\
+\mbox{\underline{\bf S}urviving mortal link} &
+\ntsur_\srcdom & \to & \ntaln_\srcdom & \ntnew_\srcdom & \beta_\srcdom \\
+& & | & \ntaln_\srcdom & & 1 - \beta_\srcdom \\
+\mbox{\underline{\bf E}xpired mortal link} &
+\ntexp_\srcdom & \to & \ntdel_\srcdom & \ntnew_\srcdom & \gamma_\srcdom \\
+& & | & \ntdel_\srcdom & & 1 - \gamma_\srcdom \\
+\mbox{\underline{\bf N}ewborn mortal link(s)} &
+\ntnew_\srcdom & \to & \ntins_\srcdom & \ntnew_\srcdom & \beta_\srcdom \\
+& & | & \ntins_\srcdom & & 1 - \beta_\srcdom \\
+\mbox{\underline{\bf A}ligned component} &
+\ntaln_\srcdom & \to & \term_{\anctok\destok} & & \tok_\srcdom \eqm_{\srcdom\anctok} \exp(\exch_\srcdom \evoltime)_{\anctok\destok}\\
+& & | & \ntlinks_\destdom & & (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf I}nserted component} &
+\ntins_\srcdom & \to & \term_{\gap\destok} & & \tok_\srcdom \eqm_{\srcdom\destok} \\
+& & | & \ntchild_\destdom & & (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf D}eleted component} &
+\ntdel_\srcdom & \to & \term_{\anctok\gap} & & \tok_\srcdom \eqm_{\srcdom\anctok} \\
+& & | & \ntparent_\destdom & & (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf C}hild link sequence (inserted)} &
+\ntchild_\srcdom & \to & \ntchild_\srcdom & \ntins_\srcdom & \kappa_\srcdom \\
+& & | & \epsilon & & 1 - \kappa_\srcdom \\
+\mbox{\underline{\bf P}arent link sequence (deleted)} &
+\ntparent_\srcdom & \to & \ntparent_\srcdom & \ntdel_\srcdom & \kappa_\srcdom  \\
+& & | & \epsilon & & 1 - \kappa_\srcdom \\
+\end{array}
+\]
+
+The standard path from here is to transform the grammar to Chomsky Normal Form  \cite{stolcke-1995-efficient}.
+We don't need to go all the way down that path;
+we only need to remove $\epsilon$-productions and null cycles.
+
+In order to train by EM, every time we remove $\epsilon$-productions and null cycles,
+we need to be able to convert a rule count in the $\epsilon$-eliminated grammar
+to a set of rule counts in the original grammar.
+For each non-nullable nonterminal $\xstate'$, when a rule
+$\xstate' \to \ystate'$ appears (arising from an original bifurcation
+$\xstate \to \ystate\;\zstate$ where $\zstate$ was nullable),
+the expected count $c(\xstate' \to \ystate')$ should contribute
+$c(\xstate' \to \ystate') \cdot \nullability(\zstate)$ to the count
+of the original rule $\xstate \to \ystate\;\zstate$, and symmetrically
+when the first child was nullable.
+
+More precisely, for the nullability fixed-point iteration, this means
+tracking an additional set of \emph{expected counts} alongside
+the nullabilities.
+For each nonterminal $\xstate$ with nullability $\nullability(\xstate)$,
+define $\bar{c}(\xstate \to \alpha)$ as the expected number of times
+rule $\xstate \to \alpha$ would have been used in the original grammar,
+conditioned on $\xstate$ generating the empty string.
+These satisfy analogous fixed-point equations:
+\[
+\bar{c}(\xstate \to \ystate_1 \cdots \ystate_k) =
+\WF(\xstate \to \ystate_1 \cdots \ystate_k) \prod_{i=1}^k \nullability(\ystate_i)
++ \sum_{i=1}^k \frac{\WF(\xstate \to \ystate_1 \cdots \ystate_k) \prod_{j=1}^k \nullability(\ystate_j)}
+{\nullability(\xstate)} \sum_{\alpha'} \bar{c}(\ystate_i \to \alpha')
+\]
+and can be iterated to convergence alongside the nullabilities.
+Given posterior counts from the Inside-Outside algorithm on the
+$\epsilon$-eliminated grammar, the original-grammar rule counts
+are recovered by:
+\begin{enumerate}
+\item For each non-null production $\xstate' \to \alpha'$ in the
+  $\epsilon$-eliminated grammar, its posterior count $c'(\xstate' \to \alpha')$
+  contributes directly to the corresponding original rule.
+\item For each ``nullability shortcut'' production
+  $\xstate' \to \ystate'$ (arising from
+  $\xstate \to \ystate\;\zstate$ with $\zstate$ nullable),
+  the count $c'(\xstate' \to \ystate')$ contributes
+  $c'(\xstate' \to \ystate')$ to the original rule
+  $\xstate \to \ystate\;\zstate$, plus
+  $c'(\xstate' \to \ystate') \cdot \bar{c}(\zstate \to \alpha)$
+  to each rule within $\zstate$'s null derivation subtree.
+\end{enumerate}
+The general theory of $\epsilon$-elimination with EM count recovery,
+including the null closure $(I - T_{\mathcal{Z}\mathcal{Z}})^{-1}$
+and null cycle removal, is developed in
+Appendix~\ref{sec:appendix-grammar} (Section~\ref{sec:null-management-appendix})
+
+First we find the nullability
+$\nullability(\xstate)$ of each nonterminal $\xstate$.
+The nullability is the probability that a parse tree rooted in that nonterminal
+yields the empty string.
+We can't solve for these in closed form (at least not in the general recursive
+model, where a link sequence can contain another link sequence of the same type).
+Instead we can solve approximately by iterating towards a fixed point.
+
+We first observe that the nullabilities collectively satisfy the following
+\begin{eqnarray*}
+    \nullability(\ntlinks_\srcdom) & = & \nullability(\ntimm_\srcdom) \frac{1 - \kappa_\srcdom}{1 - \kappa_\srcdom \nullability(\ntmor_\srcdom)} \\
+    \nullability(\ntimm_\srcdom) & = & 1 - \beta_\srcdom + \beta_\srcdom \nullability(\ntnew_\srcdom) \\
+    \nullability(\ntmor_\srcdom) & = & \alpha_\srcdom \nullability(\ntsur_\srcdom) + (1 - \alpha_\srcdom) \nullability(\ntexp_\srcdom) \\
+    \nullability(\ntsur_\srcdom) & = & \nullability(\ntaln_\srcdom) \left( \beta_\srcdom \nullability(\ntnew_\srcdom) + (1 - \beta_\srcdom) \right) \\
+    \nullability(\ntexp_\srcdom) & = & \nullability(\ntdel_\srcdom) \left( \gamma_\srcdom \nullability(\ntnew_\srcdom) + (1 - \gamma_\srcdom) \right) \\
+    \nullability(\ntnew_\srcdom) & = & \nullability(\ntins_\srcdom) \frac{1 - \beta_\srcdom}{1 - \beta_\srcdom \nullability(\ntins_\srcdom)}  \\
+    \nullability(\ntaln_\srcdom) & = & (1 - \tok_\srcdom) \sum_\destdom \domdist_{\srcdom\destdom} \nullability(\ntlinks_\destdom) \\
+    \nullability(\ntins_\srcdom) & = & (1 - \tok_\srcdom)\sum_\destdom \domdist_{\srcdom\destdom} \nullability(\ntchild_\destdom) \\
+    \nullability(\ntdel_\srcdom) & = & \nullability(\ntins_\srcdom) \\
+    \nullability(\ntchild_\srcdom) & = & \frac{1 - \kappa_\srcdom}{1 - \kappa_\srcdom \nullability(\ntins_\srcdom)} \\
+    \nullability(\ntparent_\srcdom) & = & \nullability(\ntchild_\srcdom) \\    
+\end{eqnarray*}
+
+A general procedure is (i) iterate to solve for the $\nullability(\ntchild_\srcdom)$ (substituting in the downstream definition of $\nullability(\ntins_\srcdom)$ so the formula becomes self-referential);
+(ii) this directly yields $\nullability(\ntparent_\srcdom), \nullability(\ntins_\srcdom), \nullability(\ntdel_\srcdom), \nullability(\ntnew_\srcdom), \nullability(\ntexp_\srcdom), \nullability(\ntimm_\srcdom)$;
+(iii) iterate to solve for $\nullability(\ntlinks_\srcdom)$ (again, first substituting to make it self-referential);
+(iv) this directly yields the remaining $\nullability(\ntmor_\srcdom), \nullability(\ntsur_\srcdom), \nullability(\ntaln_\srcdom)$.
+
+In detail: initialize $x_\srcdom^{(0)} \leftarrow 0$ for $\srcdom \in \ndom$.
+Iterate to convergence
+\[
+    x_\srcdom^{(\sumidx+1)}
+    \leftarrow
+    \frac{1 - \kappa_\srcdom}{1 - \kappa_\srcdom (1 - \tok_\srcdom)\sum_\destdom \domdist_{\srcdom\destdom} x_\destdom^{(\sumidx)}}
+\]
+We then set $\nullability(\ntchild_\srcdom) \leftarrow \lim_{\sumidx \to \infty} x_\srcdom^{(\sumidx)}$
+and set $\nullability(\ntparent_\srcdom), \nullability(\ntins_\srcdom), \nullability(\ntdel_\srcdom), \nullability(\ntnew_\srcdom), \nullability(\ntexp_\srcdom), \nullability(\ntimm_\srcdom)$ using the above equations.
+Now set $y_\srcdom^{(0)} \leftarrow 0$ for $\srcdom \in \ndom$
+and again iterate
+\[
+    y_\srcdom^{(\sumidx+1)} \leftarrow \frac{(1 - \kappa_\srcdom) \nullability(\ntimm_\srcdom)}{1 - \kappa_\srcdom (1 - \alpha_\srcdom) \nullability(\ntexp_\srcdom) 
+      - \kappa_\srcdom \alpha_\srcdom  
+      \left( 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \right)
+     (1 - \tok_\srcdom) \sum_\destdom \domdist_{\srcdom\destdom} y_\destdom^{(\sumidx)}
+      }
+\]
+Then set
+$\nullability(\ntlinks_\srcdom) \leftarrow \lim_{\sumidx \to \infty} y_\srcdom^{(\sumidx)}$
+and set the remaining $\nullability(\ntmor_\srcdom), \nullability(\ntsur_\srcdom), \nullability(\ntaln_\srcdom)$ using the above equations.
+
+We next develop a ``non-nullable'' version of the grammar that yields the same Inside
+probabilities, but explicitly separates out $\epsilon$-generations.
+For every nonterminal $\xstate_\srcdom$ we create a new nonterminal $\xstate'_\srcdom$
+with rules that (by construction) never generate empty parse trees,
+but are otherwise identical to those transforming $\xstate_\srcdom$.
+In cases where the original grammars has bifurcation rules $\xstate_i \to \xstate_j \xstate_k$,
+we need to introduce transitions $\xstate'_i \to \xstate'_j$ and $\xstate'_i \to \xstate'_k$,
+to account for the missing nullability of $\xstate_j$ and $\xstate_k$.
+(We can also eliminate $\ntimm_\srcdom$, which only has one outgoing rule
+when its $\epsilon$-production is removed, and fold $\ntlinks_\srcdom\to\ntimm_\srcdom\to\ntmor_\srcdom$ into $\ntlinks_\srcdom\to\ntmor_\srcdom$.)
+
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol interpretation} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf L}ink sequence, domain $\srcdom$} &
+\ntlinks'_\srcdom & \to & \ntlinks'_\srcdom & \ntmor'_\srcdom & \kappa_\srcdom \\
+\mbox{(nonempty)} & & | & \ntlinks'_\srcdom & & \kappa_\srcdom \nullability(\ntmor_\srcdom) \\
+& & | & \ntmor'_\srcdom & & \kappa_\srcdom \nullability(\ntlinks_\srcdom) \\
+& & | & \ntnew'_\srcdom & & (1 - \kappa_\srcdom) \beta_\srcdom \\
+\mbox{\underline{\bf M}ortal link (nonempty)} &
+\ntmor'_\srcdom & \to & \ntsur'_\srcdom & & \alpha_\srcdom \\
+& & | & \ntexp'_\srcdom & & 1 - \alpha_\srcdom \\
+\mbox{\underline{\bf S}urviving mortal link} &
+\ntsur'_\srcdom & \to & \ntaln'_\srcdom & \ntnew'_\srcdom & \beta_\srcdom \\
+\mbox{(etc.; all $\xstate'_\srcdom$ are nonempty)} & & | & \ntnew'_\srcdom & & \beta_\srcdom \nullability(\ntaln_\srcdom) \\
+& & | & \ntaln'_\srcdom & & 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+\mbox{\underline{\bf E}xpired mortal link} &
+\ntexp'_\srcdom & \to & \ntdel'_\srcdom & \ntnew'_\srcdom & \gamma_\srcdom \\
+& & | & \ntnew'_\srcdom & & \gamma_\srcdom \nullability(\ntdel_\srcdom) \\
+& & | & \ntdel'_\srcdom & & 1 - \gamma_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+\mbox{\underline{\bf N}ewborn mortal link(s)} &
+\ntnew'_\srcdom & \to & \ntins'_\srcdom & \ntnew'_\srcdom & \beta_\srcdom \\
+& & | & \ntnew'_\srcdom & & \beta_\srcdom \nullability(\ntins_\srcdom) \\
+& & | & \ntins'_\srcdom & & 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+\mbox{\underline{\bf A}ligned component} &
+\ntaln'_\srcdom & \to & \term_{\anctok\destok} & & \tok_\srcdom \eqm_{\srcdom\anctok} \exp(\exch_\srcdom \evoltime)_{\anctok\destok}\\
+& & | & \ntlinks'_\destdom & & (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf I}nserted component} &
+\ntins'_\srcdom & \to & \term_{\gap\destok} & & \tok_\srcdom \eqm_{\srcdom\destok} \\
+& & | & \ntchild'_\destdom & & (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf D}eleted component} &
+\ntdel'_\srcdom & \to & \term_{\anctok\gap} & & \tok_\srcdom \eqm_{\srcdom\anctok} \\
+& & | & \ntparent'_\destdom & & (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf C}hild link sequence (inserted)} &
+\ntchild'_\srcdom & \to & \ntchild'_\srcdom & \ntins'_\srcdom & \kappa_\srcdom \\
+& & | & \ntchild'_\srcdom & & \kappa_\srcdom \nullability(\ntins_\srcdom) \\
+& & | & \ntins'_\srcdom & & \kappa_\srcdom \nullability(\ntchild_\srcdom) \\
+\mbox{\underline{\bf P}arent link sequence (deleted)} &
+\ntparent'_\srcdom & \to & \ntparent'_\srcdom & \ntdel'_\srcdom & \kappa_\srcdom  \\
+& & | & \ntparent'_\srcdom & & \kappa_\srcdom \nullability(\ntdel_\srcdom) \\
+& & | & \ntdel'_\srcdom & & \kappa_\srcdom \nullability(\ntparent_\srcdom) \\
+\end{array}
+\]
+
+The final step is to remove null cycles: chains of unit productions resulting in the same nonterminal.
+Specifically we need to remove $\ntlinks'_\srcdom\to\ntmor'_\srcdom\to\ntsur'_\srcdom\to\ntaln'_\srcdom\to\ntlinks'_\destdom$,
+$\ntchild'_\srcdom\to\ntins'_\srcdom\to\ntchild'_\destdom$ and $\ntparent'_\srcdom\to\ntdel'_\srcdom\to\ntparent'_\destdom$.
+We do this by deleting the $\ntaln'_\srcdom\to\ntlinks'_\destdom$, $\ntins'_\srcdom\to\ntchild'_\destdom$ and $\ntdel'_\srcdom\to\ntparent'_\destdom$
+transitions, adding compensatory self-loops and self-bifurcations to $\ntlinks'_\srcdom$, $\ntparent'_\srcdom$, and $\ntchild'_\srcdom$
+to account for the now-broken paths through $\ntaln'_\srcdom$, $\ntins'_\srcdom$ and $\ntdel'_\srcdom$.
+The modified grammar is
+
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf L}ink} &
+\ntlinks''_\srcdom & \to & \ntlinks''_\srcdom & \ntmor''_\srcdom & \kappa_\srcdom \\
+& & | & \ntlinks''_\srcdom & \ntlinks''_\destdom & \kappa_\srcdom \alpha_\srcdom \left( 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \right) (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntlinks''_\destdom & & \ltrans_{\srcdom\destdom} \\
+& & | & \ntmor''_\srcdom & & \kappa_\srcdom \nullability(\ntlinks_\srcdom) \\
+& & | & \ntnew''_\srcdom & & (1 - \kappa_\srcdom) \beta_\srcdom \\
+\mbox{\underline{\bf M}ortal} &
+\ntmor''_\srcdom & \to & \ntsur''_\srcdom & & \alpha_\srcdom \\
+& & | & \ntexp''_\srcdom & & 1 - \alpha_\srcdom \\
+\mbox{\underline{\bf S}urviving} &
+\ntsur''_\srcdom & \to & \ntaln''_\srcdom & \ntnew''_\srcdom & \beta_\srcdom \\
+& & | & \ntnew''_\srcdom & & \beta_\srcdom \nullability(\ntaln_\srcdom) \\
+& & | & \ntaln''_\srcdom & & 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+\mbox{\underline{\bf E}xpired} & \ntexp''_\srcdom & \to & \ntdel''_\srcdom & \ntnew''_\srcdom & \gamma_\srcdom \\
+& & | & \ntparent''_\destdom & \ntnew''_\srcdom & \gamma_\srcdom (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntnew''_\srcdom & & \gamma_\srcdom \nullability(\ntdel_\srcdom) \\
+& & | & \ntdel''_\srcdom & & 1 - \gamma_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+& & | & \ntparent''_\destdom & & \left( 1 - \gamma_\srcdom(1 - \nullability(\ntnew_\srcdom)) \right) (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf N}ewborns} & \ntnew''_\srcdom & \to & \ntins''_\srcdom & \ntnew''_\srcdom & \beta_\srcdom \\
+& & | & \ntchild''_\destdom & \ntnew''_\srcdom & \beta_\srcdom (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntnew''_\srcdom & & \beta_\srcdom \nullability(\ntins_\srcdom) \\
+& & | & \ntins''_\srcdom & & 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+& & | & \ntchild''_\destdom & & \left( 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \right) (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf A}ligned} & \ntaln''_\srcdom & \to & \term_{\anctok\destok} & & \tok_\srcdom \eqm_{\srcdom\anctok} \exp(\exch_\srcdom \evoltime)_{\anctok\destok}\\
+\mbox{\underline{\bf I}nserted} & \ntins''_\srcdom & \to & \term_{\gap\destok} & & \tok_\srcdom \eqm_{\srcdom\destok} \\
+\mbox{\underline{\bf D}eleted} & \ntdel''_\srcdom & \to & \term_{\anctok\gap} & & \tok_\srcdom \eqm_{\srcdom\anctok} \\
+\mbox{\underline{\bf C}hild} & \ntchild''_\srcdom & \to & \ntchild''_\srcdom & \ntins''_\srcdom & \kappa_\srcdom \\
+& & | & \ntchild''_\srcdom & \ntchild''_\destdom & \kappa_\srcdom (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntchild''_\destdom & & \ctrans_{\srcdom\destdom} \\
+& & | & \ntins''_\srcdom & & \kappa_\srcdom \nullability(\ntchild_\srcdom) \\
+\mbox{\underline{\bf P}arent} &
+\ntparent''_\srcdom & \to & \ntparent''_\srcdom & \ntdel''_\srcdom & \kappa_\srcdom  \\
+& & | & \ntparent''_\srcdom & \ntparent''_\destdom & \kappa_\srcdom (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntparent''_\destdom & & \ctrans_{\srcdom\destdom} \\
+& & | & \ntdel''_\srcdom & & \kappa_\srcdom \nullability(\ntchild_\srcdom) \\
+\end{array}
+\]
+where $\ltrans,\ctrans$ are the $\ndom\times\ndom$ transition matrices
+\begin{eqnarray*}
+    \ltrans_{\srcdom\destdom} & = & \kappa_\srcdom \left(
+    \nullability(\ntmor_\srcdom) \delta_{\srcdom\destdom}  % Lm->Lm
++ \nullability(\ntlinks_\srcdom) % Lm->Mm
+  \alpha_\srcdom % Mm->Sm
+  \left(1 - \beta_\srcdom\left(1 - \nullability(\ntnew_\srcdom)\right)\right)  % Sm->Am
+  \left(1 - \tok_\srcdom\right) \domdist_{\srcdom\destdom} \right)
+  \\
+    \ctrans_{\srcdom\destdom} & = & \kappa_\srcdom \left(
+  \nullability(\ntins_\srcdom) \delta_{\srcdom\destdom}  % Cm->Cm
+  + \nullability(\ntchild_\srcdom) % Cm->Im
+  (1 - \tok_\srcdom) \domdist_{\srcdom\destdom}  % Im->Cn
+  \right)
+\end{eqnarray*}
+
+Letting $\ltransinv=(I-\ltrans)^{-1}$ and $\ctransinv=(I-\ctrans)^{-1}$ be the geometric series sums of these matrices,
+update the rules to sum over all
+$\ntlinks''_\srcdom\to\ntlinks''_\destdom$,
+$\ntchild''_\srcdom\to\ntchild''_\destdom$, and
+$\ntparent''_\srcdom\to\ntparent''_\destdom$ transition chains explicitly
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf L}ink} &
+\ntlinks'''_\srcdom & \to & \ntlinks'''_\destdom & \ntmor'''_\destdom & \ltransinv_{\srcdom\destdom} \kappa_\destdom \\
+& & | & \ntlinks'''_\destdom & \ntlinks'''_\bifdom & \ltransinv_{\srcdom\destdom} \kappa_\destdom \alpha_\destdom \left( 1 - \beta_\destdom(1 - \nullability(\ntnew_\destdom)) \right) (1 - \tok_\destdom) \domdist_{\destdom\bifdom} \\
+& & | & \ntmor'''_\destdom & & \ltransinv_{\srcdom\destdom} \kappa_\destdom \nullability(\ntlinks_\destdom) \\
+& & | & \ntnew'''_\destdom & & \ltransinv_{\srcdom\destdom} (1 - \kappa_\destdom) \beta_\destdom \\
+\mbox{\underline{\bf C}hild} & \ntchild'''_\srcdom & \to & \ntchild'''_\destdom & \ntins'''_\destdom & \ctransinv_{\srcdom\destdom} \kappa_\destdom \\
+& & | & \ntchild'''_\destdom & \ntchild'''_\bifdom & \ctransinv_{\srcdom\destdom} (1 - \tok_\destdom) \domdist_{\destdom\bifdom} \\
+& & | & \ntins'''_\destdom & & \ctransinv_{\srcdom\destdom} \kappa_\destdom \nullability(\ntchild_\destdom) \\
+\mbox{\underline{\bf P}arent} & \ntparent'''_\srcdom & \to & \ntparent'''_\destdom & \ntdel'''_\srcdom & \ctransinv_{\srcdom\destdom} \kappa_\destdom \\
+& & | & \ntparent'''_\destdom & \ntparent'''_\bifdom & \ctransinv_{\srcdom\destdom} (1 - \tok_\destdom) \domdist_{\destdom\bifdom} \\
+& & | & \ntdel'''_\destdom & & \ctransinv_{\srcdom\destdom} \kappa_\destdom \nullability(\ntchild_\destdom) \\
+\end{array}
+\]
+
+
+
+Rules for $\xstate'''_\srcdom\ldots$ where $\xstate \in \{ \ntmor, \ntsur, \ntexp, \ntnew \}$ are just copied over from the corresponding $\xstate''_\srcdom\to\ldots$ rules,
+changing $\xstate''$ to $\xstate'''$ on the right-hand side as well.
+
+
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf M}ortal} & \ntmor'''_\srcdom & \to & \ntsur'''_\srcdom & & \alpha_\srcdom \\
+& & | & \ntexp'''_\srcdom & & 1 - \alpha_\srcdom \\
+\mbox{\underline{\bf S}urviving} & \ntsur'''_\srcdom & \to & \ntaln'''_\srcdom & \ntnew'''_\srcdom & \beta_\srcdom \\
+& & | & \ntnew'''_\srcdom & & \beta_\srcdom \nullability(\ntaln_\srcdom) \\
+& & | & \ntaln'''_\srcdom & & 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+\mbox{\underline{\bf E}xpired} & \ntexp'''_\srcdom & \to & \ntdel'''_\srcdom & \ntnew'''_\srcdom & \gamma_\srcdom \\
+& & | & \ntparent'''_\destdom & \ntnew'''_\srcdom & \gamma_\srcdom (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntnew'''_\srcdom & & \gamma_\srcdom \nullability(\ntdel_\srcdom) \\
+& & | & \ntdel'''_\srcdom & & 1 - \gamma_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+& & | & \ntparent'''_\destdom & & \left( 1 - \gamma_\srcdom(1 - \nullability(\ntnew_\srcdom)) \right) (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\mbox{\underline{\bf N}ewborns} & \ntnew'''_\srcdom & \to & \ntins'''_\srcdom & \ntnew'''_\srcdom & \beta_\srcdom \\
+& & | & \ntchild'''_\destdom & \ntnew'''_\srcdom & \beta_\srcdom (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+& & | & \ntnew'''_\srcdom & & \beta_\srcdom \nullability(\ntins_\srcdom) \\
+& & | & \ntins'''_\srcdom & & 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \\
+& & | & \ntchild'''_\destdom & & \left( 1 - \beta_\srcdom(1 - \nullability(\ntnew_\srcdom)) \right) (1 - \tok_\srcdom) \domdist_{\srcdom\destdom} \\
+\end{array}
+\]
+We use this last opportunity to reintroduce mixtures of site and fragment classes
+
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf A}ligned} & \ntaln'''_\srcdom & \to & \ntfrag_\frag & & \tok_\srcdom \fragdist_{\srcdom\frag} \\
+\mbox{\underline{\bf I}nserted} & \ntins'''_\srcdom & \to & \ntgen_\frag & & \tok_\srcdom \fragdist_{\srcdom\frag} \\
+\mbox{\underline{\bf D}eleted} & \ntdel'''_\srcdom & \to & \ntrem_\frag & & \tok_\srcdom \fragdist_{\srcdom\frag} \\
+\mbox{\underline{\bf F}ragment} & \ntfrag_\frag & \to & \term_{\anctok\destok} & \ntfrag_\destfrag & \ext^{(\srcdom)}_{\frag\destfrag} \sum_\class \classdist_{\srcdom\frag\class} \eqm^{(\class)}_\anctok \exp(\revsub^{(\class)} \evoltime)_{\anctok\destok}\\
+& & | & \term_{\anctok\destok} & & \notext^{(\srcdom)}_\frag \sum_\class \classdist_{\srcdom\frag\class} \eqm^{(\class)}_\anctok \exp(\revsub^{(\class)} \evoltime)_{\anctok\destok} \\
+\mbox{\underline{\bf G}enerated} & \ntgen_\frag & \to & \term_{\gap\destok} & \ntgen_\destfrag & \ext^{(\srcdom)}_{\frag\destfrag} \sum_\class \classdist_{\srcdom\frag\class} \eqm^{(\class)}_\destok \\
+& & | & \term_{\gap\destok} & & \notext^{(\srcdom)}_\frag \sum_\class \classdist_{\srcdom\frag\class} \eqm^{(\class)}_\destok \\
+\mbox{\underline{\bf R}emoved} & \ntrem_\frag & \to & \term_{\anctok\gap} & \ntrem_\destfrag & \ext^{(\srcdom)}_{\frag\destfrag} \sum_\class \classdist_{\srcdom\frag\class} \eqm^{(\class)}_\anctok \\
+& & | & \term_{\anctok\gap} & & \notext^{(\srcdom)}_\frag \sum_\class \classdist_{\srcdom\frag\class} \eqm^{(\class)}_\anctok \\
+\end{array}
+\]
+and add the top-level rule:
+\[
+\begin{array}{lrcccl}
+\mbox{Symbol} & \mbox{LHS} & & \multicolumn{2}{c}{\mbox{RHS}} & \mbox{Probability} \\
+\hline
+\mbox{\underline{\bf B}egin} & \ntbegin & \to & \ntlinks'''_1 & & 1 \\
+& & | & \epsilon & & \nullability(\ntlinks_1) \\
+\end{array}
+\]
+
+With no $\epsilon$-productions and a strictly acyclic topological transition sort order on nonterminals
+of $\ntbegin \to \ntlinks \to \ntmor \to ( \ntsur \to (\ntaln,\ \ntnew \to \ntins \to \ntchild),\ \ntexp \to \ntdel \to \ntparent)$,
+this grammar is ready for an Inside parser.
+
+At this point our model is the desired
+\begin{eqnarray*}
+\model_\srcdom & = &
+% Flagging this for review: why \sumidx\sim\tok ? \tok is not a distribution ?
+\tkflinks(\mixture_{\sumidx\sim\tok}(L^{(\sumidx)}_\srcdom);\insrate_\srcdom,\delrate_\srcdom)
+\\
+L^{(1)}_\srcdom & = & \hmmproc(\{\exch^{(\class)},\eqm^{(\class)}\}_\class;\ext^{(\srcdom)},\classdist_\srcdom) \\
+L^{(0)}_\srcdom & = & \mixture_{\destdom\sim\domdist_\destdom}(\model_\destdom)
+\end{eqnarray*}
+
+
+\subsection{Example Two: The TKF Structure Tree (TKFST)}
+
+Consider now the RNA evolutionary model derived in 
+\cite{Holmes2004}.
+
+That model has stem ($S$) and loop ($L$) sequences, each of which is a TKF91 sequence with its own rates.
+Stems are sequences of base pairs, loops of individual bases.
+
+The model was developed as a proof of concept, but suffers similar deficiencies to TKF91 concerning the absence of an affine gap penalty,
+as well as a lack of basepair stacking effects or other empirically observed features of biological RNA structures.
+
+\newcommand\ruletable[3]{
+\begin{tabular}{rcc|rrr}
+\multicolumn{6}{l}{\em #1} \\
+\multicolumn{6}{l}{\em #2}\\
+#3
+\end{tabular}
+}
+\newcommand\tkfstruletable[3]{\ruletable{TKF Structure Tree #1}{#2}{#3}}
+
+\newcommand\lhsrhs[5]{ #1 & $\to$ & #2 & #3 & #4 & #5 \\ }
+\newcommand\rhs[4]{       &   $|$ & #1 & #2 & #3 & #4 \\ }
+\newcommand\blank{ & & & & & \\ }
+
+
+\newcommand\singletgrammar[3]{
+% #1 = tree node identifier
+% #2 = 5' terminal (left)
+% #3 = 3' terminal (right)
+\tkfstruletable{singlet rules ($#1$)}
+{Sequence $#1$ terminals: $\{ #2, #3 \}$.}
+{
+\lhsrhs{ lhs }{ rhs }{ $P(#1)$ }{  }{  }
+\hline
+
+\blank
+\lhsrhs{ $L_{#1}$ }{ ${#2}\ L_{#1}$ }{ $\kappa_l \pi_l(#2)$ }{  }{  }
+\rhs{ $S_{#1}\ L_{#1}$ }{ $\kappa_l \pi_l(S)$ }{  }{  }
+
+\rhs{ $\epsilon$ }{ $1-\kappa_l$ }{  }{  }
+
+\blank
+\lhsrhs{ $S_{#1}$ }{ ${#2}\ S_{#1}\ {#3}$ }{ $\kappa_s \pi_s(#2#3)$ }{  }{  }
+\rhs{ $L_{#1}$ }{ $1-\kappa_s$ }{  }{  }
+}
+}  % end \singletgrammar
+
+
+
+\newcommand\pairgrammar[7]{
+% #1 = ancestor
+% #2 = descendant
+% #3 = ancestral 5' terminal (left)
+% #4 = ancestral 3' terminal (right)
+% #5 = descendant 5' terminal (left)
+% #6 = descendant 3' terminal (right)
+% #7 = time suffix (empty string "", apostrophe "'", branch superscript "^{...}")
+\tkfstruletable{pair rules ($#1 \stackrel{t#7}{\to} #2$)}
+{Sequence $#1$ terminals: $\{ #3, #4 \}$. \quad  Sequence $#2$ terminals: $\{ #5, #6 \}$.}
+{
+\lhsrhs{ lhs }{ rhs }{ $P(#1)$ }{ $P(#2|#1)$ }{  }
+\hline
+
+\blank
+\lhsrhs{ $L_{#1#2}$ }{ ${#3}\ {#5}\ L_{#1#2}$ }{ $\kappa_l \pi_l(#3)$ }{ $(1-\beta#7_l) \alpha#7_l M#7_l(#3,#5)$ }{  }
+\rhs{ ${#5}\ L_{#1#2}$ }{ $1$ }{ $\beta#7_l \pi_l(#5)$ }{  }
+\rhs{ ${#3}\ L_{#1\gap #2}$ }{ $\kappa_l \pi_l(#3)$ }{ $(1-\beta#7_l) (1-\alpha#7_l)$ }{  }
+
+\blank
+\rhs{ $S_{#1#2}\ L_{#1#2}$ }{ $\kappa_l \pi_l(S)$ }{ $(1-\beta#7_l) \alpha#7_l$ }{  }
+\rhs{ $S_{#2}\ L_{#1#2}$ }{ $1$ }{ $\beta#7_l \pi_l(S)$ }{  }
+\rhs{ $S_{#1}\ L_{#1\gap #2}$ }{ $\kappa_l \pi_l(S)$ }{ $(1-\beta#7_l) (1-\alpha#7_l)$ }{  }
+
+\rhs{ $\epsilon$ }{ $1-\kappa_l$ }{ $1-\beta#7_l$ }{  }
+
+\blank
+\lhsrhs{ $S_{#1#2}$ }{ ${#3}\ {#5}\ S_{#1#2}\ {#6}\ {#4}$ }{ $\kappa_s \pi_s(#3#4)$ }{ $(1-\beta#7_s)  \alpha#7_s M#7_s(#3#4,#5#6)$ }{  }
+\rhs{ ${#5}\ S_{#1#2}\ {#6}$ }{ $1$ }{ $\beta#7_s \pi_s(#5#6)$ }{  }
+\rhs{ ${#3}\ S_{#1\gap #2}\ {#4}$ }{ $\kappa_s \pi_s(#3#4)$ }{ $(1-\beta#7_s) (1-\alpha#7_s)$ }{  }
+\rhs{ $L_{#1#2}$ }{ $1-\kappa_s$ }{ $1-\beta#7_s$ }{  }
+
+\blank
+\lhsrhs{ $L_{#1\gap #2}$ }{ ${#3}\ {#5}\ L_{#1#2}$ }{ $\kappa_l \pi_l(#3)$ }{ $(1-\gamma#7_l) \alpha#7_l M#7_l(#3,#5)$ }{  }
+\rhs{ ${#5}\ L_{#1#2}$ }{ $1$ }{ $\gamma#7_l \pi_l(#5)$ }{  }
+\rhs{ ${#3}\ L_{#1\gap #2}$ }{ $\kappa_l \pi_l(#3)$ }{ $(1-\gamma#7_l) (1-\alpha#7_l)$ }{  }
+
+\blank
+\rhs{ $S_{#1#2}\ L_{#1#2}$ }{ $\kappa_l \pi_l(S)$ }{ $(1-\gamma#7_l) \alpha#7_l$ }{  }
+\rhs{ $S_{#2}\ L_{#1#2}$ }{ $1$ }{ $\gamma#7_l \pi_l(S)$ }{  }
+\rhs{ $S_{#1}\ L_{#1\gap #2}$ }{ $\kappa_l \pi_l(S)$ }{ $(1-\gamma#7_l) (1-\alpha#7_l)$ }{  }
+
+\rhs{ $\epsilon$ }{ $1-\kappa_l$ }{ $1-\gamma#7_l$ }{  }
+
+\blank
+\lhsrhs{ $S_{#1\gap #2}$ }{ ${#3}\ {#5}\ S_{#1#2}\ {#6}\ {#4}$ }{ $\kappa_s \pi_s(#3#4)$ }{ $(1-\gamma#7_s) \alpha#7_s M#7_s(#3#4,#5#6)$ }{  }
+\rhs{ ${#5}\ S_{#1#2}\ {#6}$ }{ $1$ }{ $\gamma#7_s \pi_s(#5#6)$ }{  }
+\rhs{ ${#3}\ S_{#1\gap #2}\ {#4}$ }{ $\kappa_s \pi_s(#3#4)$ }{ $(1-\gamma#7_s) (1-\alpha#7_s)$ }{  }
+\rhs{ $L_{#1#2}$ }{ $1-\kappa_s$ }{ $1-\gamma#7_s$ }{  }
+}
+}  % end \pairgrammar
+
+
+
+
+\newcommand\abc{$a \stackrel{t}{\to} b \stackrel{t'}{\to} c$}
+\newcommand\ab{$a \stackrel{t}{\to} b$}
+\newcommand\bc{$b \stackrel{t'}{\to} c$}
+\newcommand\ac{$a \stackrel{t+t'}{\longrightarrow} c$}
+
+\newcommand\agapbc{a\gap bc}
+\newcommand\abgapc{ab\gap c}
+
+\newcommand\abcstates{``$abc$'' states (post emission at $c$)}
+\newcommand\abgapcstates{``$\abgapc$'' states (post deletion on \bc\ branch)}
+\newcommand\agapbcstates{``$\agapbc$'' states (post deletion on \ab\ branch)}
+
+
+\begin{table}
+\begin{center}
+\singletgrammar{a}{u}{v}
+\caption{TKF Structure Tree. Singlet rule-set for $a$.}
+\end{center}
+\end{table}
+% b
+\begin{table}
+\begin{center}
+\singletgrammar{b}{w}{x}
+\caption{TKF Structure Tree. Singlet rule-set for $b$.}
+\end{center}
+\end{table}
+
+\begin{table}
+\begin{center}
+\pairgrammar{a}{b}{u}{v}{w}{x}{}
+\caption{TKF Structure Tree. Pair rule-set for \ab\ branch. Requires singlet rule-sets for $a$ and $b$.}
+\end{center}
+\end{table}
+
+
+
+% Commands to build grammar tables
+\newcommand\ntf[1]{\mbox{\tt #1}}  % flush nonterminals (no trailing space)
+\newcommand\nt[1]{\ntf{#1}\ }  % nonterminals
+\newcommand\ntm[1]{\ntf{#1}_M\ }  % match states
+\newcommand\nti[1]{\ntf{#1}_I\ }  % insert states
+\newcommand\ntd[1]{\ntf{#1}_D\ }  % delete states
+\newcommand\ntx[1]{\ntf{#1}_X\ }  % X-only states
+\newcommand\nty[1]{\ntf{#1}_Y\ }  % Y-only states
+\newcommand\ntj[1]{\ntf{#1}_j\ }  % j is M, X, or Y
+\newcommand\ntk[1]{\ntf{#1}_k\ }  % k is M or D
+
+\newcommand\gramtab[1]{
+\[
+\begin{array}{rcl|ll}
+\mbox{LHS}   & \to & \mbox{RHS} & \mbox{Transition} & \mbox{Emission} \\ \hline
+#1
+\end{array}
+\]
+}
+
+\subsubsection{Parameters}
+
+Let $\overline{xyz}$ denote reverse complement e.g. $\overline{AAG}=CTT$.
+
+Parameters: insertion and deletion rates $\lambda_F < \mu_F$, fragment extension probability $r_F$,
+substitution rate matrix $Q_F$, equilibrium probability vector $q_F$ (so $q_x Q_F = 0$)
+for $F \in \{ R, N, G, S, L, C \}$.
+Splice donor/acceptor site distribution $q_{D1}$,  $q_{D2}$, $q_{A1}$, $q_{A2}$.
+Region-type probabilities $p_G + p_N + p_S + p_C = 1$.
+Intron probability $p_I$.
+
+The $Q_N$, $Q_S$, $Q_L$ and $Q_C$ models should be strand-invariant, so e.g. $Q_N(x_1,x_2) = Q_N(\overline{x_1},\overline{x_2})$.
+
+\subsubsection{Functions}
+
+For $F \in \{ R, N, G, S, L, C \}$:
+\begin{eqnarray*}
+\kappa_F & = & \left( 1 - \frac{\lambda_F}{\mu_F} \right) \left( 1 - r_F \right)
+\end{eqnarray*}
+
+
+\subsubsection{The Stationary Grammar}
+
+\gramtab{
+\nt{GENOME}  & \to & \nt{REGION} \nt{GENOME} & 1 - \kappa_R \\
+             &   | & \epsilon & \kappa_R \\
+\nt{REGION}  & \to & \nt{INTER} & p_N \\
+             &   | & \nt{FWDCDS} & p_G / 2 \\
+             &   | & \nt{REVCDS} & p_G / 2 \\
+             &   | & \nt{STRUCT} & p_S \\
+             &   | & \nt{CONS} & p_C \\
+\nt{INTER}   & \to & x_1\ \nt{INTER} & 1 - \kappa_N & q_N(x_1) \\
+             &   | & \epsilon & \kappa_N \\
+\nt{FWDCDS}  & \to & \nt{FWDCOD} \nt{FWDCDS} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{FWDCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(xyz) \\
+             &   | & x_1\ x_2\ x_3\ \nt{FWDINT} & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ x_2\ \nt{FWDINT} x_3 & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ \nt{FWDINT} x_2\ x_3 & p_I / 3 & q_G(xyz) \\
+\nt{FWDINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(x_1) q_{D2}(x_2) q_{A1}(x_3) q_{A2}(x_4) \\
+\nt{REVCDS}  & \to & \nt{REVCDS} \nt{REVCOD} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{REVCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ x_3\ \nt{REVINT} & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ \nt{REVINT} x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ \nt{REVINT} x_2\ x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+\nt{REVINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(\overline{x_4}) q_{D2}(\overline{x_3}) q_{A1}(\overline{x_2}) q_{A2}(\overline{x_1}) \\
+\nt{STRUCT}  & \to & x_1\ \nt{STRUCT} x_2 & 1 - \kappa_S & q_S(xy) \\
+             &   | & \nt{LOOP} & \kappa_S \\
+\nt{LOOP}    & \to & x_1\ \nt{LOOP} & 1 - \kappa_L & q_L(x_1) \\
+             &   | & \epsilon & \kappa_L \\
+\nt{CONS}    & \to & x_1\ \nt{CONS} & 1 - \kappa_C & q_C(x_1) \\
+             &   | & \epsilon & \kappa_C \\
+}
+
+
+\subsubsection{The Joint Finite-Time Grammar}
+
+The general rules for forming the joint grammar from the conditional grammar are as follows.
+For every nonterminal of the following form (here $\ntf{L}$, $\ntf{R}$, and/or $\ntf{E}$ are allowed to be $\epsilon$)
+\gramtab{
+\nt{F} & \to & \nt{L} \nt{F} \nt{R} & 1 - \kappa_F & q_F(LR) \\
+       &   | & \nt{E} & \kappa_F \\
+}
+...that is, for $\ntf{GENOME}$, $\ntf{INTER}$, $\ntf{FWDCDS}$, $\ntf{REVCDS}$, $\ntf{STRUCT}$, $\ntf{LOOP}$, and $\ntf{CONS}$
+(with $F \in \{ R, N, G, S, L, C \}$),
+replace these rules with
+\gramtab{
+\ntm{F} & \to & \ntm{L} \ntm{F} \ntm{R} & (1 - \beta_{M,F}) (1 - \kappa_F) \alpha_F & q_F(LR_x) \exp(Q_F t)(LR_x,LR_y) \\
+        &   | & \nty{L} \ntm{F} \nty{R} & \beta_{M,F} & q_F(LR_y) \\
+        &   | & \ntx{L} \ntd{F} \ntx{R} & (1 - \beta_{M,F}) (1 - \kappa_F) (1 - \alpha_F) & q_F(LR_x) \\
+        &   | & \ntm{E} & (1 - \beta_{M,F}) \kappa_F \\
+\ntd{F} & \to & \ntm{L} \ntm{F} \ntm{R} & (1 - \beta_{D,F}) (1 - \kappa_F) \alpha_F & q_F(LR_x) \exp(Q_F t)(LR_x,LR_y) \\
+        &   | & \nty{L} \ntm{F} \nty{R} & \beta_{D,F} & q_F(LR_y)  \\
+        &   | & \ntx{L} \ntd{F} \ntx{R} & (1 - \beta_{D,F}) (1 - \kappa_F) (1 - \alpha_F) & q_F(LR_x) \\
+        &   | & \ntm{E} & (1 - \beta_{D,F}) \kappa_F \\
+}
+...that is, two versions $\ntm{F}$ and $\ntd{F}$, with different $\beta$'s for each type.
+
+For every other nonterminal $\ntf{N}$, there need to be three versions $\ntm{N}$, $\ntx{N}$ and $\nty{N}$,
+with outgoing rules for each type going to other nonterminals of the same type.
+
+\paragraph{Top level.}
+
+\gramtab{
+\ntk{GENOME}   & \to & \ntm{REGION} \ntm{GENOME} & (1 - \beta_{k,R}) (1 - \kappa_R) \alpha_R \\
+               &   | & \nty{REGION} \ntm{GENOME} & \beta_{k,R}  \\
+               &   | & \ntx{REGION} \ntd{GENOME} & (1 - \beta_{k,R}) (1 - \kappa_R) (1 - \alpha_R)  \\
+               &   | & \epsilon & (1 - \beta_{k,R}) \kappa_R \\
+\ntj{REGION}   & \to & \ntj{INTER} & p_N \\
+               &   | & \ntj{FWDCDS} & p_G / 2 \\
+               &   | & \ntj{REVCDS} & p_G / 2 \\
+               &   | & \ntj{STRUCT} & p_S \\
+               &   | & \ntj{CONS} & p_C \\
+\nt{INTER}   & \to & x_1\ \nt{INTER} & 1 - \kappa_N & q_N(x_1) \\
+             &   | & \epsilon & \kappa_N \\
+}
+
+\paragraph{Coding sequences.}
+
+\gramtab{
+\nt{FWDCDS}  & \to & \nt{FWDCOD} \nt{FWDCDS} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{FWDCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(xyz) \\
+             &   | & x_1\ x_2\ x_3\ \nt{FWDINT} & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ x_2\ \nt{FWDINT} x_3 & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ \nt{FWDINT} x_2\ x_3 & p_I / 3 & q_G(xyz) \\
+\nt{FWDINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(x_1) q_{D2}(x_2) q_{A1}(x_3) q_{A2}(x_4) \\
+}
+
+\gramtab{
+\nt{REVCDS}  & \to & \nt{REVCDS} \nt{REVCOD} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{REVCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ x_3\ \nt{REVINT} & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ \nt{REVINT} x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ \nt{REVINT} x_2\ x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+\nt{REVINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(\overline{x_4}) q_{D2}(\overline{x_3}) q_{A1}(\overline{x_2}) q_{A2}(\overline{x_1}) \\
+}
+
+\paragraph{RNA structures.}
+
+\gramtab{
+\nt{STRUCT}  & \to & x_1\ \nt{STRUCT} x_2 & 1 - \kappa_S & q_S(xy) \\
+             &   | & \nt{LOOP} & \kappa_S \\
+\nt{LOOP}    & \to & x_1\ \nt{LOOP} & 1 - \kappa_L & q_L(x_1) \\
+             &   | & \epsilon & \kappa_L \\
+\nt{CONS}    & \to & x_1\ \nt{CONS} & 1 - \kappa_C & q_C(x_1) \\
+             &   | & \epsilon & \kappa_C \\
+}
+
+
+\subsection{Example Three: The TKF Basepair Stack (TKFStack)}
+\label{sec:rna-evol}
+
+The simple TKF Structure Tree models RNA secondary structure with
+alternating stems (basepair sequences) and loops (single-nucleotide
+sequences). While a useful proof of concept, it lacks basepair stacking,
+multiloop junctions, bulges, and internal loops---features critical for
+realistic RNA structure modeling.
+
+We now define an enhanced stem-loop grammar that incorporates these
+features while remaining within the TKF evolutionary framework. We then
+show how evolution elaboration, profile SCFG construction, and the
+triplet model for progressive reconstruction all apply to this grammar.
+
+\subsubsection{Parameters}
+
+The grammar has the following parameters:
+\begin{itemize}
+\item Stem link TKF91 rates $\insrate_S < \delrate_S$,
+  giving $\kappa_S = \insrate_S / \delrate_S$.
+\item Loop link TKF91 rates $\insrate_L < \delrate_L$,
+  giving $\kappa_L = \insrate_L / \delrate_L$.
+\item Bulge extension probability $\ext_B$.
+\item Stacked-pair fragment extension probability $\ext_K$.
+\item Stem link type probabilities
+  $p_{\mathrm{bp}} + p_{\mathrm{st}} + p_{\mathrm{bu}} = 1$.
+\item Loop link type probabilities
+  $p_{\mathrm{lf}} + p_{\mathrm{rf}} + p_{\mathrm{sl}} = 1$.
+\item Nucleotide equilibrium $\eqm(c)$ over $\alphabet = \{A,C,G,U\}$,
+  with rate matrix $\exch$.
+\item Single basepair equilibrium $\eqm_{\mathrm{bp}}(c_L, c_R)$
+  over $|\alphabet|^2 = 16$ states, rate matrix $\exch_{\mathrm{bp}}$.
+\item Closing basepair equilibrium $\eqm_{\mathrm{cl}}(c_L, c_R)$
+  over $16$ states, rate matrix $\exch_{\mathrm{cl}}$.
+\item Stacked-pair equilibrium
+  $\eqm_K(c_L^1, c_L^2, c_R^2, c_R^1)$
+  over the $6^2 = 36$ canonical stacked pairs, rate matrix $\exch_K$.
+  A stacked pair consists of two consecutive canonical basepairs
+  $(c_L^1, c_R^1)$ and $(c_L^2, c_R^2)$; the state space is
+  restricted to the six Watson-Crick and wobble pairs
+  (AU, CG, GC, UA, GU, UG) for each position,
+  giving 36 states rather than the full $16^2 = 256$.
+\end{itemize}
+
+\subsubsection{Nonterminals and Productions}
+
+A \emph{stem-loop} consists of a stem (nested basepairs with
+decorations), a closing basepair, and a loop (with possible
+multiloop branches).
+The start symbol is $\mathsf{SL}$ (stem-loop).
+
+\medskip
+\noindent\textbf{Stem-loop:}
+\begin{align}
+\mathsf{SL} &\to \mathsf{STEM}
+  && \text{weight } 1
+  \label{eq:sl}
+\end{align}
+
+\noindent\textbf{Stem (TKF91 sequence of stem-links, from outer to inner):}
+\begin{align}
+\mathsf{STEM} &\to c_L\;\mathsf{STEM}\;c_R
+  && \kappa_S\, p_{\mathrm{bp}}\, \eqm_{\mathrm{bp}}(c_L, c_R)
+  && \text{[single basepair, LR]}
+  \label{eq:stem-bp} \\
+&\to c_L^1\, c_L^2\;\mathsf{STEM}\;c_R^2\, c_R^1
+  && \kappa_S\, p_{\mathrm{st}}\, (1-\ext_K)\, \eqm_K(\cdot)
+  && \text{[terminal stacked pair, LLRR]}
+  \label{eq:stem-stack-term} \\
+&\to c_L^1\, c_L^2\;\mathsf{STACK}\;c_R^2\, c_R^1
+  && \kappa_S\, p_{\mathrm{st}}\, \ext_K\, \eqm_K(\cdot)
+  && \text{[extended stacked pair, LLRR]}
+  \label{eq:stem-stack-ext} \\
+&\to \mathsf{LDECO}\;\mathsf{STEM}\;\mathsf{RDECO}
+  && \kappa_S\, p_{\mathrm{bu}}
+  && \text{[bulge]}
+  \label{eq:stem-bulge} \\
+&\to \mathsf{CLOSE}\;\mathsf{LOOP}
+  && 1 - \kappa_S
+  && \text{[end stem]}
+  \label{eq:stem-end}
+\end{align}
+A bulge link~\eqref{eq:stem-bulge} represents an internal loop,
+a single-sided bulge, or a multihelix junction branch between
+basepairs.
+All non-basepair content between consecutive basepairs is
+consolidated into a single TKF link type whose internal structure
+is governed by $\mathsf{LDECO}$ and $\mathsf{RDECO}$.
+
+\medskip
+\noindent\textbf{Bulge decorations (L-side and R-side content):}
+\begin{align}
+\mathsf{LDECO} &\to \mathsf{LFRAG}\;\mathsf{LDECO}
+  && \text{[L-fragment, then more L-content]}
+  \label{eq:ldeco-lfrag} \\
+&\to \mathsf{SL}\;\mathsf{LDECO}
+  && \text{[left branch: nested stem-loop]}
+  \label{eq:ldeco-branch} \\
+&\to \epsilon
+  && \text{[end L-decorations]}
+  \label{eq:ldeco-end} \\[6pt]
+\mathsf{RDECO} &\to \mathsf{RDECO}\;\mathsf{RFRAG}
+  && \text{[R-fragment, more R-content]}
+  \label{eq:rdeco-rfrag} \\
+&\to \mathsf{RDECO}\;\mathsf{SL}
+  && \text{[right branch: nested stem-loop]}
+  \label{eq:rdeco-branch} \\
+&\to \epsilon
+  && \text{[end R-decorations]}
+  \label{eq:rdeco-end}
+\end{align}
+$\mathsf{LDECO}$ generates all content on the $5'$ side
+(between the outer basepair's L-half and the continuation),
+while $\mathsf{RDECO}$ generates all content on the $3'$ side
+(between the continuation and the outer basepair's R-half).
+An internal loop has both $\mathsf{LDECO} \neq \epsilon$ and
+$\mathsf{RDECO} \neq \epsilon$;
+a single-sided bulge has content on only one side;
+a multihelix junction branch has $\mathsf{SL}$ nested within
+$\mathsf{LDECO}$ or $\mathsf{RDECO}$.
+
+\medskip
+\noindent\textbf{Stacked-pair fragment continuation (LLRR emission):}
+\begin{align}
+\mathsf{STACK} &\to c_L^1\, c_L^2\;\mathsf{STEM}\;c_R^2\, c_R^1
+  && (1-\ext_K)\, \eqm_K(\cdot)
+  && \text{[terminal]}
+  \label{eq:stack-term} \\
+&\to c_L^1\, c_L^2\;\mathsf{STACK}\;c_R^2\, c_R^1
+  && \ext_K\, \eqm_K(\cdot)
+  && \text{[extend]}
+  \label{eq:stack-ext}
+\end{align}
+
+\noindent\textbf{Closing basepair (LR emission):}
+\begin{align}
+\mathsf{CLOSE} &\to c_L\;\mathsf{CLOSE}'\;c_R
+  && \eqm_{\mathrm{cl}}(c_L, c_R)
+  \label{eq:close}
+\end{align}
+where $\mathsf{CLOSE}'$ is a unit nonterminal ($\mathsf{CLOSE}' \to \epsilon$, weight~$1$)
+that serves as a placeholder for the inside of the closing basepair.
+
+\noindent\textbf{Loop (TKF91 sequence of loop-links):}
+\begin{align}
+\mathsf{LOOP} &\to \mathsf{LOOPLINK}\;\mathsf{LOOP}
+  && \kappa_L
+  && \text{[add loop link]}
+  \label{eq:loop-link} \\
+&\to \epsilon
+  && 1 - \kappa_L
+  && \text{[end loop]}
+  \label{eq:loop-end}
+\end{align}
+
+\noindent\textbf{Loop link types:}
+\begin{align}
+\mathsf{LOOPLINK} &\to \mathsf{LFRAG}
+  && p_{\mathrm{lf}}
+  && \text{[L-fragment]}
+  \label{eq:loop-lfrag} \\
+&\to \mathsf{RFRAG}
+  && p_{\mathrm{rf}}
+  && \text{[R-fragment]}
+  \label{eq:loop-rfrag} \\
+&\to \mathsf{SL}
+  && p_{\mathrm{sl}}
+  && \text{[nested stem-loop (multiloop)]}
+  \label{eq:loop-sl}
+\end{align}
+
+\noindent\textbf{Unpaired nucleotide fragments in loops
+(geometric length $\geq 1$):}
+\begin{align}
+\mathsf{LFRAG} &\to c\;\mathsf{LFRAG}
+  && \ext_L\, \eqm(c)
+  && \text{[extend, L-emission]}
+  \label{eq:lfrag-ext} \\
+&\to c
+  && (1-\ext_L)\, \eqm(c)
+  && \text{[terminal, L-emission]}
+  \label{eq:lfrag-term} \\[6pt]
+\mathsf{RFRAG} &\to \mathsf{RFRAG}\;c
+  && \ext_R\, \eqm(c)
+  && \text{[extend, R-emission]}
+  \label{eq:rfrag-ext} \\
+&\to c
+  && (1-\ext_R)\, \eqm(c)
+  && \text{[terminal, R-emission]}
+  \label{eq:rfrag-term}
+\end{align}
+
+\subsubsection{Emission Types and Span Tracking}
+\label{sec:emission-types}
+
+The grammar has four emission patterns, each determining how
+terminals consume positions from the span $[i,j]$ of the
+input sequence:
+
+\begin{enumerate}
+\item \textbf{L-emission} ($c$):
+  consumes from the left end, advancing $i \to i+1$.
+  Used by $\mathsf{LFRAG}$, $\mathsf{LDECO}$ content.
+
+\item \textbf{R-emission} ($c$):
+  consumes from the right end, retreating $j \to j-1$.
+  Used by $\mathsf{RFRAG}$, $\mathsf{RDECO}$ content.
+
+\item \textbf{LR-emission} ($c_L, c_R$):
+  consumes from both ends simultaneously, $i \to i+1$, $j \to j-1$.
+  Used by $\mathsf{STEM}$ (single basepair), $\mathsf{CLOSE}$.
+
+\item \textbf{LLRR-emission} ($c_L^1, c_L^2, c_R^2, c_R^1$):
+  consumes two from each end, $i \to i+2$, $j \to j-2$.
+  Used by $\mathsf{STEM}$ (stacked pair), $\mathsf{STACK}$.
+  Each LLRR unit represents a \emph{stacked dinucleotide pair}:
+  two consecutive canonical basepairs $(c_L^1, c_R^1)$ and $(c_L^2, c_R^2)$
+  treated as a single evolutionary unit with
+  nearest-neighbor stacking energy.
+  The state space is restricted to the $6 \times 6 = 36$
+  combinations of canonical (Watson-Crick and wobble) pairs.
+\end{enumerate}
+
+\begin{remark}[L/R distinction in terminals vs.\ productions]
+\label{rem:lr-distinction}
+The terminal alphabet is $\alphabet = \{A,C,G,U\}$ without
+L/R copies: both L-emission and R-emission produce characters
+from the same alphabet, differing only in which end of the
+span $[i,j]$ is consumed.
+At leaf nodes, the observed sequence carries no L/R annotation.
+
+However, the L/R distinction is essential at the \emph{production}
+level and therefore in the \emph{profile SCFG}.
+Each nonterminal instance in a profile has a fixed emission
+direction (L, R, LR, or LLRR), determined by the parse tree
+from which it was extracted---analogous to the MATL, MATR,
+and MATP node types in Infernal covariance models~\cite{Nawrocki2009}.
+The branch PTT must preserve emission-direction compatibility
+when mapping parent productions to child productions.
+Consequently, a profile position that is LR-emitting (basepaired)
+at one node of the phylogeny may correspond to separate
+L-emitting and R-emitting positions (unpaired) at another node,
+reflecting structural change along the evolutionary lineage.
+\end{remark}
+
+\begin{remark}[Structural interpretation]
+Consider a stem with links (from outer to inner):
+basepair $(c_L^1, c_R^1)$, bulge (left-side $b_1 b_2$,
+right-side branch $\mathsf{SL}'$), basepair $(c_L^2, c_R^2)$.
+The yield is:
+\[
+c_L^1\; b_1\; b_2\; c_L^2\; [\text{loop}]\;
+c_R^2\; [\text{yield}(\mathsf{SL}')]\; c_R^1
+\]
+The bulge nucleotides $b_1, b_2$ appear on the $5'$ side
+(via $\mathsf{LDECO}$), while the branch structure appears
+on the $3'$ side (via $\mathsf{RDECO}$).
+This represents an internal loop with unpaired nucleotides
+on the $5'$ strand and a branching sub-structure on the $3'$
+strand---a configuration that the consolidated bulge link
+type~\eqref{eq:stem-bulge} captures as a single TKF event.
+\end{remark}
+
+\subsubsection{The Pair Grammar via Evolution Elaboration}
+\label{sec:pair-grammar}
+
+Applying the evolution elaboration rules
+(Appendix~\ref{sec:appendix-grammar}) to the singlet grammar
+produces the pair grammar for an ancestor--descendant pair
+separated by evolutionary time~$\evoltime$.
+Each nonterminal participating in a TKF91 link sequence
+($\mathsf{STEM}$, $\mathsf{LOOP}$) gains $\mat/\ins/\del$
+versions with the standard TKF91 transition weights
+$(\alpha, \beta, \gamma)$ derived from $(\insrate, \delrate, \evoltime)$.
+
+\paragraph{Stem Link Elaboration.}
+
+The stem is a TKF91 sequence of links with rates
+$(\insrate_S, \delrate_S)$.
+Each $\mathsf{STEM}$ nonterminal becomes
+$\mathsf{STEM}_\mat$ (post-match/insert) and
+$\mathsf{STEM}_\del$ (post-delete):
+
+\begin{align}
+\mathsf{STEM}_\mat &\to c_L^x\, c_L^y\;\mathsf{STEM}_\mat\;c_R^y\, c_R^x
+  && (1-\beta_S) \kappa_S\, p_{\mathrm{bp}}\, \alpha_S\,
+     \eqm_{\mathrm{bp}}(c_L^x, c_R^x)\,
+     P_{\mathrm{bp}}(c_L^y, c_R^y | c_L^x, c_R^x)
+  \label{eq:pair-bp-match} \\
+&\to c_L^y\;\mathsf{STEM}_\mat\;c_R^y
+  && \beta_S\, \kappa_S\, p_{\mathrm{bp}}\,
+     \eqm_{\mathrm{bp}}(c_L^y, c_R^y)
+  && \text{[BP insert]}
+  \label{eq:pair-bp-ins} \\
+&\to c_L^x\;\mathsf{STEM}_\del\;c_R^x
+  && (1-\beta_S) \kappa_S\, p_{\mathrm{bp}}\, (1-\alpha_S)\,
+     \eqm_{\mathrm{bp}}(c_L^x, c_R^x)
+  && \text{[BP delete]}
+  \label{eq:pair-bp-del}
+\end{align}
+with analogous rules for $\mathsf{STEM}_\del$ using
+$\gamma_S$ in place of $\beta_S$.
+
+For matched single basepairs~\eqref{eq:pair-bp-match}, the nesting
+is $c_L^x\, c_L^y\;\cdots\;c_R^y\, c_R^x$: ancestor terminals
+on the outside, descendant terminals on the inside,
+preserving palindromic structure.
+For inserted basepairs~\eqref{eq:pair-bp-ins}, only descendant
+terminals appear (LR emission).
+For deleted basepairs~\eqref{eq:pair-bp-del}, only ancestor
+terminals appear (LR emission).
+
+\paragraph{Stacked-Pair Elaboration.}
+
+Matched stacked pairs have LLRR emission on both ancestor
+and descendant, yielding an $L^4R^4$ nesting pattern
+in the pair grammar:
+\begin{align}
+\mathsf{STEM}_\mat &\to
+  c_{L1}^x\, c_{L2}^x\, c_{L1}^y\, c_{L2}^y\;
+  \mathsf{STEM}_\mat\;
+  c_{R2}^y\, c_{R1}^y\, c_{R2}^x\, c_{R1}^x
+  \notag \\
+  &\qquad\qquad
+  (1-\beta_S) \kappa_S\, p_{\mathrm{st}}\, (1-\ext_K)\, \alpha_S\,
+  \eqm_K(\cdot)\, P_K(\cdot|\cdot)
+  \label{eq:pair-stack-match}
+\end{align}
+with inserted stacked pairs emitting only descendant LLRR,
+and deleted stacked pairs emitting only ancestor LLRR.
+
+\paragraph{Bulge Elaboration.}
+
+A bulge link~\eqref{eq:stem-bulge} gains $\mat/\ins/\del$
+versions like any other stem link.
+A matched bulge has the form
+$\mathsf{LDECO}_\mat\;\mathsf{STEM}_\mat\;\mathsf{RDECO}_\mat$,
+with each side elaborated independently.
+
+Within $\mathsf{LDECO}$, each sub-element
+($\mathsf{LFRAG}$, nested $\mathsf{SL}$) gains $\mat/\ins/\del$
+versions with L-emission direction preserved.
+For example, a matched left-branch within a bulge produces:
+\begin{align}
+\mathsf{LDECO}_\mat &\to \mathsf{SL}_\mat\;\mathsf{LDECO}_\mat
+  && \alpha_{\mathrm{deco}}\, P(\text{branch})
+  && \text{[matched left branch]}
+  \label{eq:pair-ldeco-match} \\
+&\to \mathsf{SL}_\ins\;\mathsf{LDECO}_\mat
+  && \beta_{\mathrm{deco}}
+  && \text{[inserted left branch]}
+  \label{eq:pair-ldeco-ins} \\
+&\to \mathsf{SL}_\del\;\mathsf{LDECO}_\del
+  && (1-\alpha_{\mathrm{deco}})\, P(\text{branch})
+  && \text{[deleted left branch]}
+  \label{eq:pair-ldeco-del}
+\end{align}
+Here $\mathsf{SL}_\mat$ generates aligned ancestor--descendant
+sub-structures, $\mathsf{SL}_\ins$ generates descendant-only
+sub-structures, and $\mathsf{SL}_\del$ generates ancestor-only
+sub-structures.
+
+$\mathsf{RDECO}$ is elaborated symmetrically, with R-emission
+direction preserved for $\mathsf{RFRAG}$ elements and right-side
+branches.
+
+\paragraph{Loop Elaboration.}
+
+The loop is a TKF91 sequence of loop-links with rates
+$(\insrate_L, \delrate_L)$.
+Elaboration proceeds identically to the stem: each
+$\mathsf{LOOP}$ becomes $\mathsf{LOOP}_\mat / \mathsf{LOOP}_\del$,
+and each loop-link type ($\mathsf{LFRAG}$, $\mathsf{RFRAG}$,
+nested $\mathsf{SL}$) gains $\mat/\ins/\del$ versions.
+
+Nested stem-loops within the loop (multiloop junctions) are
+handled recursively: $\mathsf{SL}_\mat$ aligns both ancestor
+and descendant sub-structures, allowing multiloop branches to
+be independently inserted, deleted, or matched.
+
+
+\subsection{Example Four: The TKF Genome}
+
+
+\subsubsection{Parameters}
+
+Let $\overline{xyz}$ denote reverse complement e.g. $\overline{AAG}=CTT$.
+
+Parameters: insertion and deletion rates $\lambda_F < \mu_F$, fragment extension probability $r_F$,
+substitution rate matrix $Q_F$, equilibrium probability vector $q_F$ (so $q_x Q_F = 0$)
+for $F \in \{ R, N, G, S, L, C \}$.
+Splice donor/acceptor site distribution $q_{D1}$,  $q_{D2}$, $q_{A1}$, $q_{A2}$.
+Region-type probabilities $p_G + p_N + p_S + p_C = 1$.
+Intron probability $p_I$.
+
+The $Q_N$, $Q_S$, $Q_L$ and $Q_C$ models should be strand-invariant, so e.g. $Q_N(x_1,x_2) = Q_N(\overline{x_1},\overline{x_2})$.
+
+\subsubsection{Functions}
+
+For $F \in \{ R, N, G, S, L, C \}$:
+\begin{eqnarray*}
+\kappa_F & = & \left( 1 - \frac{\lambda_F}{\mu_F} \right) \left( 1 - r_F \right)
+\end{eqnarray*}
+
+
+\subsubsection{The Stationary Grammar}
+
+\gramtab{
+\nt{GENOME}  & \to & \nt{REGION} \nt{GENOME} & 1 - \kappa_R \\
+             &   | & \epsilon & \kappa_R \\
+\nt{REGION}  & \to & \nt{INTER} & p_N \\
+             &   | & \nt{FWDCDS} & p_G / 2 \\
+             &   | & \nt{REVCDS} & p_G / 2 \\
+             &   | & \nt{STRUCT} & p_S \\
+             &   | & \nt{CONS} & p_C \\
+\nt{INTER}   & \to & x_1\ \nt{INTER} & 1 - \kappa_N & q_N(x_1) \\
+             &   | & \epsilon & \kappa_N \\
+\nt{FWDCDS}  & \to & \nt{FWDCOD} \nt{FWDCDS} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{FWDCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(xyz) \\
+             &   | & x_1\ x_2\ x_3\ \nt{FWDINT} & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ x_2\ \nt{FWDINT} x_3 & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ \nt{FWDINT} x_2\ x_3 & p_I / 3 & q_G(xyz) \\
+\nt{FWDINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(x_1) q_{D2}(x_2) q_{A1}(x_3) q_{A2}(x_4) \\
+\nt{REVCDS}  & \to & \nt{REVCDS} \nt{REVCOD} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{REVCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ x_3\ \nt{REVINT} & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ \nt{REVINT} x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ \nt{REVINT} x_2\ x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+\nt{REVINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(\overline{x_4}) q_{D2}(\overline{x_3}) q_{A1}(\overline{x_2}) q_{A2}(\overline{x_1}) \\
+\nt{STRUCT}  & \to & x_1\ \nt{STRUCT} x_2 & 1 - \kappa_S & q_S(xy) \\
+             &   | & \nt{LOOP} & \kappa_S \\
+\nt{LOOP}    & \to & x_1\ \nt{LOOP} & 1 - \kappa_L & q_L(x_1) \\
+             &   | & \epsilon & \kappa_L \\
+\nt{CONS}    & \to & x_1\ \nt{CONS} & 1 - \kappa_C & q_C(x_1) \\
+             &   | & \epsilon & \kappa_C \\
+}
+
+
+\subsubsection{The Joint Finite-Time Grammar}
+
+\paragraph{How to form the joint grammar}
+The general rules for forming the joint grammar from the conditional grammar are as follows.
+For every nonterminal of the following form (here $\ntf{L}$, $\ntf{R}$, and/or $\ntf{E}$ are allowed to be $\epsilon$)
+\gramtab{
+\nt{F} & \to & \nt{L} \nt{F} \nt{R} & 1 - \kappa_F & q_F(LR) \\
+       &   | & \nt{E} & \kappa_F \\
+}
+...that is, for $\ntf{GENOME}$, $\ntf{INTER}$, $\ntf{FWDCDS}$, $\ntf{REVCDS}$, $\ntf{STRUCT}$, $\ntf{LOOP}$, and $\ntf{CONS}$
+(with $F \in \{ R, N, G, S, L, C \}$),
+replace these rules with
+\gramtab{
+\ntm{F} & \to & \ntm{L} \ntm{F} \ntm{R} & (1 - \beta_{M,F}) (1 - \kappa_F) \alpha_F & q_F(LR_x) \exp(Q_F t)(LR_x,LR_y) \\
+        &   | & \nty{L} \ntm{F} \nty{R} & \beta_{M,F} & q_F(LR_y) \\
+        &   | & \ntx{L} \ntd{F} \ntx{R} & (1 - \beta_{M,F}) (1 - \kappa_F) (1 - \alpha_F) & q_F(LR_x) \\
+        &   | & \ntm{E} & (1 - \beta_{M,F}) \kappa_F \\
+\ntd{F} & \to & \ntm{L} \ntm{F} \ntm{R} & (1 - \beta_{D,F}) (1 - \kappa_F) \alpha_F & q_F(LR_x) \exp(Q_F t)(LR_x,LR_y) \\
+        &   | & \nty{L} \ntm{F} \nty{R} & \beta_{D,F} & q_F(LR_y)  \\
+        &   | & \ntx{L} \ntd{F} \ntx{R} & (1 - \beta_{D,F}) (1 - \kappa_F) (1 - \alpha_F) & q_F(LR_x) \\
+        &   | & \ntm{E} & (1 - \beta_{D,F}) \kappa_F \\
+}
+...that is, two versions $\ntm{F}$ and $\ntd{F}$, with different $\beta$'s for each type.
+
+For every other nonterminal $\ntf{N}$, there need to be three versions $\ntm{N}$, $\ntx{N}$ and $\nty{N}$,
+with outgoing rules for each type going to other nonterminals of the same type.
+
+\paragraph{Top level}
+
+\gramtab{
+\ntk{GENOME}   & \to & \ntm{REGION} \ntm{GENOME} & (1 - \beta_{k,R}) (1 - \kappa_R) \alpha_R \\
+               &   | & \nty{REGION} \ntm{GENOME} & \beta_{k,R}  \\
+               &   | & \ntx{REGION} \ntd{GENOME} & (1 - \beta_{k,R}) (1 - \kappa_R) (1 - \alpha_R)  \\
+               &   | & \epsilon & (1 - \beta_{k,R}) \kappa_R \\
+\ntj{REGION}   & \to & \ntj{INTER} & p_N \\
+               &   | & \ntj{FWDCDS} & p_G / 2 \\
+               &   | & \ntj{REVCDS} & p_G / 2 \\
+               &   | & \ntj{STRUCT} & p_S \\
+               &   | & \ntj{CONS} & p_C \\
+\nt{INTER}   & \to & x_1\ \nt{INTER} & 1 - \kappa_N & q_N(x_1) \\
+             &   | & \epsilon & \kappa_N \\
+}
+
+\paragraph{Coding sequences}
+
+\gramtab{
+\nt{FWDCDS}  & \to & \nt{FWDCOD} \nt{FWDCDS} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{FWDCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(xyz) \\
+             &   | & x_1\ x_2\ x_3\ \nt{FWDINT} & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ x_2\ \nt{FWDINT} x_3 & p_I / 3 & q_G(xyz) \\
+             &   | & x_1\ \nt{FWDINT} x_2\ x_3 & p_I / 3 & q_G(xyz) \\
+\nt{FWDINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(x_1) q_{D2}(x_2) q_{A1}(x_3) q_{A2}(x_4) \\
+}
+
+\gramtab{
+\nt{REVCDS}  & \to & \nt{REVCDS} \nt{REVCOD} & 1 - \kappa_G \\
+             &   | & \epsilon & \kappa_G \\
+\nt{REVCOD}  & \to & x_1\ x_2\ x_3 & 1 - p_I & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ x_3\ \nt{REVINT} & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ x_2\ \nt{REVINT} x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+             &   | & x_1\ \nt{REVINT} x_2\ x_3 & p_I / 3 & q_G(\overline{xyz}) \\
+\nt{REVINT}  & \to & x_1\ x_2\ \nt{GENOME} x_3\ x_4 & 1 & q_{D1}(\overline{x_4}) q_{D2}(\overline{x_3}) q_{A1}(\overline{x_2}) q_{A2}(\overline{x_1}) \\
+}
+
+\paragraph{RNA structures}
+
+\gramtab{
+\nt{STRUCT}  & \to & x_1\ \nt{STRUCT} x_2 & 1 - \kappa_S & q_S(xy) \\
+             &   | & \nt{LOOP} & \kappa_S \\
+\nt{LOOP}    & \to & x_1\ \nt{LOOP} & 1 - \kappa_L & q_L(x_1) \\
+             &   | & \epsilon & \kappa_L \\
+\nt{CONS}    & \to & x_1\ \nt{CONS} & 1 - \kappa_C & q_C(x_1) \\
+             &   | & \epsilon & \kappa_C \\
+}

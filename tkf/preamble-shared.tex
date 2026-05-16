@@ -1,0 +1,239 @@
+% Shared preamble for the TKF and MixDom papers.
+% Loaded by both tkf.tex (TKF-centric) and mixdom.tex (MixDom-centric).
+\usepackage{biblatex}
+\addbibresource{refs.bib}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+% pdfencoding=auto + psdextra make hyperref understand the common
+% math tokens (\alpha, \log, \kappa, ...) that appear in our
+% \subsection / \paragraph titles.  Without this, every such token
+% triggers a "Token not allowed in a PDF string (Unicode)" warning.
+\usepackage[pdfencoding=auto,psdextra]{hyperref}
+\usepackage{cleveref}
+
+% algpseudocode + hyperref compatibility: each algorithm internally
+% numbers its lines via the ALG@line counter and registers each as
+% a hyperref destination "ALG@line.N".  With multiple algorithm
+% environments, the destinations collide ("duplicate ignored"
+% warnings of the form "l.NN \State ..."). Prefix each destination
+% with the algorithm number to make it unique.  Use \providecommand
+% (rather than \renewcommand) because \theHALG@line is not always
+% pre-defined by algpseudocode.
+\makeatletter
+\providecommand\theHALG@line{ALG.\thealgorithm.\arabic{ALG@line}}
+\makeatother
+
+\newtheorem{definition}{Definition}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[proposition]{Lemma}
+\newtheorem{corollary}[proposition]{Corollary}
+\newtheorem{remark}{Remark}[section]
+\newtheorem{example}{Example}[section]
+
+\newcommand\expect{\mathbb{E}}
+\newcommand\Var{\mathrm{Var}}
+\newcommand\Cov{\mathrm{Cov}}
+
+% Gamma rate heterogeneity
+\newcommand\gamclass{g}
+\newcommand\ngamclass{G}
+\newcommand\ratemult{\rho}
+
+\newcommand\xpath{\mathbb{X}}
+\newcommand\emcount{\mathcal{C}}
+\newcommand\agecorrection{\mathcal{G}}
+
+\newcommand\seq{\mathcal{S}}
+\newcommand\state{x}
+
+\newcommand\insrate{\lambda}
+\newcommand\delrate{\mu}
+\newcommand\immrate{\nu}
+
+\newcommand\ext{r}
+\newcommand\notext{\rho}
+\newcommand\notkappa{\varphi}
+\newcommand\hmmproc{{\mbox{HMM}}}
+\newcommand\nclasses{C}
+
+\newcommand\main{0}
+
+\newcommand\diag{{\mbox{diag}}}
+
+\newcommand\geomdist{{\mbox{Geometric}}}
+\newcommand\catdist{{\mbox{Categorical}}}
+\newcommand\mixture{{\mbox{Mix}}}
+\newcommand\berndist{{\mbox{Bernoulli}}}
+\newcommand\fragproc{{\mbox{Frag}}}
+\newcommand\subproc{{\mbox{Subst}}}
+\newcommand\tkflinks{{\mbox{Links}}}
+\newcommand\tkffrags{{\mbox{TKF92}}}
+
+\newcommand\dom{n}
+\newcommand\ndom{\mathcal{N}}
+\newcommand\srcdom{l}
+\newcommand\destdom{m}
+\newcommand\domdist{v}
+\newcommand\bifdom{n}
+
+\newcommand\samedom{\delta(\srcdom=\destdom)}
+\newcommand\samefrag{\delta(\srcfrag=\destfrag)}
+
+\newcommand\ltrans{\mathcal{A}}
+\newcommand\ctrans{\mathcal{B}}
+\newcommand\ltransinv{\mathcal{G}}
+\newcommand\ctransinv{\mathcal{H}}
+
+\newcommand\frag{f}
+\newcommand\nfrag{\mathcal{F}}
+\newcommand\srcfrag{f}
+\newcommand\destfrag{g}
+\newcommand\fragdist{w}
+
+\newcommand\class{c}
+\newcommand\nclass{\mathcal{C}}
+\newcommand\classdist{u}
+
+\newcommand\anctok{a}
+\newcommand\destok{b}
+\newcommand\ancordestok{a}
+\newcommand\gap{\bullet}
+
+\newcommand\alphabet{\mathcal{A}}
+\newcommand\eqm{\pi}
+\newcommand\exch{Q}
+\newcommand\symsub{S}
+\newcommand\revsub{R}
+
+\newcommand\evoltime{T}
+
+\newcommand\tkftrans{\tau}
+\newcommand\tkfwfst{\mathbb{T}}
+\newcommand\exptrans{\upsilon}
+\newcommand\transnest{\chi}
+
+\newcommand\emptyseg{z}
+\newcommand\nonemptytrans{\mathcal{T}}
+\newcommand\slicetrans{\mathcal{U}}
+\newcommand\nullpathsum{\mathcal{Z}}
+
+\newcommand\domexit{p_\mathrm{out}}
+\newcommand\domenter{p_\mathrm{in}}
+
+\newcommand\betagamma{\beta^\ast}
+
+\newcommand\fraglen{K}
+
+\newcommand\model{M}
+\newcommand\sumidx{k}
+
+\newcommand\sta{{\tt S}}
+\newcommand\mat{{\tt M}}
+\newcommand\ins{{\tt I}}
+\newcommand\del{{\tt D}}
+\newcommand\fin{{\tt E}}
+\newcommand\mnull{{\tt A}}
+\newcommand\inull{{\tt B}}
+\newcommand\dnull{{\tt C}}
+\newcommand\smide{\{\sta,\mat,\ins,\del,\fin\}}
+
+\newcommand\nonemptystates{\Psi}
+
+\newcommand\xstate{{\tt X}}
+\newcommand\ystate{{\tt Y}}
+\newcommand\zstate{{\tt Z}}
+\newcommand\ustate{{\tt U}}
+\newcommand\vstate{{\tt V}}
+
+\newcommand\waitm{{\tt V}}
+\newcommand\waitd{{\tt W}}
+
+\newcommand\emit{\Omega}
+\newcommand\silent{\mathcal{Z}}
+\newcommand\effT{\hat{T}}
+\newcommand\emprob{e}
+\newcommand\pathE{\mathcal{E}}
+\newcommand\nullcl{N^\ast}
+
+% Grammar elaboration macros
+\newcommand\WCFG{\mathcal{G}}
+\newcommand\NT{\mathcal{N}}
+\newcommand\TM{\Sigma}
+\newcommand\PR{\mathcal{P}}
+\newcommand\WF{w}
+
+% Parse-tree transducer notation
+\newcommand\PTT{\mathcal{T}}
+\newcommand\pttstate{q}
+\newcommand\pttstates{\mathcal{Q}}
+\newcommand\inputgrammar{\WCFG_{\mathrm{in}}}
+\newcommand\outputgrammar{\WCFG_{\mathrm{out}}}
+\newcommand\parsetree{\mathbf{t}}
+\newcommand\inputtree{\parsetree^{\mathrm{in}}}
+\newcommand\outputtree{\parsetree^{\mathrm{out}}}
+\newcommand\treeweight{W}
+\newcommand\treeyield{\mathrm{yield}}
+\newcommand\phylo{\mathcal{T}_{\mathrm{phy}}}
+\newcommand\branchlen{d}
+\newcommand\ancestor{x}
+\newcommand\descendant{y}
+\newcommand\nodecount{n}
+\newcommand\inside{\alpha}
+\newcommand\outside{\beta}
+\newcommand\beamwidth{W}
+
+% State name macros for the exploded MixDom Pair HMM
+\newcommand{\matdom}{\mathtt{MatDom}}
+\newcommand{\insdom}{\mathtt{InsDom}}
+\newcommand{\deldom}{\mathtt{DelDom}}
+\newcommand{\matdomend}{\mathtt{MatDomEnd}}
+\newcommand{\insdomend}{\mathtt{InsDomEnd}}
+\newcommand{\deldomend}{\mathtt{DelDomEnd}}
+\newcommand{\matdomtype}[1]{\mathtt{MatDomType}[#1]}
+\newcommand{\insdomtype}[1]{\mathtt{InsDomType}[#1]}
+\newcommand{\deldomtype}[1]{\mathtt{DelDomType}[#1]}
+\newcommand{\mkfrag}[1]{\mathtt{MatFrag}[#1]}
+\newcommand{\mkifrag}[1]{\mathtt{InsFrag}[#1]}
+\newcommand{\mkdfrag}[1]{\mathtt{DelFrag}[#1]}
+\newcommand{\ikfrag}[1]{\mathtt{IFrag}[#1]}
+\newcommand{\dkfrag}[1]{\mathtt{DFrag}[#1]}
+\newcommand{\mkfragtype}[2]{\mathtt{MatFragType}[#1,#2]}
+\newcommand{\mkifragtype}[2]{\mathtt{InsFragType}[#1,#2]}
+\newcommand{\mkdfragtype}[2]{\mathtt{DelFragType}[#1,#2]}
+\newcommand{\ikfragtype}[2]{\mathtt{IFragType}[#1,#2]}
+\newcommand{\dkfragtype}[2]{\mathtt{DFragType}[#1,#2]}
+\newcommand{\mkfragemit}[2]{\mathtt{MatEmit}[#1,#2]}
+\newcommand{\mkifragemit}[2]{\mathtt{InsEmit}[#1,#2]}
+\newcommand{\mkdfragemit}[2]{\mathtt{DelEmit}[#1,#2]}
+\newcommand{\ikfragemit}[2]{\mathtt{IEmit}[#1,#2]}
+\newcommand{\dkfragemit}[2]{\mathtt{DEmit}[#1,#2]}
+\newcommand{\mkfragend}[2]{\mathtt{MatFragEnd}[#1,#2]}
+\newcommand{\mkifragend}[2]{\mathtt{InsFragEnd}[#1,#2]}
+\newcommand{\mkdfragend}[2]{\mathtt{DelFragEnd}[#1,#2]}
+\newcommand{\ikfragend}[2]{\mathtt{IFragEnd}[#1,#2]}
+\newcommand{\dkfragend}[2]{\mathtt{DFragEnd}[#1,#2]}
+\newcommand{\matmat}{\mathtt{MM}}
+\newcommand{\matins}{\mathtt{MI}}
+\newcommand{\matdel}{\mathtt{MD}}
+\newcommand{\insins}{\mathtt{II}}
+\newcommand{\deldel}{\mathtt{DD}}
+
+% Flag for conditional inclusion (e.g., shared appendices that need
+% to know they are loaded from a TKF/MixDom paper rather than
+% standalone).
+\newcommand\INCLUDEDFROMTKF{1}
+
+\newcommand{\ind}{\mathrm{ind}}
+\newcommand{\imm}{\mathrm{imm}}
+\newcommand{\Eij}[1]{\expect\!\left[#1 \;\middle|\; X(0)=i,\, X(T)=j\right]}
+
+\newcommand{\pluseq}{\mathrel{+}=}
+\newcommand{\mixcount}{N}

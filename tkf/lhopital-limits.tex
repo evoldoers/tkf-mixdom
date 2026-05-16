@@ -1,0 +1,649 @@
+% lhopital-limits.tex — L'Hôpital limits for TKF parameters as λ → μ
+% To be \input from tkf.tex or read standalone
+
+\section{Equal-Rate Limits for TKF Parameters}
+\label{sec:lhopital}
+
+For biologically realistic equilibrium lengths under TKF91/TKF92, one is typically driven into the near-critical regime
+$\insrate \approx \delrate$ ($\kappa \approx 1$).
+Under TKF91, the expected equilibrium sequence length is
+$\kappa/(1-\kappa)$ characters.
+Under TKF92 with fragment extension probability $\ext$,
+it is $\kappa/((1-\ext)(1-\kappa))$ characters (over $\kappa/(1-\kappa)$ fragments).
+The average protein in UniProtKB/Swiss-Prot is approximately
+360 amino acids long \cite{UniProtStatistics}.
+Even under TKF92 with a mean indel length of $1/(1-\ext) \approx 3$
+residues (matching the empirically observed predominance of
+1--5 residue indels in protein evolution \cite{Cartwright2009,Ajawatanawong2013}),
+the required $\kappa$ is $120/121 \approx 0.992$.
+Under TKF91, $\kappa = 360/361 \approx 0.997$.
+For DNA sequences (a typical prokaryotic ORF or eukaryotic
+intron-free coding sequence is $\sim$1000 bp
+\cite{XuEtAl2006}; intron-bearing eukaryotic genes and syntenic
+genomic regions can be much longer), $\kappa > 0.999$.
+Since $1 - \kappa = (\delrate - \insrate)/\delrate$, these
+biological sequence lengths force $\insrate$ very close to $\delrate$.
+
+The TKF91 transition probabilities $\alpha, \beta, \gamma$ and the
+BDI score/sufficient statistics all contain factors of
+$(\delrate - \insrate)$ in denominators.
+When $\insrate \to \delrate$ ($\kappa \to 1$),
+these become $0/0$ indeterminate forms.
+This section derives the L'H\^opital limits, providing
+numerically stable expressions in the equal-rate regime.
+
+Let $\varepsilon = \delrate - \insrate \to 0$ and $s = \delrate\,\evoltime$.
+We parameterize $\insrate = \delrate - \varepsilon$ and take
+$\varepsilon \to 0^+$.
+
+Throughout, we write $\Phi = 1 - \alpha$ for the complement of the
+survival probability ($\Phi$ is well-defined at any $(\insrate,\delrate)$).
+In the equal-rate regime, where $s = \delrate\evoltime$ and $\alpha = e^{-s}$,
+we additionally define:
+\[
+\phi = \Phi/s = (1-e^{-s})/s
+\]
+Note $\phi(0) = 1$ and $\phi(s) \to 0$ as $s \to \infty$.
+
+\subsection{TKF91 Transition Parameters}
+
+\paragraph{$\alpha$ (survival probability).}
+$\alpha = e^{-\delrate\evoltime}$ has no dependence on $\insrate$;
+no singularity.
+
+\paragraph{$\beta$ (insertion continuation probability).}
+\begin{equation}
+\beta = \frac{\insrate(e^{-\insrate\evoltime} - e^{-\delrate\evoltime})}
+             {\delrate\,e^{-\insrate\evoltime} - \insrate\,e^{-\delrate\evoltime}}
+\end{equation}
+
+Write $e^{-\insrate\evoltime} = \alpha\,e^{\varepsilon\evoltime}$ and
+let $u = \varepsilon\evoltime$.
+Then:
+\begin{align*}
+\text{Numerator}
+  &= (\delrate - \varepsilon)\,\alpha\,(e^u - 1) \\
+\text{Denominator}
+  &= \alpha\bigl(\delrate\,e^u - \delrate + \varepsilon\bigr)
+\end{align*}
+Cancelling $\alpha$ and expanding $e^u = 1 + u + u^2/2 + \cdots$
+with $u = \varepsilon\evoltime$:
+\begin{align*}
+\text{Numer} &= (\delrate - \varepsilon)(\varepsilon\evoltime
+  + \varepsilon^2\evoltime^2/2 + \cdots)
+  = \varepsilon\bigl(\delrate\evoltime + O(\varepsilon)\bigr) \\
+\text{Denom} &= \delrate\varepsilon\evoltime
+  + \varepsilon(1 + O(\varepsilon))
+  = \varepsilon\bigl(\delrate\evoltime + 1 + O(\varepsilon)\bigr)
+\end{align*}
+After cancelling $\varepsilon$:
+\begin{equation}
+\boxed{\beta \;\xrightarrow{\;\insrate\to\delrate\;}\;
+  \frac{s}{1+s}}
+\label{eq:beta-limit}
+\end{equation}
+
+\paragraph{$\gamma$ (orphan insertion probability).}
+Using $\gamma = 1 - \delrate\beta/(\insrate(1-\alpha))$:
+\begin{equation}
+\boxed{\gamma \;\xrightarrow{\;\insrate\to\delrate\;}\;
+  1 - \frac{1}{(1+s)\,\phi}
+  = \frac{(1+s)\phi - 1}{(1+s)\phi}}
+\label{eq:gamma-limit}
+\end{equation}
+
+\paragraph{Complementary parameters.}
+\begin{align}
+1-\beta &\;\to\; \frac{1}{1+s} \label{eq:1mbeta-limit}\\
+1-\gamma &\;\to\; \frac{1}{(1+s)\,\phi} \label{eq:1mgamma-limit}
+\end{align}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Score Derivatives: General Case}
+\label{sec:score-general}
+
+Define $\eta = e^{-\insrate\evoltime}$ and
+$\delta = \delrate\eta - \insrate\alpha$
+(the denominator of $\beta$).
+The score of the observed log-likelihood
+decomposes into 8 log-parameter groups.
+Below we list the derivatives of each log-factor with respect to
+$\insrate$ and $\delrate$, from which the log-elasticities follow
+by multiplication:
+\[
+\frac{\partial\log\xi}{\partial\log\insrate}
+= \insrate\,\frac{\partial\log\xi}{\partial\insrate}, \qquad
+\frac{\partial\log\xi}{\partial\log\delrate}
+= \delrate\,\frac{\partial\log\xi}{\partial\delrate}, \qquad
+\frac{\partial\log\xi}{\partial\log(\insrate{+}\delrate)}
+= \frac{\partial\log\xi}{\partial\log\insrate}
++ \frac{\partial\log\xi}{\partial\log\delrate}
+\]
+The third identity holds because differentiating with respect to
+$\log(\insrate{+}\delrate)$ at fixed ratio $\kappa = \insrate/\delrate$
+is equivalent to scaling both rates by a common factor $c$ and
+differentiating with respect to $\log c$, which gives
+$\insrate\,\partial_\insrate + \delrate\,\partial_\delrate$.
+
+\subsubsection{\texorpdfstring{$\log\alpha$ and $\log(1{-}\alpha)$}{log alpha and log(1-alpha)}}
+
+Since $\alpha = e^{-\delrate\evoltime}$ depends only on $\delrate$:
+\begin{align}
+\frac{\partial\log\alpha}{\partial\insrate} &= 0, &
+\frac{\partial\log\alpha}{\partial\delrate} &= -\evoltime
+\label{eq:dlogalpha}
+\\[4pt]
+\frac{\partial\log(1{-}\alpha)}{\partial\insrate} &= 0, &
+\frac{\partial\log(1{-}\alpha)}{\partial\delrate}
+  &= \frac{\evoltime\alpha}{1-\alpha}
+  = \frac{\evoltime\alpha}{\Phi}
+\label{eq:dlog1malpha}
+\end{align}
+
+\subsubsection{\texorpdfstring{$\log\beta$ and $\log(1{-}\beta)$}{log beta and log(1-beta)}}
+
+From $\log\beta = \log\insrate + \log(\eta - \alpha) - \log\delta$:
+\begin{align}
+\frac{\partial\log\beta}{\partial\insrate}
+  &= \frac{1}{\insrate}
+     - \frac{\evoltime\eta}{\eta - \alpha}
+     + \frac{\evoltime\delrate\eta + \alpha}{\delta}
+\label{eq:dlogbeta-dl}
+\\[4pt]
+\frac{\partial\log\beta}{\partial\delrate}
+  &= \frac{\evoltime\alpha}{\eta - \alpha}
+     - \frac{\eta + \evoltime\insrate\alpha}{\delta}
+\label{eq:dlogbeta-dm}
+\end{align}
+
+Both $(\eta - \alpha) \to 0$ and $\delta \to 0$ as $\insrate \to \delrate$,
+so each term individually diverges; the combination is finite
+(Section~\ref{sec:score-limits}).
+
+For $\log(1{-}\beta)$, using the chain rule
+$\partial\log(1{-}\beta) = -\frac{\beta}{1-\beta}\,\partial\log\beta$:
+\begin{align}
+\frac{\partial\log(1{-}\beta)}{\partial\insrate}
+  &= -\frac{\beta}{1-\beta}
+     \cdot\frac{\partial\log\beta}{\partial\insrate}
+\label{eq:dlog1mbeta-dl}
+\\[4pt]
+\frac{\partial\log(1{-}\beta)}{\partial\delrate}
+  &= -\frac{\beta}{1-\beta}
+     \cdot\frac{\partial\log\beta}{\partial\delrate}
+\label{eq:dlog1mbeta-dm}
+\end{align}
+
+\subsubsection{\texorpdfstring{$\log(1{-}\gamma)$ and $\log\gamma$}{log(1-gamma) and log gamma}}
+
+From $1 - \gamma = \delrate\beta/(\insrate(1{-}\alpha))$,
+so $\log(1{-}\gamma) = \log\delrate + \log\beta - \log\insrate - \log(1{-}\alpha)$:
+\begin{align}
+\frac{\partial\log(1{-}\gamma)}{\partial\insrate}
+  &= \frac{\partial\log\beta}{\partial\insrate} - \frac{1}{\insrate}
+\label{eq:dlog1mgamma-dl}
+\\[4pt]
+\frac{\partial\log(1{-}\gamma)}{\partial\delrate}
+  &= \frac{1}{\delrate}
+     + \frac{\partial\log\beta}{\partial\delrate}
+     - \frac{\evoltime\alpha}{1-\alpha}
+\label{eq:dlog1mgamma-dm}
+\end{align}
+
+For $\log\gamma$:
+\begin{align}
+\frac{\partial\log\gamma}{\partial\insrate}
+  &= -\frac{1-\gamma}{\gamma}
+     \cdot\frac{\partial\log(1{-}\gamma)}{\partial\insrate}
+\label{eq:dloggamma-dl}
+\\[4pt]
+\frac{\partial\log\gamma}{\partial\delrate}
+  &= -\frac{1-\gamma}{\gamma}
+     \cdot\frac{\partial\log(1{-}\gamma)}{\partial\delrate}
+\label{eq:dloggamma-dm}
+\end{align}
+
+
+\subsubsection{Summary Table: General Case}
+\label{sec:score-table-general}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.6}
+\begin{tabular}{c|cccccc}
+& $\log\alpha$ & $\log(1{-}\alpha)$
+& $\log\beta$ & $\log(1{-}\beta)$
+& $\log\gamma$ & $\log(1{-}\gamma)$ \\
+\hline
+$\dfrac{\partial}{\partial\log\insrate}$
+  & $0$
+  & $0$
+  & $1 - \dfrac{s_\insrate \eta}{\eta-\alpha}
+        + \dfrac{s_\insrate\delrate\eta/\insrate + \insrate\alpha/\insrate}{\delta/\insrate}$
+  & $-\dfrac{\beta}{1-\beta}\cdot[\cdot]_\beta^\insrate$
+  & $-\dfrac{1-\gamma}{\gamma}\cdot[\cdot]_{1-\gamma}^\insrate$
+  & $[\cdot]_\beta^\insrate - 1$
+\\[6pt]
+$\dfrac{\partial}{\partial\log\delrate}$
+  & $-s$
+  & $\dfrac{s\alpha}{\Phi}$
+  & $\dfrac{s\alpha}{\eta-\alpha} - \dfrac{\delrate\eta + s\insrate\alpha}{\delta}$
+  & $-\dfrac{\beta}{1-\beta}\cdot[\cdot]_\beta^\delrate$
+  & $-\dfrac{1-\gamma}{\gamma}\cdot[\cdot]_{1-\gamma}^\delrate$
+  & $1 + [\cdot]_\beta^\delrate - \dfrac{s\alpha}{\Phi}$
+\\[6pt]
+$\dfrac{\partial}{\partial\log(\insrate{+}\delrate)}$
+  & \multicolumn{6}{c}{(sum of above two rows)}
+\end{tabular}
+\end{center}
+
+\noindent
+where $s_\insrate = \insrate\evoltime$, $s = \delrate\evoltime$,
+and $[\cdot]_\xi^\theta$ denotes the $\partial\log\xi/\partial\log\theta$ entry.
+
+The table is dense because each $\log\beta$ and $\log\gamma$ entry
+involves the singular terms $(\eta-\alpha)^{-1}$ and $\delta^{-1}$.
+These singularities cancel in each entry, as we show next.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Score Derivatives: L'H\^opital Limits}
+\label{sec:score-limits}
+
+We systematically expand each derivative to first order in
+$\varepsilon = \delrate - \insrate$ and extract the finite limit.
+With $u = \varepsilon\evoltime$, the key expansions are:
+\begin{align}
+\eta - \alpha &= \alpha(e^u - 1)
+  = \alpha\bigl(u + u^2/2 + \cdots\bigr)
+\label{eq:eta-alpha-expand}
+\\
+\delta &= \delrate\eta - \insrate\alpha
+  = \alpha\varepsilon(1 + s + O(\varepsilon))
+\label{eq:delta-expand}
+\end{align}
+and the Laurent expansion $1/(e^u - 1) = 1/u - 1/2 + u/12 - \cdots$,
+giving:
+\begin{align}
+\frac{\evoltime\eta}{\eta - \alpha}
+  = \frac{\evoltime e^u}{e^u - 1}
+  &= \frac{1}{\varepsilon} + \frac{\evoltime}{2} + O(\varepsilon)
+\label{eq:singular-A}
+\\
+\frac{\evoltime\alpha}{\eta - \alpha}
+  = \frac{\evoltime}{e^u - 1}
+  &= \frac{1}{\varepsilon} - \frac{\evoltime}{2} + O(\varepsilon)
+\label{eq:singular-B}
+\\
+\frac{\evoltime\delrate\eta + \alpha}{\delta}
+  &= \frac{1}{\varepsilon} + \frac{s\evoltime}{2(1+s)} + O(\varepsilon)
+\label{eq:singular-C}
+\\
+\frac{\eta + \evoltime\insrate\alpha}{\delta}
+  &= \frac{1}{\varepsilon} - \frac{s\evoltime}{2(1+s)} + O(\varepsilon)
+\label{eq:singular-D}
+\end{align}
+
+Derivation of~\eqref{eq:singular-C}: the numerator is
+$\evoltime\delrate\eta + \alpha
+= \alpha(se^u + 1)
+= \alpha\bigl((1{+}s) + s\varepsilon\evoltime + O(\varepsilon^2)\bigr)$
+and the denominator is
+$\delta = \alpha\varepsilon\bigl((1{+}s) + s\varepsilon\evoltime/2 + O(\varepsilon^2)\bigr)$
+from~\eqref{eq:delta-expand}.  So:
+\[
+\frac{\evoltime\delrate\eta + \alpha}{\delta}
+= \frac{(1{+}s) + s\varepsilon\evoltime + \cdots}
+       {\varepsilon\bigl((1{+}s) + s\varepsilon\evoltime/2 + \cdots\bigr)}
+= \frac{1}{\varepsilon}
+  \cdot\frac{1 + \frac{s\varepsilon\evoltime}{1+s} + \cdots}
+            {1 + \frac{s\varepsilon\evoltime}{2(1+s)} + \cdots}
+\]
+The $O(\varepsilon)$ coefficients differ: $s\evoltime/(1{+}s)$ in the
+numerator vs.\ $s\evoltime/(2(1{+}s))$ in the denominator.
+Their difference gives the $O(1)$ correction:
+$1/\varepsilon + s\evoltime/(2(1{+}s)) + O(\varepsilon)$.
+Similarly for~\eqref{eq:singular-D}.
+
+\subsubsection{\texorpdfstring{$\partial\log\beta/\partial\insrate$ and
+$\partial\log\beta/\partial\delrate$}{partial log beta / partial lambda and partial log beta / partial mu}}
+
+Using~\eqref{eq:dlogbeta-dl} with~\eqref{eq:singular-A}
+and~\eqref{eq:singular-C}:
+\begin{align*}
+\frac{\partial\log\beta}{\partial\insrate}
+  &= \frac{1}{\insrate}
+     - \Bigl(\frac{1}{\varepsilon} + \frac{\evoltime}{2}\Bigr)
+     + \Bigl(\frac{1}{\varepsilon} + \frac{s\evoltime}{2(1+s)}\Bigr)
+     + O(\varepsilon)
+\\
+  &= \frac{1}{\delrate} - \frac{\evoltime}{2} + \frac{s\evoltime}{2(1+s)}
+   = \frac{1}{\delrate} - \frac{\evoltime}{2(1+s)}
+\end{align*}
+Using~\eqref{eq:dlogbeta-dm} with~\eqref{eq:singular-B}
+and~\eqref{eq:singular-D}:
+\begin{align*}
+\frac{\partial\log\beta}{\partial\delrate}
+  &= \Bigl(\frac{1}{\varepsilon} - \frac{\evoltime}{2}\Bigr)
+     - \Bigl(\frac{1}{\varepsilon} - \frac{s\evoltime}{2(1+s)}\Bigr)
+     + O(\varepsilon)
+\\
+  &= -\frac{\evoltime}{2} + \frac{s\evoltime}{2(1+s)}
+   = -\frac{\evoltime}{2(1+s)}
+\end{align*}
+
+Converting to log-elasticities:
+\begin{equation}
+\boxed{
+\frac{\partial\log\beta}{\partial\log\insrate}
+  \;\to\; \frac{s+2}{2(1+s)},
+\qquad
+\frac{\partial\log\beta}{\partial\log\delrate}
+  \;\to\; -\frac{s}{2(1+s)}}
+\label{eq:logbeta-elasticity-limit}
+\end{equation}
+
+\paragraph{Check.} As a consistency check, we verify that the sum of the
+two elasticities (which gives the response to uniformly scaling both
+rates at fixed $\kappa = \insrate/\delrate$) matches the direct
+derivative of the limit formula.
+The sum is $(s{+}2)/(2(1{+}s)) + (-s)/(2(1{+}s)) = 1/(1{+}s)$.
+At the limit, $\beta = s/(1{+}s)$ where $s = \delrate\evoltime$,
+so $d\log\beta/d\log s = 1/(1{+}s)$.  \checkmark
+
+\subsubsection{\texorpdfstring{$\partial\log(1{-}\beta)/\partial\log\insrate$ and
+$\partial\log(1{-}\beta)/\partial\log\delrate$}{partial log(1-beta) / partial log lambda and partial log(1-beta) / partial log mu}}
+
+Using $\beta/(1-\beta) \to s$ at equal rates:
+\begin{equation}
+\boxed{
+\frac{\partial\log(1{-}\beta)}{\partial\log\insrate}
+  \;\to\; -\frac{s(s+2)}{2(1+s)},
+\qquad
+\frac{\partial\log(1{-}\beta)}{\partial\log\delrate}
+  \;\to\; \frac{s^2}{2(1+s)}}
+\label{eq:log1mbeta-elasticity-limit}
+\end{equation}
+
+\paragraph{Check.} Summing the two elasticities (uniform rate scaling):
+$(-s^2{-}2s{+}s^2)/(2(1{+}s)) = -s/(1{+}s)$.
+Direct: $d\log(1{-}\beta)/d\log s = -s/(1{+}s)$.  \checkmark
+
+\subsubsection{\texorpdfstring{$\partial\log(1{-}\gamma)/\partial\log\insrate$ and
+$\partial\log(1{-}\gamma)/\partial\log\delrate$}{partial log(1-gamma) / partial log lambda and partial log(1-gamma) / partial log mu}}
+
+From~\eqref{eq:dlog1mgamma-dl}:
+$\partial\log(1{-}\gamma)/\partial\insrate
+= \partial\log\beta/\partial\insrate - 1/\insrate
+\to 1/\delrate - \evoltime/(2(1{+}s)) - 1/\delrate
+= -\evoltime/(2(1{+}s))$.
+
+From~\eqref{eq:dlog1mgamma-dm}:
+$\partial\log(1{-}\gamma)/\partial\delrate
+= 1/\delrate + \partial\log\beta/\partial\delrate
+  - \evoltime\alpha/\Phi
+\to 1/\delrate - \evoltime/(2(1{+}s)) - \evoltime\alpha/\Phi$.
+
+Converting:
+\begin{equation}
+\boxed{
+\frac{\partial\log(1{-}\gamma)}{\partial\log\insrate}
+  \;\to\; -\frac{s}{2(1+s)},
+\qquad
+\frac{\partial\log(1{-}\gamma)}{\partial\log\delrate}
+  \;\to\; \frac{s+2}{2(1+s)} - \frac{s\alpha}{\Phi}}
+\label{eq:log1mgamma-elasticity-limit}
+\end{equation}
+
+\paragraph{Check.} Summing the two elasticities (uniform rate scaling):
+$-s/(2(1{+}s)) + (s{+}2)/(2(1{+}s)) - s\alpha/\Phi
+= 1/(1{+}s) - s\alpha/\Phi$.
+Direct: at the limit, $1-\gamma = s/((1{+}s)\Phi)$, so
+$\log(1{-}\gamma) = \log s - \log(1{+}s) - \log\Phi$.
+Under $s \to cs$:
+$d/d\log c|_{c=1} = 1 - s/(1{+}s) - s\alpha/\Phi
+= 1/(1{+}s) - s\alpha/\Phi$.  \checkmark
+
+\subsubsection{\texorpdfstring{$\partial\log\gamma/\partial\log\insrate$ and
+$\partial\log\gamma/\partial\log\delrate$}{partial log gamma / partial log lambda and partial log gamma / partial log mu}}
+
+With $R = (1{-}\gamma)/\gamma$ at equal rates.
+Since $1-\gamma = 1/((1{+}s)\phi)$:
+\[
+R = \frac{1}{(1+s)\phi - 1}
+\]
+
+\begin{equation}
+\boxed{
+\frac{\partial\log\gamma}{\partial\log\insrate}
+  \;\to\; \frac{Rs}{2(1+s)},
+\qquad
+\frac{\partial\log\gamma}{\partial\log\delrate}
+  \;\to\; -R\Bigl(\frac{s+2}{2(1+s)} - \frac{s\alpha}{\Phi}\Bigr)}
+\label{eq:loggamma-elasticity-limit}
+\end{equation}
+
+
+\subsubsection{Summary Table: L'H\^opital Limits}
+\label{sec:score-table-limits}
+
+At $\insrate = \delrate$, with $s = \delrate\evoltime$,
+$\alpha = e^{-s}$, $\Phi = 1-\alpha$,
+$\phi = \Phi/s$, $R = 1/((1{+}s)\phi - 1)$:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.8}
+\begin{tabular}{c|cccccc}
+& $\log\alpha$ & $\log(1{-}\alpha)$
+& $\log\beta$ & $\log(1{-}\beta)$
+& $\log\gamma$ & $\log(1{-}\gamma)$ \\
+\hline
+$\dfrac{\partial}{\partial\log\insrate}$
+  & $0$
+  & $0$
+  & $\dfrac{s+2}{2(1+s)}$
+  & $-\dfrac{s(s+2)}{2(1+s)}$
+  & $\dfrac{Rs}{2(1+s)}$
+  & $-\dfrac{s}{2(1+s)}$
+\\[8pt]
+$\dfrac{\partial}{\partial\log\delrate}$
+  & $-s$
+  & $\dfrac{s\alpha}{\Phi}$
+  & $-\dfrac{s}{2(1+s)}$
+  & $\dfrac{s^2}{2(1+s)}$
+  & $-R\!\left(\dfrac{s{+}2}{2(1{+}s)}{-}\dfrac{s\alpha}{\Phi}\right)$
+  & $\dfrac{s+2}{2(1+s)}{-}\dfrac{s\alpha}{\Phi}$
+\\[8pt]
+$\dfrac{\partial}{\partial\log(\insrate{+}\delrate)}$
+  & $-s$
+  & $\dfrac{s\alpha}{\Phi}$
+  & $\dfrac{1}{1+s}$
+  & $-\dfrac{s}{1+s}$
+  & $R\!\left(\dfrac{s}{2(1{+}s)}{-}\dfrac{s{+}2}{2(1{+}s)}{+}\dfrac{s\alpha}{\Phi}\right)$
+  & $\dfrac{1}{1+s}{-}\dfrac{s\alpha}{\Phi}$
+\end{tabular}
+\end{center}
+
+\noindent
+All entries are finite.
+The third row equals the sum of the first two (as it must by
+construction).
+The $\log\alpha$ and $\log(1{-}\alpha)$ columns are trivially
+continuous (no $\insrate$ dependence).
+The $\log\beta$ and $\log(1{-}\beta)$ entries have a
+particularly clean form involving only $s/(1{+}s)$.
+The $\log\gamma$ entries additionally involve
+$\alpha/\Phi = e^{-s}/(1-e^{-s}) = 1/(e^s - 1)$ and the
+ratio $R = 1/((1{+}s)\phi - 1)$.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{BDI Sufficient Statistics}
+\label{sec:lhopital-bdi}
+
+The EM-relevant quantities are the posterior expectations
+$\mathbb{E}[B|i,j,T]$, $\mathbb{E}[D|i,j,T]$, $\mathbb{E}[S|i,j,T]$,
+recovered from the score via the conservation law $i + B - D = j$:
+\begin{align}
+\mathbb{E}[S] &= \frac{j - i
+  + \delrate\,\partial_\delrate\log P_{ij}
+  - \insrate\,\partial_\insrate\log P_{ij}
+  - \insrate\evoltime}{\insrate - \delrate}
+\label{eq:ES-formula} \\
+\mathbb{E}[B] &= \insrate\,\partial_\insrate\log P_{ij}
+  + \insrate\,\mathbb{E}[S] + \insrate\evoltime
+\label{eq:EB-formula} \\
+\mathbb{E}[D] &= \delrate\,\partial_\delrate\log P_{ij}
+  + \delrate\,\mathbb{E}[S]
+\label{eq:ED-formula}
+\end{align}
+
+The score $\partial_\insrate\log P_{ij}$ itself is computed from
+the transition count groups:
+\[
+\partial_\insrate\log P_{ij}
+= \sum_{\xi \in \{\alpha,1{-}\alpha,\beta,\ldots\}}
+  n_{\log\xi} \cdot \frac{\partial\log\xi}{\partial\insrate}
+\]
+Each derivative $\partial\log\xi/\partial\insrate$ has a
+finite L'H\^opital limit (Section~\ref{sec:score-limits}),
+so the score itself has a finite limit.
+The denominator $\insrate - \delrate$ in~\eqref{eq:ES-formula}
+is what creates the $0/0$ for $\mathbb{E}[S]$.
+
+\paragraph{The $\mathbb{E}[S]$ singularity.}
+The numerator of~\eqref{eq:ES-formula} also vanishes
+at $\insrate = \delrate$, since the complete-data log-likelihood
+for $\immrate = \insrate$ is
+$\ell = B\log\insrate + D\log\delrate - (\insrate+\delrate)S
+- \insrate\evoltime + c$,
+and at $\insrate = \delrate$ the numerator becomes
+$j - i + \mathbb{E}[D] - \mathbb{E}[B] = 0$ by conservation.
+
+To resolve the $0/0$, write
+$f(\insrate) = j - i + \delrate\,\partial_\delrate\log P
+- \insrate\,\partial_\insrate\log P - \insrate\evoltime$
+and $g(\insrate) = \insrate - \delrate$.
+By L'H\^opital ($g' = 1$):
+\begin{equation}
+\lim_{\insrate\to\delrate} \mathbb{E}[S]
+= f'(\delrate)
+= \delrate\,\partial^2_{\insrate\delrate}\log P
+  - \partial_\insrate\log P
+  - \delrate\,\partial^2_{\insrate^2}\log P
+  - \evoltime
+\label{eq:ES-limit}
+\end{equation}
+where all derivatives are evaluated at $\insrate = \delrate$.
+
+The first and second derivatives of $\log P$ that appear
+in~\eqref{eq:ES-limit} can be expressed in terms of the
+transition count groups and the L'H\^opital-limited score
+derivatives from Section~\ref{sec:score-limits},
+together with their first-order corrections in $\varepsilon$.
+Specifically, the second derivatives of $\log P$ require
+the $O(\varepsilon)$ terms in the Laurent expansions
+\eqref{eq:singular-A}--\eqref{eq:singular-D}.
+
+\paragraph{Alternative: direct gradient on $\delrate$.}
+At equal rates, the BDI has a single parameter $\delrate$.
+The gradient is:
+\[
+\frac{\partial\log P}{\partial\delrate}\bigg|_{\insrate=\immrate=\delrate}
+= \sum_\xi n_{\log\xi}\,
+  \Bigl(\frac{\partial\log\xi}{\partial\insrate}
+  + \frac{\partial\log\xi}{\partial\delrate}\Bigr)
+= \frac{\mathbb{E}[B{+}D]}{\delrate} - 2\mathbb{E}[S] - \evoltime
+\]
+This is well-defined using the L'H\^opital limits,
+and gives the combined quantity
+$\mathbb{E}[B{+}D] - \delrate(2\mathbb{E}[S]+\evoltime)$
+without needing to separate $\mathbb{E}[B]$, $\mathbb{E}[D]$,
+$\mathbb{E}[S]$ individually.
+The M-step~\eqref{eq:mu-mle-equal} sets this to zero:
+$\hat\delrate = (\mathbb{E}[B]+\mathbb{E}[D])/(2\mathbb{E}[S]+\evoltime)$.
+
+To \emph{break out} of equal rates (determine whether
+$\insrate$ should differ from $\delrate$), we need the
+individual $\partial\log P/\partial\insrate$ and
+$\partial\log P/\partial\delrate$, which the table in
+Section~\ref{sec:score-table-limits} provides,
+or we need to use additional information from the ancestral length distribution.
+
+
+\subsection{Direct BDI Rate EM at Equal Rates}
+\label{sec:equal-rate-em}
+
+If one ignores the stationary root-length prior and considers only the conditional BDI bridge model with $\insrate = \immrate = \delrate$,
+the complete-data log-likelihood~\eqref{eq:bdi-complete} reduces to:
+\[
+\ell = (B + D)\log\delrate - 2\delrate S - \delrate\evoltime + c
+\]
+This has a single free parameter $\delrate$.
+Setting $\partial\ell/\partial\delrate = 0$:
+\begin{equation}
+\boxed{\hat{\delrate} = \frac{B + D}{2S + \evoltime}}
+\label{eq:mu-mle-equal}
+\end{equation}
+where $B$, $D$, $S$ are understood as posterior expectations.
+
+\paragraph{Implication.}
+At equal rates, the M-step collapses to estimating a single rate
+from the total event count and total sojourn time.
+
+
+\subsection{\texorpdfstring{$\log\kappa$ and $\log(1{-}\kappa)$ Derivatives}{log kappa and log(1-kappa) Derivatives}}
+
+The $\kappa = \insrate/\delrate$ and $(1{-}\kappa)$ groups
+are not among the six $(\alpha,\beta,\gamma)$ factors but
+appear in the transition matrix.
+At $\kappa = 1$:
+\begin{align*}
+\frac{\partial\log\kappa}{\partial\insrate} &= \frac{1}{\insrate}
+  \;\to\; \frac{1}{\delrate}, &
+\frac{\partial\log\kappa}{\partial\delrate} &= -\frac{1}{\delrate}
+\end{align*}
+No singularity.  However, $\log(1{-}\kappa)$ diverges:
+\[
+\frac{\partial\log(1-\kappa)}{\partial\insrate}
+= \frac{-\kappa}{(1-\kappa)\insrate}
+\;\to\; -\infty
+\]
+Unlike the conditional WFST factors $\alpha,\beta,\gamma$, the stationary-length factors $\kappa$ and $1-\kappa$ do not admit a regular equal-rate limit in the full joint TKF model.
+As $\kappa \to 1$, the equilibrium length distribution ceases to be normalizable, and the $\log(1-\kappa)$ contribution diverges.
+Accordingly, the L'Hôpital limits derived above apply to the conditional bridge/WFST quantities, whereas the full stationary joint model must either remain in the subcritical regime $\kappa < 1$
+or be reparameterized with a nonstationary root-length model.
+
+
+\input{joint-vs-conditional}
+
+\input{irreversible}
+
+
+\subsection{Summary of Limits}
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\textbf{Quantity} & \textbf{Formula} & \textbf{Limit as $\insrate \to \delrate$} \\
+\hline
+$\alpha$ & $e^{-\delrate\evoltime}$ & $e^{-s}$ (continuous) \\
+$\beta$ & $\frac{\insrate(\eta-\alpha)}{\delrate\eta - \insrate\alpha}$
+  & $\frac{s}{1+s}$ \\
+$1-\beta$ & & $\frac{1}{1+s}$ \\
+$\gamma$ & $1 - \frac{\delrate\beta}{\insrate(1-\alpha)}$
+  & $1 - \frac{1}{(1+s)\phi}$ \\
+$\kappa$ & $\insrate/\delrate$ & $1$ \\
+$\partial_{\log\insrate}\log\beta$
+  & \eqref{eq:dlogbeta-dl}
+  & $\frac{s+2}{2(1+s)}$ \\
+$\partial_{\log\delrate}\log\beta$
+  & \eqref{eq:dlogbeta-dm}
+  & $-\frac{s}{2(1+s)}$ \\
+$\hat{\delrate}_{\text{MLE}}$ & &
+  $\frac{\mathbb{E}[B]+\mathbb{E}[D]}{2\mathbb{E}[S]+\evoltime}$ \\
+\hline
+\end{tabular}
+\end{center}
+
+where $s = \delrate\evoltime$ throughout.

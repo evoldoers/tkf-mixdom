@@ -1,0 +1,455 @@
+\section{The TKF91 Model}
+
+\subsection{Finite-State Continuous-Time Markov Chain (CTMC)}
+
+A finite-state continuous-time Markov chain (CTMC) on alphabet $\alphabet$ has rate matrix (generator) $\revsub$
+with off-diagonal entries $\revsub_{ij} \geq 0$ (instantaneous rate of substitution from $i$ to $j$)
+and diagonal entries $\revsub_{ii} = -\sum_{j \neq i} \revsub_{ij}$.
+The stationary distribution $\eqm$ satisfies $\eqm \revsub = 0$ and $\sum_i \eqm_i = 1$.
+
+We restrict our analysis to time-reversible CTMCs, which satisfy detailed balance
+$\eqm_i \revsub_{ij} = \eqm_j \revsub_{ji}$ for all $i,j$.
+The symmetrized rate matrix $\symsub_{ij} = \revsub_{ij}\sqrt{\eqm_i/\eqm_j}$ is real symmetric,
+so it has a spectral decomposition $S = \sum_\sumidx \xi^{(\sumidx)} v^{(\sumidx)} {v^{(\sumidx)}}^\top$
+with real eigenvalues $\xi^{(\sumidx)} \leq 0$ and orthonormal eigenvectors $v^{(\sumidx)}$.
+Conjugating back, the transition matrix is
+\[
+P(X(\evoltime) = j \mid X(0) = i, \revsub) =
+\left( e^{\revsub \evoltime} \right)_{ij} = \sum_\sumidx e^{\xi^{(\sumidx)} \evoltime} \sqrt{\frac{\eqm_j}{\eqm_i}}\, v^{(\sumidx)}_i v^{(\sumidx)}_j
+\]
+
+
+\subsection{Sufficient Statistics for Finite-State CTMCs}
+\label{sec:bridge-expectations}
+
+The sufficient statistics for a continuously-observed path $\xpath = \{X(t)\}_{0 \leq t \leq T}$ in the finite-state CTMC
+are the dwell times $W_i$ and transition counts $U_{ij}$.
+The complete-data log-likelihood is
+\begin{equation}\label{eq:ctmc-complete}
+\log P(\xpath \mid X(0), \revsub) = \sum_{i \neq j} U_{ij} \log \revsub_{ij} + \sum_i W_i \revsub_{ii}
+= \sum_{i \neq j} U_{ij} \log \revsub_{ij} - \sum_i W_i \sum_{j \neq i} \revsub_{ij}.
+\end{equation}
+This is an exponential-family form with natural parameters $\log \revsub_{ij}$ and $-\revsub_{ii}$,
+and sufficient statistics $U_{ij}$ and $W_i$.
+
+The {\em a posteriori} expectations of these sufficient statistics
+for an endpoint-conditioned path in the finite-state CTMC are
+\cite{HolmesRubin2002,HobolthJensen2005,HobolthJensen2011,TataruHobolth2011}
+\begin{align}
+\emcount^W_i(a,b,\evoltime) \equiv \expect[W_i|a,b] &= \frac{1}{M_{ab}(\evoltime)} I^{ab}_{ii}(\evoltime) \label{eq:em-dwell} \\
+\emcount^U_{ij}(a,b,\evoltime) \equiv \expect[U_{ij}|a,b] &= \frac{\revsub_{ij}}{M_{ab}(\evoltime)} I^{ab}_{ij}(\evoltime) \label{eq:em-counts}
+\end{align}
+where $M(\evoltime) = e^{\revsub \evoltime}$ is the matrix exponential and
+\begin{equation}\label{eq:em-integral}
+I^{ab}_{ij}(\evoltime) = \int_0^\evoltime M_{ai}(t)\, M_{jb}(\evoltime-t)\, dt.
+\end{equation}
+
+Writing $M_{ij}(t)$ in the eigenbasis of the symmetrized rate matrix
+$\symsub_{ij} = \revsub_{ij}\sqrt{\eqm_i/\eqm_j}$ (with eigenvalues $\xi^{(k)}$
+and orthonormal eigenvectors $v^{(k)}$):
+\begin{equation}\label{eq:em-Jkl}
+I^{ab}_{ij}(\evoltime) = \sqrt{\frac{\eqm_i \eqm_b}{\eqm_a \eqm_j}}
+\sum_k v_a^{(k)} v_i^{(k)} \sum_l v_j^{(l)} v_b^{(l)}\, J^{kl}(\evoltime)
+\end{equation}
+where $J^{kl}(\evoltime) = \evoltime e^{\xi^{(k)}\evoltime}$ if $\xi^{(k)} = \xi^{(l)}$,
+and $(e^{\xi^{(k)}\evoltime} - e^{\xi^{(l)}\evoltime})/(\xi^{(k)} - \xi^{(l)})$ otherwise.
+
+Using the GTR parameterization $\revsub_{ij} = \exch_{ij} \eqm_j$, where $\exch$ is a symmetric exchangeability matrix (so $\symsub_{ij} = \exch_{ij} \sqrt{\eqm_i \eqm_j}$), and including the prior $P(X(0)=i) = \eqm_i$, the complete data log-likelihood is
+\[
+\log P(\xpath, X(0) \mid \exch, \eqm) =
+\sum_i \left( V_i + \sum_{j \neq i} U_{ji} \right) \log \eqm_i + \sum_{j>i} (U_{ij} + U_{ji}) \log \exch_{ij} - \sum_{j > i} \exch_{ij} \left( W_i \eqm_j + W_j \eqm_i \right)
+\]
+where $V_i$ is the indicator/count for the initial state $X(0) = i$.
+
+\subsection{Linear Birth-Death-Immigration Process (BDI)}
+\label{sec:bdi}
+
+The linear birth-death-immigration (BDI) process \cite{Kendall1948} has per-capita birth rate
+$\insrate$, per-capita death rate $\delrate$, and constant immigration rate $\immrate$,
+so that the total event rates from state $k$ are $\insrate_k = k\insrate + \immrate$ and
+$\delrate_k = k\delrate$.
+
+The transition distribution for this process is well-studied in the general case.
+We confine our analysis to the specific case $\immrate = \insrate, \delrate > \insrate$
+where the immigration rate is equal to the birth rate
+and the process is positive recurrent and has an equilibrium distribution,
+a zero-based geometric with parameter $\insrate/\delrate$.
+This is the regime relevant to the TKF91 and related models.
+However, many of the formulas we derive will hold more generally, and the methods we use can be applied to other parameter regimes as well.
+
+Let $Y_f$ denote the number of founder deaths
+and $Y_o$ the number of youngest orphans (i.e.\ the number of times a lineage goes extinct while leaving behind at least one surviving descendant).
+Then the finite-time transition probability is obtained by summing the joint probability
+\begin{multline*}
+P(X(\evoltime) = j,\, Y_f = m,\, Y_o = n \mid X(0) = i) =
+\binom{i}{m} \binom{m}{n} \binom{j}{i-m+n} \\
+\times\; \alpha^{i-m} (1-\alpha)^m \, \beta^{j-i+m-n} (1-\beta)^{i+1-m+n} \, \gamma^n (1-\gamma)^{m-n}
+\end{multline*}
+over all $m,n$ consistent with $i$ and $j$ ($0 \leq m \leq i$ and $0 \leq n \leq \min(m, j-i+m)$),
+where
+\begin{eqnarray}
+    \alpha(\insrate,\delrate,\evoltime) & = &
+        \exp (-\delrate \evoltime) \label{tkf:alpha} \\
+    \beta(\insrate,\delrate,\evoltime) & = &
+        \frac{\insrate \exp (-\insrate \evoltime) - \insrate \alpha}
+        {\delrate \exp (-\insrate \evoltime) - \insrate \alpha} \label{tkf:beta} \\
+    \\
+    \gamma(\insrate,\delrate,\evoltime) & = &
+        1 - \frac{\delrate \beta}{\insrate (1- \alpha)}. \label{tkf:gamma}
+\end{eqnarray}
+
+
+\subsection{Sufficient Statistics for Linear BDI Process}
+
+The sufficient statistics for an augmented continuously-observed path $\{X(t)\}_{0 \leq t \leq T}$ in the linear BDI process
+wherein immigration events are labeled as such (i.e.\ we observe the full path and know which births are due to
+immigration and which are due to reproduction)
+are the individual-birth count $B_\ind$, the immigration count $B_\imm$
+(with $B = B_\ind + B_\imm$ the total), the death count $D$, and the
+time-integrated population size $S = \int_0^T X(t)\,dt$.
+The complete-data log-likelihood is
+\begin{equation}\label{eq:bdi-complete}
+\log P\bigl(\xpath \mid X(0),\insrate,\delrate,\nu\bigr)
+  = B_\ind \log\insrate + B_\imm \log\nu + D\log\delrate
+    - (\insrate+\delrate)\,S - \nu T + c
+\end{equation}
+where $c$ does not depend on $(\insrate,\delrate,\nu)$.
+The natural parameters are
+$(\log\insrate, \log\delrate, \log\nu, -(\insrate+\delrate))$ and the sufficient statistics
+$(B_\ind, D, B_\imm, S)$.
+This is a curved exponential-family form because the natural parameters are not independent.
+
+
+\paragraph{Score function identity.}
+Let $P_{ij}(T;\theta)$ denote the observed likelihood, i.e.\ the transition
+probability $P(X(T)=j \mid X(0)=i;\,\theta)$, with $\theta = (\insrate,\delrate,\nu)$.
+The \emph{score function identity} states that the gradient of the
+observed log-likelihood equals the posterior expectation of the complete-data score:
+\begin{equation}\label{eq:score-identity}
+\nabla_\theta \log P_{ij}(T;\theta)
+  = \expect\!\left[\nabla_\theta \log P(\xpath\mid X(0),\theta)
+      \;\middle|\; X(0)=i,\, X(T)=j;\,\theta\right].
+\end{equation}
+No approximation is involved; \eqref{eq:score-identity} holds for any parametric
+family and any choice of complete/incomplete data.
+
+
+Specializing to $\immrate = \insrate$ and writing $B = B_\ind + B_\imm$ for the total birth count,
+the complete-data log-likelihood~\eqref{eq:bdi-complete} becomes
+$\log P = B \log\insrate + D \log\delrate - (\insrate+\delrate)\,S - \insrate T + c$
+with two free parameters $(\insrate, \delrate)$.
+Differentiating and applying~\eqref{eq:score-identity}:
+\begin{eqnarray*}
+\frac{\partial}{\partial \insrate} \log P_{ij}(T;\theta) & = & \frac{\expect[B \mid i,j,T]}{\insrate} - \expect[S \mid i,j,T] - T \\
+\frac{\partial}{\partial \delrate} \log P_{ij}(T;\theta) & = & \frac{\expect[D \mid i,j,T]}{\delrate} - \expect[S \mid i,j,T]
+\end{eqnarray*}
+Each equation involves two unknowns because the natural parameters $(\log\insrate, \log\delrate, \insrate+\delrate)$
+are not independent.
+The conservation law $i + B - D = j$ provides the missing equation:
+\begin{equation}\label{eq:conservation}
+\expect[B \mid i,j] - \expect[D \mid i,j] = j - i
+\end{equation}
+Solving this system (using $\insrate \neq \delrate$):
+\begin{eqnarray*}
+\expect[S \mid i,j] & = & \frac{j - i
+  + \delrate \frac{\partial}{\partial \delrate} \log P_{ij}
+  - \insrate \frac{\partial}{\partial \insrate} \log P_{ij}
+  - \insrate T}{\insrate - \delrate} \\
+\expect[B \mid i,j] & = & \insrate \frac{\partial}{\partial \insrate} \log P_{ij} + \insrate\, \expect[S \mid i,j] + \insrate T \\
+\expect[D \mid i,j] & = & \delrate \frac{\partial}{\partial \delrate} \log P_{ij} + \delrate\, \expect[S \mid i,j]
+\end{eqnarray*}
+
+Inclusion of an initial distribution
+$P(X(0)=L) = \kappa^L (1-\kappa)$ brings the complete-data log-likelihood into the form
+\[
+\log P\bigl(\xpath, X(0) \mid \insrate,\delrate\bigr)
+  = B \log\insrate + D \log\delrate + L \log \kappa + M \log(1-\kappa)
+    - (\insrate+\delrate)\,S - \insrate T + c
+\]
+where $M=1$ represents the number of BDI trajectories observed, introduced for later generalization.
+
+
+\subsection{The TKF91 Model: Linear BDI + Finite-State CTMC}
+
+Thorne, Kishino, and Felsenstein's 1991 model (TKF91) was introduced
+to describe the molecular evolution of a biological sequence (DNA, RNA, or protein)
+subject to insertions, deletions, and point substitutions \cite{ThorneEtAl91}.
+
+The parameters $\theta = (\insrate, \delrate, \exch, \eqm)$ consist of the insertion rate $\insrate$, deletion rate $\delrate$, exchangeability matrix $\exch$, and equilibrium distribution $\eqm$.
+
+The BDI part of the model, known as the {\em links model}, describes the evolution of an ``immortal link'' followed by zero or more ``mortal links''.
+Each link evolves according to an independent linear BDI process; births and immigrations correspond to insertions, which generate new mortal links, and deaths correspond to deletions.
+
+In the TKF91 model, each mortal link is associated with an observed character that evolves according to an independent finite-state CTMC with rate matrix $\exch$ and stationary distribution $\eqm$.
+Inserted characters are drawn from the equilibrium distribution $\eqm$.
+
+In later TKF91-derived models, a more elaborate structure may be associated with each link; for example, in the TKF92 model, a fragment of characters of geometrically-distributed length \cite{ThorneEtAl92}.
+
+To distinguish between these models
+we introduce the notation $\tkflinks(\model;\insrate,\delrate)$ for the links model where an independent stationary stochastic process $\state(t) \sim \model$ is associated with every mortal link.
+This defines a stationary stochastic process over sequences $\seq(t) \sim \tkflinks(\model;\insrate,\delrate)$ where $\seq$ is a sequence over the alphabet defined by the state space of $\model$.
+
+Let $\subproc(\exch,\eqm)$ denote the time-reversible continuous-time Markov chain with stationary distribution $\eqm$ and generator $\revsub = \exch \diag(\eqm)$, where $\exch$ is the exchangeability matrix.
+Then the TKF91 model is just the links model with a point substitution process transpiring at each mortal link
+\[
+\seq(\evoltime) \sim \tkflinks(\subproc(\exch,\eqm);\insrate,\delrate)
+\]
+
+\subsection{Finite State Machines of the TKF91 Model}
+\label{sec:tkf91-machines}
+
+There are three distinct state machines associated with nodes and branches in a tree of TKF-related sequences.
+
+\subsubsection{TKF91 Stationary HMM}
+
+The stationary distribution of the TKF91 model can be represented as a Hidden Markov Model (HMM) that emits $n \sim \geomdist(\kappa)$ characters drawn i.i.d. from $\eqm$.
+
+\subsubsection{TKF91 Transducer}
+
+The conditional distribution of a descendant sequence $\seq(\evoltime)$ given ancestor sequence $\seq(0)$
+can be represented as a Weighted Finite-State Transducer (WFST) that consumes an ancestor sequence and emits a descendant sequence, with transition weights determined by the TKF91 parameters
+\[
+\tkfwfst(\insrate,\delrate,\evoltime) =
+\left(
+    \begin{array}{r|ccccc}
+    & \sta & \mat & \ins & \del & \fin \\
+    \hline
+    \sta & 0 & (1-\beta)\alpha & \beta & (1-\beta)(1-\alpha) & 1-\beta \\
+    \mat & 0 & (1-\beta)\alpha & \beta & (1-\beta)(1-\alpha) & 1-\beta \\
+    \ins & 0 & (1-\beta)\alpha & \beta & (1-\beta)(1-\alpha) & 1-\beta \\
+    \del & 0 & (1-\gamma)\alpha & \gamma & (1-\gamma)(1-\alpha) & 1-\gamma \\
+    \fin & 0 & 0 & 0 & 0 & 0
+    \end{array}
+\right)
+\]
+with $\mat$ aligning pairs of characters $(i,j)$ with probability $\exp(\revsub \evoltime)_{ij}$,
+$\ins$ emitting unaligned descendant characters $(\epsilon,i)$ with $i \sim \eqm$, and $\del$ consuming unaligned ancestral characters $(i,\epsilon)$ without any additional weight penalty.
+
+This transducer can be interpreted as a decomposition of each mortal-link BDI trajectory into founder survival/death, possible survival of the youngest orphan
+(which, by insertion order, is the leftmost surviving descendant when the founder dies), and a geometric tail of further offspring. This yields the parameters
+$\alpha,\beta,\gamma$
+appearing in the WFST transition matrix and determines which transition counts correspond to birth and death events.
+
+\subsubsection{TKF91 Pair HMM}
+
+The joint distribution of ancestor and descendant is given by the transducer composition product of the stationary HMM and the transition WFST.
+This product can itself be represented as a Pair HMM with states $\{\sta,\mat,\ins,\del,\fin\}$ that models the joint distribution, as opposed to the conditional distribution represented by the WFST.
+The transition matrix $\tkftrans$ of the Pair HMM is similar to the transition matrix $\tkfwfst$ of the transducer,
+with the differences that incoming transitions to $\mat$ and $\del$ states acquire a factor of $\kappa$ for the extension of the ancestral sequence
+and transitions to $\fin$ states acquire a factor of $1-\kappa$ for the termination of the ancestral sequence.
+
+For concreteness, because we will refer to it frequently, the transition matrix of the TKF91 Pair HMM is
+\[
+\tkftrans(\insrate,\delrate,\evoltime) =
+\left(
+    \begin{array}{r|ccccc}
+    & \sta & \mat & \ins & \del & \fin \\
+    \hline
+    \sta & 0 & (1-\beta)\alpha\kappa & \beta\kappa & (1-\beta)(1-\alpha)\kappa & (1-\beta)(1-\kappa) \\
+    \mat & 0 & (1-\beta)\alpha\kappa & \beta\kappa & (1-\beta)(1-\alpha)\kappa & (1-\beta)(1-\kappa) \\
+    \ins & 0 & (1-\beta)\alpha\kappa & \beta\kappa & (1-\beta)(1-\alpha)\kappa & (1-\beta)(1-\kappa) \\
+    \del & 0 & (1-\gamma)\alpha\kappa & \gamma\kappa & (1-\gamma)(1-\alpha)\kappa & (1-\gamma)(1-\kappa) \\
+    \fin & 0 & 0 & 0 & 0 & 0
+    \end{array}
+\right)
+\]
+
+The emission weights of the Pair HMM are similarly related to the input/output emission weights of the WFST, with $\mat$- and $\ins$-state emissions acquiring a factor of $\eqm_i$ for the ancestral character $i$.
+
+For the indel score identities associated with birth, death, and exposure statistics, it is convenient to work with the conditionally normalized TKF91 WFST representing $P(y|x,\theta)$, since its transition weights correspond directly to the finite-time BDI factors
+$\alpha,\beta,\gamma$.
+However, the M-step for $(\insrate,\delrate)$ under the stationary TKF91 model must also include the prior contribution of the ancestral sequence length, which belongs to the joint distribution
+$P(x,y|\theta) = P(x|\theta) P(y|x,\theta)$.
+Accordingly, we use the conditional WFST to obtain posterior expectations of $B,D,S$ and then augment the M-step objective with the joint-model terms involving
+$L$ and $M$.
+
+Appendix~\ref{sec:lhopital} considers the limits and implications of these formulas in the biologically-relevant regime of long sequences, $\insrate \to \delrate$.
+
+\subsection{Sufficient Statistics for the TKF91 Model}
+
+For observed ancestral and descendant sequences $x,y$ under TKF91 with parameters
+$\theta=(\lambda,\mu,Q,\pi)$, and a particular hidden Pair HMM/WFST path $z$,
+the $(\insrate,\delrate)$-dependent part of the complete-data log-likelihood is linear in the transition and emission counts,
+\[
+\log P\bigl(y,z \mid x, \theta\bigr)
+=
+\sum_{i,j} n_{ij}(z)\,\log \tkfwfst_{ij}(\lambda,\mu,t)
+\ +\ \sum_b e^{\ins}_{(\epsilon,b)}(z)\,\log \eqm_b
+\ +\ \sum_{a,b} e^{\mat}_{(a,b)}(z)\,\log \exp(\revsub t)_{ab}.
+\]
+
+Let
+\begin{eqnarray*}
+\hat n_{ij} & = & \expect[n_{ij}\mid x,y;\theta] \\
+\hat e^\ins_{(\epsilon,b)} & = & \expect[e^\ins_{(\epsilon,b)}\mid x,y;\theta] \\
+\hat e^\mat_{(a,b)} & = & \expect[e^\mat_{(a,b)}\mid x,y;\theta] \\
+\end{eqnarray*}
+denote the posterior expectations of these counts returned by the Forward-Backward algorithm.
+By the score function identity,
+\begin{eqnarray*}
+\lambda \frac{\partial}{\partial \lambda}
+\log P\bigl(y\mid x, \theta\bigr)
+& = &
+\sum_{i,j} \hat n_{ij}\; \emcount^\lambda_{ij}(\lambda,\mu,t)
+\\
+\mu \frac{\partial}{\partial \mu}
+\log P\bigl(y\mid x,\theta\bigr)
+& = &
+\sum_{i,j} \hat n_{ij}\; \emcount^\mu_{ij}(\lambda,\mu,t)
+\end{eqnarray*}
+where $\emcount^\xi_{ij}(\lambda,\mu,t) = \xi \frac{\partial}{\partial \xi}\log \tkfwfst_{ij}(\lambda,\mu,t)$ for $\xi \in \{\lambda,\mu\}$.
+(See Sections~\ref{sec:score-table-general} and~\ref{sec:score-table-limits} for explicit formulae.)
+The conservation law is likewise linear in the same counts:
+\begin{eqnarray}\label{eq:conservation-tkf}
+\expect[B \mid x,y] - \expect[D \mid x,y]
+& = &
+\hat n_{\sta \ins}+\hat n_{\mat \ins}+\hat n_{\ins \ins}
+-
+\hat n_{\sta \del}-\hat n_{\mat \del}-\hat n_{\del \del}-\hat n_{\ins \del} \\
+& = & \sum_{i,j} \hat n_{ij}\; \emcount^{\mathrm{cons}}_{ij}
+\end{eqnarray}
+where $\emcount^{\mathrm{cons}}_{ij} = \delta(j=\ins) - \delta(j=\del)$ counts whether the WFST transition $i \to j$ corresponds to a birth, death, or neither.
+Substituting into the BDI score identities gives
+\begin{eqnarray}
+\expect[S \mid x,y]
+& = &
+\frac{
+\sum_{i,j} \hat n_{ij} \left( \emcount^{\mathrm{cons}}_{ij} - \emcount^\lambda_{ij} + \emcount^\mu_{ij} \right)
+-
+\lambda \evoltime
+}{\lambda-\mu}
+\label{eq:exposure-tkf}
+\\
+\expect[B \mid x,y]
+& = &
+\lambda \sum_{i,j} \hat n_{ij}\; \emcount^\lambda_{ij}(\lambda,\mu,t)
++
+\lambda\,\expect[S \mid x,y]
++
+\lambda \evoltime
+\label{eq:births-tkf}
+\\
+\expect[D \mid x,y]
+& = &
+\mu \sum_{i,j} \hat n_{ij}\; \emcount^\mu_{ij}(\lambda,\mu,t)
++
+\mu\,\expect[S \mid x,y]
+\label{eq:deaths-tkf}
+\end{eqnarray}
+
+Thus the posterior expectations of the BDI sufficient statistics
+$\emcount^B({\bf n},\evoltime) = \expect[B|x,y]$, $\emcount^D({\bf n},\evoltime) = \expect[D|x,y]$, and $\emcount^S({\bf n},\evoltime) = \expect[S|x,y]$
+are affine functions of the Forward-Backward expected transition counts $\hat n_{ij}$.
+
+The TKF91 CTMC sufficient statistics take the form
+\begin{eqnarray*}
+\expect[W_i \mid x,y] & = & \sum_{a,b} \hat{e}^\mat_{(a,b)}\; \emcount^W_i(a,b,\evoltime)\ + \agecorrection^W_i (x,y) \\
+\expect[U_{ij} \mid x,y] & = & \sum_{a,b} \hat{e}^\mat_{(a,b)}\; \emcount^U_{ij}(a,b,\evoltime)\ + \agecorrection^U_{ij} (x,y) \\
+\end{eqnarray*}
+where the first term is the contribution from observed endpoint-matched lineages, obtained from CTMC bridge expectations conditional on
+$a \to b$ over time $\evoltime$.
+The correction terms $\agecorrection^W_i, \agecorrection^U_{ij}$ account for unobserved partial CTMC trajectories on lineages that are deleted before time $\evoltime$,
+inserted after time 0, or born and deleted within $(0,\evoltime)$.
+Exact evaluation of these terms would require genealogical information about the latent BDI history, including birth and death times and lineage lifetimes.
+In the reduced Pair-HMM EM algorithm used here, we optimize the endpoint alignment likelihood rather than the complete-data likelihood of the full birth-death-substitution process.
+Consequently, the reduced substitution update for $\exch$ retains only matched-lineage bridge contributions. For the equilibrium distribution $\eqm$,
+we additionally retain observable endpoint composition counts from insertion and deletion states, while omitting genealogical correction terms from nonterminal birth and death times and from fully transient hidden lineages.
+
+Considering now the joint distribution $P(x,y|\theta)$ and including the sufficient statistics for the stationary composition and length distribution of ancestral sequences,
+as well as the compositional statistics for inserted sequences that are already included in the conditional case, the expectations are
+\begin{eqnarray*}
+\expect[L \mid x,y]
+& = & \sum_{i \in \{\sta,\mat,\ins,\del\}} (\hat{n}_{i\mat} + \hat{n}_{i\del}) = |x|
+\\
+\expect[M \mid x,y]
+& = &
+1
+\\
+\expect[V_i \mid x,y] & = & \sum_b \hat{e}^\mat_{(i,b)} + \hat{e}^\ins_{(\epsilon,i)} + \hat{e}^\del_{(i,\epsilon)} + \agecorrection^V_i (x,y)
+\end{eqnarray*}
+where the three observable terms count, respectively, ancestral residues at match positions (drawn from $\eqm$ at time $0$ and surviving until $t$), descendant residues at insert positions (drawn from $\eqm$ at the time of insertion), and ancestral residues at delete positions (drawn from $\eqm$ at time $0$ and deleted before $t$);
+$\agecorrection^V_i$ is a similar genealogical correction term,
+the omission of which again corresponds to assuming (for the purposes of the CTMC parameter update) that insertion and deletion events are synchronized with the trajectory endpoints, and that no transient characters are born and die within the trajectory.
+Thus $V_i$ counts every observable equilibrium $\eqm$-draw of character $i$ in the joint pair HMM, regardless of whether the residue subsequently underwent a match-position substitution, was deleted, or never had an ancestor (insertion).
+The conditional $P(\descendant | \ancestor, t)$ analogue drops the two ancestor-derived terms (matches and deletions), since the ancestral sequence is given.
+
+
+
+\subsection{Baum-Welch Algorithm for TKF91}
+\label{sec:bw-tkf91}
+
+Given a collection of ancestral and descendant sequences $\{ x^{(n)}, y^{(n)} \}$,
+the Baum-Welch algorithm iterates between an E-step and an M-step.
+
+\paragraph{E-step.}
+For each of the sequence pairs,
+run the Forward-Backward algorithm on the TKF91 WFST
+yielding the expected transition counts $\hat{n}_{ab}$ for $a,b \in \{\sta,\mat,\ins,\del,\fin\}$
+and the expected emission counts $\hat{e}^\mat_{(a,b)}, \hat{e}^\ins_{(\epsilon,b)}, \hat{e}^\del_{(a,\epsilon)}$.
+Use these to accumulate expectations for the sufficient statistics $S, B, D, W, U, L, M, V$ as described in the previous section.
+In this section we will simply refer to the accumulated expectations for these statistics using the variable names for the statistics themselves.
+Thus $S \equiv \expect[S \mid \{x^{(n)}, y^{(n)}\}]$ and so forth.
+
+\paragraph{M-step.}
+The goal is to maximize $\ell(\theta) = \ell_1(\insrate,\delrate) + \ell_2(\exch,\eqm)$ where
+\begin{eqnarray}
+\ell_1(\insrate,\delrate) & = &
+(B + L) \log\insrate + (D - L - M) \log\delrate + M \log(\delrate - \insrate)
+    - (\insrate+\delrate)\,S - \insrate T
+\label{eq:ell1}
+\\
+\ell_2(\exch,\eqm) & = &
+\sum_i V'_i \log \eqm_i + \sum_{j>i} (U_{ij} + U_{ji}) \log \exch_{ij} - \sum_{j > i} \exch_{ij} \left( W_i \eqm_j + W_j \eqm_i \right)
+\label{eq:ell2}
+\end{eqnarray}
+using the reversible parameterization $\kappa = \insrate/\delrate$ and $\revsub_{ij} = \exch_{ij} \eqm_j$
+and letting $V'_i = V_i + \sum_{j \neq i} U_{ji}$ for notational convenience.
+Differentiating and setting to zero yields equations the MLEs must satisfy.
+For $\insrate,\delrate$ these are simultaneous quadratics
+\begin{eqnarray}
+\partial_\insrate \ell_1 & = & \frac{B + L}{\insrate} - \frac{M}{\delrate - \insrate} - S - T = 0 \\
+\partial_\delrate \ell_1 & = & \frac{D - L - M}{\delrate} + \frac{M}{\delrate - \insrate} - S = 0
+\end{eqnarray}
+which reduce to a single quadratic in $\kappa$. Setting $a = B + L$ and $b = D - L - M$
+\begin{equation}\label{eq:kappa-quadratic}
+\kappa^2 (S + T) b - \kappa \left( S(a + b + 2M) + T(b + M) \right) + S a = 0.
+\end{equation}
+For the coefficients $A_\kappa = (S + T) b$, $B_\kappa = -\left( S(a + b + 2M) + T(b + M) \right)$, and $C_\kappa = S a$,
+the root $\kappa \in (0,1)$ will be the smaller of the two roots
+\begin{eqnarray}
+\hat{\kappa}(B,D,L,M,S,T) & = & \frac{-B_\kappa - \sqrt{B_\kappa^2 - 4 A_\kappa C_\kappa}}{2 A_\kappa} \label{eq:kappa-root} \\
+\hat{\delrate}(B,D,L,M,S,T) & = & \frac{1}{S}\left(b + \frac{M}{1-\hat{\kappa}}\right) \label{eq:delrate-root} \\
+\hat{\insrate}(B,D,L,M,S,T) & = & \hat{\kappa} \hat{\delrate} \label{eq:insrate-root}
+\end{eqnarray}
+For $\exch,\eqm$ the MLE equations are
+\begin{eqnarray}
+\partial_{\exch_{ij}} \ell_2 & = & \frac{U_{ij} + U_{ji}}{\exch_{ij}} - \left( W_i \eqm_j + W_j \eqm_i \right) = 0 \\
+\partial_{\eqm_i} \ell_2 & = & \frac{V'_i}{\eqm_i} - \sum_{j \neq i} \exch_{ij} W_j + \eta = 0
+\end{eqnarray}
+where in the second equation $\eta$ is a Lagrange multiplier for the constraint $\sum_i \eqm_i = 1$.
+These equations are nonlinearly coupled and do not, in general, have a closed-form solution,
+nor even a closed-form iterative solution.
+There are several practical alternatives:
+\begin{enumerate}
+  \item Set $\eqm$ from insertions and ancestral composition, $\eqm_i = V_i / \sum_j V_j$, and then solve for $\exch$ in closed form
+  \[
+\exch_{ij} = \frac{U_{ij} + U_{ji}}{W_i \eqm_j + W_j \eqm_i}.
+  \]
+  \item Fixing $\eqm$, solve for $\exch$ using the above closed form; then solve for $\eta$ from $\sum_i V'_i / (\sum_{j \neq i} \exch_{ij} W_j - \eta) = 1$, and set $\eqm_i \leftarrow V'_i / (\sum_{j \neq i} \exch_{ij} W_j - \eta)$, iterating until convergence.
+  For fixed $\exch$, the optimization over $\eqm$ is strictly concave on the simplex since $V'_i > 0$ for all $i$ and the Hessian is negative definite.
+  \item Eliminate $\exch$ to yield a self-consistency map for $\eqm$. Banach fixed-point guarantees are non-obvious for this approach.
+  \item Use the unconstrained MLE for $\revsub_{ij} = \exch_{ij} \eqm_j$ and then project or reparameterize it into reversible GTR form.
+  If the underlying process is reversible, this can provide a useful approximation or initialization, though finite-sample estimates need not satisfy detailed balance exactly.
+\end{enumerate}
+
+
+\subsection{Extending TKF91 to Phylogenetic Trees}
+
+Hein \cite{Hein2000} showed how to compute a multi-sequence Forward likelihood for TKF91 on a binary tree.
+Holmes and Bruno \cite{HolmesBruno2001} used a similar approach to compute posterior marginals for Gibbs sampling of ancestral sequences and alignments.
+Lunter {\em et al} showed how to calculate alignment likelihoods efficiently \cite{LunterSongMiklosHein2003}.
+Suchard and Redelings \cite{RedelingsSuchard2005} extended the MCMC sampling approach to jointly sample over MSAs and trees.
+Westesson et al. \cite{WestessonEtAl2012} showed how this approach can be seen as a generalization of Felsenstein's pruning algorithm for substitution-only models,
+where the WFST plays the role of a matrix exponential defined on whole sequences, with the WFST's Forward algorithm computing the entries of this matrix exponential.
+The linear algebraic interpretation was further remarked upon by Bouchard-C\^ot\'e \cite{bouchardcôté2013noteprobabilisticmodelsstrings}.
+

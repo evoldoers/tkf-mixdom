@@ -1,0 +1,258 @@
+\section{Simulation Evaluation}
+\label{sec:sim-eval}
+
+Before evaluating on real protein data, we assess all models on
+controlled simulations where the ground truth is known.
+This establishes which models can detect which signals, and
+identifies the data regimes (divergence, sequence length)
+where differences are most informative.
+
+\subsection{Simulation design}
+
+\subsubsection{Trees from Pfam}
+
+Simulations use phylogenetic trees derived from real Pfam families,
+ensuring realistic topology and branch length distributions.
+For each family in the held-out test set:
+\begin{enumerate}
+\item Parse the seed MSA and compute pairwise distances under LG08.
+\item Build a neighbor-joining tree.
+\item Optionally scale all branch lengths by a factor
+  $s \in \{1.0, 2.0\}$ to explore longer-branch regimes.
+\end{enumerate}
+
+\subsubsection{Generating models}
+
+Each fitted model (Section~\ref{sec:models-fitted}) serves as a
+generating model, plus 2--3 randomly perturbed variants of each
+(multiplicative noise on rates, Dirichlet noise on weights).
+This tests sensitivity to parameter perturbation and avoids
+overfitting the evaluation to a single parameter set.
+
+Two families of generating models:
+
+\paragraph{TKF92/LG08 (order-0 baseline).}
+The standard TKF92 indel model with LG08 substitution.
+No domain structure, no inter-column correlations.
+Indel rates: $\insrate = 0.046$, $\delrate = 0.054$,
+fragment extension $r = 0.68$ (typical Pfam values).
+Root sequence length drawn from the geometric stationary distribution;
+resampled until within 50\% of the observed MSA column count.
+
+\paragraph{MixDom (order-1).}
+The full Nested TKF model with trained parameters
+(each fitted model from Section~\ref{sec:models-fitted},
+plus 2--3 randomly perturbed variants to assess sensitivity).
+Simulation uses \emph{direct generative sampling} from the exact
+nested model, \textbf{not} from the distilled order-1 WFST.
+Each simulated sequence carries fully labeled annotations:
+domain boundaries and types, fragment boundaries and types,
+and site class assignments.
+
+\textbf{Root sequence:} Sampled from the stationary distribution of
+the nested model.  The number of domains $\sim \text{Geometric}(\kappa_0)$
+where $\kappa_0 = \insrate_0/\delrate_0$; domain types $\sim \domdist$.
+Within each domain, fragment count $\sim \text{Geometric}(\kappa_d)$;
+fragment types follow the Markov chain with initial distribution
+$\fragdist_d$ and transition matrix $\ext^{(d)}_{fg}$.
+Per-position site class $\sim \classdist_{d,f,c}$; residue $\sim \eqm^{(c)}$.
+Root length is resampled until within 50\% of the observed MSA column count.
+
+\textbf{Evolution along branches:} For each branch (parent $\to$ child)
+at divergence time $t$:
+\begin{enumerate}
+\item \emph{Top-level TKF91} on domain blocks:
+  determines which ancestor domains survive (M), are deleted (D),
+  and where new domains are inserted (I), using $(\insrate_0, \delrate_0, t)$.
+\item \emph{Domain type assignment:} Inserted domains $\sim \domdist$.
+\item \emph{Per-domain TKF91} on fragment links within each domain:
+  M/I/D link path using $(\insrate_d, \delrate_d, t)$ with fragment
+  extension rate $=0$ (fragment extension is a column-level decision,
+  not per-branch).
+\item \emph{Fragment expansion:} New insertion links get fragment type
+  from the Markov chain $(\fragdist_d, \ext^{(d)}_{fg})$.
+  Matched links keep ancestor's fragment type.
+\item \emph{Per-position substitution:} Each site evolves under its
+  class's transition matrix $P(t) = \exp(Q^{(c)} t)$;
+  inserted sites sample from $\eqm^{(c)}$.
+\end{enumerate}
+Progressive simulation from root to leaves produces the full true MSA
+with known homology and full annotations at every position.
+
+\textbf{Note on distilled models:}
+The distilled order-1 WFST (from the Woodbury distillation,
+Section~\ref{sec:distillation}) is used for \emph{inference}
+(progressive alignment, beam search, tree composition), not for
+simulation.  Using the distilled model for simulation would test
+the distillation approximation rather than the generative model itself.
+
+\subsubsection{Stratification}
+
+Families are stratified by:
+\begin{center}
+\begin{tabular}{lll}
+\textbf{Divergence} & \textbf{Mean pairwise identity} & \textbf{Expected signal} \\
+\hline
+Close & 50--70\% & Strong tree signal, weak order-1 contribution \\
+Moderate & 30--50\% & Moderate tree signal \\
+Divergent & 18--30\% & Weak tree signal, order-1 most valuable \\
+\end{tabular}
+\end{center}
+crossed with alignment length (short: 50--100 columns, long: 100--200 columns)
+and branch scale factor ($s = 1.0$, $s = 2.0$).
+
+\subsection{Evaluation metrics}
+
+For each (generating model $G$, reconstruction model $R$, family $F$),
+we report:
+
+\subsubsection{Order-1 signal strength}
+
+The mutual information between adjacent positions in the distilled
+singlet WFST, measured as:
+\begin{equation}
+\mathrm{KL}_{\text{order-1}} = \sum_{\anctok_{\text{prev}}} \pi(\anctok_{\text{prev}})
+  \sum_{\anctok_{\text{cur}}} P(\anctok_{\text{cur}} | \anctok_{\text{prev}})
+  \cdot D_{\mathrm{KL}}\!\left[
+    P(\anctok_{\text{next}} | \anctok_{\text{prev}}, \anctok_{\text{cur}})
+    \,\|\,
+    P(\anctok_{\text{next}} | \anctok_{\text{cur}})
+  \right]
+\end{equation}
+where $P(\anctok_{\text{next}} | \anctok_{\text{prev}}, \anctok_{\text{cur}})$
+is the order-1 WFST transition probability and
+$P(\anctok_{\text{next}} | \anctok_{\text{cur}})$ is its marginal
+(averaged over $\anctok_{\text{prev}}$).
+Units: nats per position.
+An order-0 model has $\mathrm{KL}_{\text{order-1}} = 0$.
+
+\subsubsection{Pairwise alignment log-likelihood}
+
+For each cherry pair $(x, y)$ in the tree at divergence time $\tau$:
+\begin{equation}
+\ell_{\text{pair}} = \log P(x, y \mid R, \tau)
+\end{equation}
+computed via the forward algorithm on the distilled pair HMM from model $R$.
+Normalized by alignment length.
+This measures how well the pair HMM explains observed sequence pairs,
+independent of tree structure.
+
+\subsubsection{TreeVarAnc ELBO}
+
+The evidence lower bound from TreeVarAnc (Section~\ref{sec:varanc})
+on the true MSA:
+\begin{equation}
+\mathrm{ELBO}(n) = \text{TreeVarAnc ELBO after } n \text{ BP sweeps}
+\end{equation}
+We report $\mathrm{ELBO}(1)$ (approximately Felsenstein column LL
+plus singlet prior, before BP iterates) and $\mathrm{ELBO}(\infty)$
+(after BP convergence, typically 10 sweeps).
+
+The \textbf{BP improvement} $\Delta_{\mathrm{BP}} = \mathrm{ELBO}(\infty) - \mathrm{ELBO}(1)$
+measures the value of order-1 structure: how much does iterating
+belief propagation with the WFST factors improve the bound?
+$\Delta_{\mathrm{BP}} > 0$ indicates that the order-1 model captures
+inter-column correlations not available to column-independent inference.
+
+\subsubsection{Root reconstruction accuracy}
+
+Given the true MSA (alignment known), predict the root residue at
+each column using the TreeVarAnc posterior:
+\begin{equation}
+\hat{a}_c = \arg\max_a \, q_{(\text{root}, c)}(a)
+\end{equation}
+Accuracy = fraction of columns where $\hat{a}_c$ matches the true
+root residue.
+
+\subsubsection{Alignment accuracy}
+
+The true MSA (from simulation) is ``unaligned'' to produce raw
+leaf sequences.  These are then re-aligned using FSA
+(finite-state aligner) with each model's pair HMM.
+Alignment accuracy is measured by:
+\begin{itemize}
+\item \textbf{Sum-of-pairs (SP) score:}
+  fraction of homologous residue pairs correctly identified.
+\item \textbf{Total-column (TC) score:}
+  fraction of columns where all residues are correctly aligned.
+\end{itemize}
+
+\subsubsection{Combined alignment + reconstruction}
+
+For each reconstruction model $R$:
+\begin{enumerate}
+\item Unalign the simulated leaf sequences.
+\item Re-align using FSA with model $R$'s pair HMM.
+\item Run TreeVarAnc on the estimated MSA to reconstruct the root.
+\item Score the reconstructed root against the true root:
+  \begin{itemize}
+  \item Matches: positions where predicted and true root agree.
+  \item Mismatches: positions present in both but with different residues.
+  \item Insertions: positions in predicted root not in true root.
+  \item Deletions: positions in true root not in predicted root.
+  \end{itemize}
+\end{enumerate}
+This end-to-end evaluation captures both alignment and reconstruction
+quality, reflecting the full inference pipeline.
+
+Also run TreeVarAnc on the \emph{true} MSA (alignment given)
+to isolate reconstruction quality from alignment quality.
+
+\subsubsection{Annotation accuracy}
+
+Since the direct generative simulation produces fully labeled sequences,
+we can evaluate the quality of inferred annotations:
+\begin{itemize}
+\item \textbf{Domain accuracy:} fraction of columns where the inferred
+  domain type matches the true domain type.
+\item \textbf{Fragment state accuracy:} fraction of columns where the
+  inferred fragment state matches the true fragment state.
+\item \textbf{Site class accuracy:} fraction of columns where the
+  inferred site class matches the true site class.
+\end{itemize}
+These require the partition phylo-HMM posterior
+(Section~\ref{sec:partition-recon}) which produces per-column
+posteriors over domain, fragment state, and site class.
+
+\subsubsection{Parameter recovery}
+
+To validate the training pipeline, we simulate data from known
+parameters, fit the model from random initialization, and measure
+parameter recovery:
+\begin{itemize}
+\item \textbf{Rate recovery:} relative error in $(\insrate_d, \delrate_d)$.
+\item \textbf{Domain weight recovery:} KL divergence between true and
+  fitted $\domdist$.
+\item \textbf{Extension matrix recovery:} Frobenius norm of
+  $\ext^{(\dom)}_{\text{true}} - \ext^{(\dom)}_{\text{fitted}}$.
+\item \textbf{Classdist recovery:} per-domain KL divergence between
+  true and fitted $\classdist_{\dom,\srcfrag}$.
+\end{itemize}
+
+\subsection{Expected outcomes}
+
+\begin{enumerate}
+\item \textbf{Model matching:}
+  When $G = R$ (reconstruction model matches generating model),
+  the ELBO and pairwise LL should be highest.
+  This validates that the evaluation metrics are sensitive to
+  model fit.
+
+\item \textbf{BP improvement under order-1 generation:}
+  When $G$ is MixDom (order-1), $\Delta_{\mathrm{BP}}$ should be
+  positive for MixDom reconstruction models and near-zero for
+  Felsenstein.
+  When $G$ is TKF92/LG08 (order-0), $\Delta_{\mathrm{BP}}$ should
+  be near-zero for all reconstruction models.
+
+\item \textbf{Divergence effect:}
+  $\Delta_{\mathrm{BP}}$ should be largest for divergent families
+  (weak tree signal), where inter-column information from the WFST
+  has the most to contribute.
+
+\item \textbf{Reconstruction accuracy:}
+  MixDom models should outperform Felsenstein on MixDom-generated
+  data, especially at high divergence.
+  On TKF92-generated data, all models should perform similarly
+  (no order-1 to exploit).
+\end{enumerate}

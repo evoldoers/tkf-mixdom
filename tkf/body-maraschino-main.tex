@@ -1,0 +1,388 @@
+\section{Maraschino: Cherry-Counts for TKF92}
+\label{sec:maraschino-main}
+
+We earlier introduced Maraschino as a TKF92 generalization of CherryML
+in Section~\ref{sec:maraschino-intro}.  We now develop it in full.
+
+The CherryML composite likelihood replaces the joint phylogenetic
+likelihood with a product of pairwise sibling (``cherry'') likelihoods
+\cite{Prillo2022CherryML}, exploiting the fact that for a fixed alignment,
+the alignment-substitution counts are sufficient statistics for the
+substitution rate parameters.  This reduces the training data---which can
+be many gigabytes of alignments---to a fixed-shape counts tensor whose
+size depends only on the alphabet $\alphabet$ and the number of
+discretized cherry-time bins, and is independent of the number of
+training alignments.  The resulting compact tensor fits in GPU memory
+and may be optimized by standard autograd-based gradient methods.
+
+\textbf{Maraschino} extends CherryML to TKF92 by additionally including
+the alignment \emph{transition} counts as sufficient statistics for the
+indel rates and fragment-extension probability.  Concretely, for each
+pair of consecutive (non-empty) alignment columns we record the
+source column type ($\xstate \in \{\sta,\mat,\ins,\del\}$),
+the destination column type ($\ystate \in \{\mat,\ins,\del,\fin\}$),
+and the ancestor/descendant characters in each column. We refer to
+the resulting tensor of counts---binned by discretized pairwise
+divergence time and aggregated over training cherries---as the
+\emph{cherry-count tensor}, and the procedure for training TKF92 from
+it as Maraschino.
+
+The Maraschino composite log-likelihood for TKF92 is the sum, over
+divergence-time bins~$b$ and adjacency types $\xstate \to \ystate$, of
+the cherry-count multiplied by the model log-probability of that
+adjacency at that bin's representative time:
+\begin{multline}
+\mathcal{L}_{\text{cherry}}^{\mathrm{TKF92}}(\insrate,\delrate,\ext,\exch,\eqm)
+=
+\sum_{b=1}^{n_\tau}\Bigg[
+\sum_{\xstate,\ystate}
+n^{(b)}_{\xstate\to\ystate}\,
+\log \tkftrans'_{\xstate\to\ystate}(\insrate,\delrate,\bar\evoltime_b,\ext)
+\\
++
+\sum_{\anctok,\destok} n^{\mat,(b)}_{\anctok,\destok}
+\log\big[ \eqm_\anctok \exp(\revsub \bar\evoltime_b)_{\anctok\destok} \big]
++
+\sum_\destok n^{\ins,(b)}_\destok \log \eqm_\destok
++
+\sum_\anctok n^{\del,(b)}_\anctok \log \eqm_\anctok
+\Bigg]
+\label{eq:maraschino-tkf92-ll}
+\end{multline}
+where $n^{(b)}_{\xstate\to\ystate}$ are the binned transition counts,
+$n^{\mat,(b)}_{\anctok,\destok}, n^{\ins,(b)}_\destok, n^{\del,(b)}_\anctok$
+are the binned per-state emission counts,
+$\tkftrans'$ is the TKF92 Pair HMM transition matrix from
+Section~\ref{sec:tkf92-machines},
+and $\bar\evoltime_b$ is the representative time of bin~$b$
+(typically the geometric mean of the bin endpoints).
+The first term scores indel/fragment behaviour;
+the remaining three score the substitution model.
+Boundary contributions ($\sta\to\cdot$, $\cdot\to\fin$, $\sta\to\fin$
+for empty alignments) are scored against the corresponding
+$\sta$-row and $\fin$-column entries of $\tkftrans'$.
+
+\paragraph{Why this is a sufficient-statistic compression.}
+For fixed alignment and fixed discretized cherry times, the entire
+collection of training cherries enters
+equation~(\ref{eq:maraschino-tkf92-ll}) only through the binned
+counts.  In particular, two cherry collections with identical counts
+yield identical $\mathcal{L}_{\text{cherry}}^{\mathrm{TKF92}}$,
+identical gradients, and identical maximum-likelihood estimates.
+The counts tensor is therefore a sufficient statistic for the
+TKF92 parameters under the cherry-count composite likelihood.
+
+\paragraph{Sharded count accumulation.}
+For a corpus such as Pfam-Full, cherries are extracted from each MSA
+in parallel and contribute additively to the global counts tensor.
+A simple map-reduce over Pfam clans accumulates the counts in
+constant memory per worker; the global tensor is the
+elementwise sum of per-shard tensors and is independent of the order
+of accumulation.
+
+\subsection{Optimizing Maraschino: gradient methods vs.\ inner EM}
+\label{sec:maraschino-opt}
+
+The cherry-count log-likelihood
+$\mathcal{L}_{\text{cherry}}^{\mathrm{TKF92}}$ is a smooth function of
+the unconstrained parameters
+$(\log\insrate, \log\delrate, \log\ext, \log\exch, \log\eqm)$
+(with the simplex and exchangeability constraints handled by softmax /
+log-Cholesky reparameterisation).  Two distinct optimizers apply.
+
+\paragraph{Maraschino-as-autograd.}
+The objective is differentiable, so Adam, L-BFGS, and similar
+optimizers may be applied directly via autograd.  Each step requires one matrix
+exponential per cherry-time bin, and a forward+backward pass through
+equation~(\ref{eq:maraschino-tkf92-ll}); both steps are highly
+parallel on GPU.
+
+\paragraph{Maraschino-around-EM.}
+\label{sec:maraschino-around-em}
+Alternatively, the full-batch EM iterates of Section~\ref{sec:bw-tkf92}
+apply, with the cherry-count tensor playing the role of the E-step
+output.  Concretely:
+\begin{enumerate}[nosep]
+\item For each bin~$b$, run a one-step expected-count update on the
+  TKF92 Pair HMM at parameters $\theta^{(t)}$ and time $\bar\evoltime_b$,
+  using the cherry-count tensor as the input ``observed
+  alignment.''  This replaces the usual Forward--Backward E-step with a
+  closed-form linear pass that resolves the $\mat,\ins,\del$ self-loop
+  counts into fragment-extension counts and link-level counts
+  (Section~\ref{sec:bw-tkf92}).
+\item Accumulate the BDI sufficient statistics
+  $(B,D,L,M,S,T)$ via the score identity
+  (Section~\ref{sec:bridge-expectations}), and the bridge-expectation substitution
+  statistics $(W,U,V)$ via the matched-pair contribution.
+\item Apply the closed-form M-step
+  (equations~(\ref{eq:kappa-quadratic})--(\ref{eq:insrate-root})
+  for $\insrate,\delrate$;
+  $\ext \leftarrow F/(F+E)$ for fragment extension;
+  Section~\ref{sec:bw-tkf91} item~1 for $\exch,\eqm$).
+\end{enumerate}
+Because every M-step in Section~\ref{sec:bw-tkf92} is closed-form and
+linear in the sufficient statistics, the inner EM iterates are exact
+ascent on $\mathcal{L}_{\text{cherry}}^{\mathrm{TKF92}}$, with no
+gradient-step or learning-rate hyperparameter.  In practice, EM
+converges in ${\sim}10$--$30$ iterations on protein cherry-count
+tensors and is competitive with Adam on the same objective.
+
+\paragraph{Practical comparison.}
+Adam handles arbitrary regularizers and is straightforward to
+combine with stochastic minibatching over time-bins or alphabet
+slices.  Inner EM does not require a learning rate, has monotonic
+convergence guarantees, and produces the natural-gradient direction
+``for free.''  When the cherry-count tensor fits in memory (it does,
+even for Pfam-Full at $|\alphabet|=20$ and $n_\tau=20$), inner-EM
+Maraschino is the recommended default.
+
+\subsection{EM-around-Maraschino: mixtures of TKF92}
+\label{sec:em-around-maraschino}
+
+A mixture of $K$ TKF92 components, each with its own indel rates,
+fragment-extension probability, and substitution model, captures
+heterogeneity within and across protein families.  We fit such a
+mixture by an outer EM loop with Maraschino as the inner optimizer
+of each component:
+\begin{algorithm}
+\caption{EM-around-Maraschino for a mixture of $K$ TKF92 components.}
+\label{alg:em-around-maraschino}
+\begin{algorithmic}[1]
+\State Initialize component parameters $\theta^{(0)}_1,\ldots,\theta^{(0)}_K$
+       and mixture weights $\pi^{(0)}_1,\ldots,\pi^{(0)}_K$.
+\For{$t = 0,1,\ldots$}
+  \State \textbf{E-step.} For each cherry $c$ in the training set,
+         compute the responsibility $\gamma^{(t)}_{c,k}
+         \propto \pi^{(t)}_k\,P(c\mid \theta^{(t)}_k)$
+         (the per-component cherry-count likelihood normalised across
+         components).  Each $P(c\mid\theta_k)$ is a single forward pass
+         through the cherry-count likelihood at the cherry's
+         counts subtensor.
+  \State \textbf{Component-weighted count accumulation.}
+         For each component~$k$, accumulate the
+         responsibility-weighted cherry-count tensor
+         $C_k^{(t+1)} = \sum_c \gamma^{(t)}_{c,k}\,C_c$.
+  \State \textbf{Component M-step (Maraschino).}
+         For each component~$k$, run Maraschino
+         (Section~\ref{sec:maraschino-around-em}) on $C_k^{(t+1)}$
+         to obtain $\theta^{(t+1)}_k$.
+  \State \textbf{Mixture-weight M-step.}
+         $\pi^{(t+1)}_k \propto \sum_c \gamma^{(t)}_{c,k}$.
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\noindent
+The outer EM is monotone in the mixture log-likelihood
+$\sum_c \log\sum_k \pi_k P(c\mid\theta_k)$ because both the
+responsibilities (E-step) and the per-component Maraschino solves
+(M-step) are exact ascent on their respective Q-functions.
+
+The decisive feature is that the outer M-step does \emph{not} require
+re-extracting cherries or recomputing alignments per iteration:
+the per-component cherry-count tensor $C_k^{(t+1)}$ is a
+responsibility-weighted average of the same per-cherry tensors that
+were extracted once and for all at the start of training.
+
+\subsection{EM-around-CherryML: mixtures over site classes}
+\label{sec:em-around-cherryml}
+
+A complementary class of mixture model places the latent variable on
+\emph{MSA columns} rather than on whole cherries: each MSA column~$c$
+draws an unobserved \emph{site class}
+$z_c \sim \catdist(\eqm_1,\ldots,\eqm_C)$ from a shared per-class
+substitution model $\subproc(\exch^{(k)}, \eqm^{(k)})$, and every
+cherry in the family that has a residue pair at column $c$ evolves
+its match emission under the same class.  Because no indel rates
+vary across mixture components, this is strictly a substitution-only
+mixture, and the corresponding fitter is CherryML rather than
+Maraschino: the cherry-count tensor of
+Section~\ref{sec:maraschino-main} contributes only the matched
+substitution observations $(\anctok, \destok, t_p)$ and the
+indel-free composite likelihood reduces to that of
+\cite{Prillo2022CherryML}.
+
+\paragraph{Column-shared responsibilities.}
+The defining observation is that within a single MSA, all cherries
+that have a match at column $c$ inherit the \emph{same} latent class
+$z_c$.  This couples cherries across the same column: the column-level
+posterior
+\[
+\gamma_c(k)
+\;\propto\;
+\eqm_k \prod_{p \,:\, \mat \text{ at } c}
+P\!\bigl(\anctok_{p,c}, \destok_{p,c} \mid k, t_p\bigr),
+\qquad
+P(\anctok, \destok \mid k, t)
+= \eqm^{(k)}_\anctok \exp(\revsub^{(k)} t)_{\anctok\destok},
+\]
+multiplies the per-cherry match-emission likelihoods over all cherries
+$p$ that contribute a residue pair to column $c$.  Cherries that have
+a gap at $c$ contribute no factor for that column.  The resulting
+composite log-likelihood
+\begin{equation}\label{eq:em-cherryml-ll}
+\mathcal{L}_{\text{site-mix}}
+\;=\;
+\sum_m \sum_{c \,\in\, \text{cols}(m)}
+\log \sum_{k=1}^{C} \eqm_k
+\prod_{p \,:\, \mat \text{ at } c}
+\eqm^{(k)}_{\anctok_{p,c}}
+\exp(\revsub^{(k)} t_p)_{\anctok_{p,c}\,\destok_{p,c}}
+\end{equation}
+is a sum, over MSAs $m$ and over columns $c$ within each MSA, of a
+log-mixture in which cherries share the column's class.  This is in
+direct contrast to EM-around-Maraschino
+(Section~\ref{sec:em-around-maraschino}), whose responsibilities
+$\gamma^{(t)}_{c,k}$ are per \emph{cherry}: there each cherry is
+assigned to a single component independently of the columns it
+spans.
+
+\paragraph{Outer / inner EM.}
+We fit~\eqref{eq:em-cherryml-ll} by alternating an MSA-wide
+column-responsibility update with a per-class bridge-expectation M-step.
+At iteration~$t$, the column responsibilities are
+\begin{equation}\label{eq:em-cherryml-resp}
+\gamma^{(t)}_{m,c}(k)
+\;\propto\;
+\eqm^{(t)}_k
+\prod_{p\,:\, \mat \text{ at } c}
+\eqm^{(t,k)}_{\anctok_{p,c}}\,
+\exp\!\bigl(\revsub^{(t,k)}\, t_p\bigr)_{\anctok_{p,c}\,\destok_{p,c}},
+\end{equation}
+normalised across $k$ for each $(m, c)$, and the
+responsibility-weighted bridge-expectation sufficient statistics for class
+$k$ are
+\begin{equation}\label{eq:em-cherryml-WUk}
+\begin{aligned}
+\hat W_i^{(t+1,k)}
+  &= \sum_{m,c} \gamma^{(t)}_{m,c}(k)
+     \sum_{p\,:\, \mat \text{ at } c}
+     \emcount^W_i\!\bigl(\anctok_{p,c}, \destok_{p,c}, t_p\bigr),
+\\
+\hat U_{ij}^{(t+1,k)}
+  &= \sum_{m,c} \gamma^{(t)}_{m,c}(k)
+     \sum_{p\,:\, \mat \text{ at } c}
+     \emcount^U_{ij}\!\bigl(\anctok_{p,c}, \destok_{p,c}, t_p\bigr),
+\\
+\hat V_i^{(t+1,k)}
+  &= \sum_{m,c} \gamma^{(t)}_{m,c}(k)
+     \sum_{p\,:\, \mat \text{ at } c}
+     \delta\bigl(\anctok_{p,c} = i\bigr),
+\end{aligned}
+\end{equation}
+where $\emcount^W_i, \emcount^U_{ij}$ are the standard
+endpoint-conditioned bridge expectations
+(Section~\ref{sec:bridge-expectations},
+eqs.~\eqref{eq:em-dwell}--\eqref{eq:em-counts}) at the class-$k$
+rate matrix $\revsub^{(t,k)}$.  The full outer iteration is then
+Algorithm~\ref{alg:em-around-cherryml}.
+\begin{algorithm}
+\caption{EM-around-CherryML for $C$ site classes.}
+\label{alg:em-around-cherryml}
+\begin{algorithmic}[1]
+\State Initialize per-class GTR parameters $\theta^{(0)}_k$ and class
+weights $\eqm^{(0)}_k$.
+\For{$t = 0, 1, \ldots$}
+  \State \textbf{Outer E-step.} Compute column responsibilities
+  $\gamma^{(t)}_{m,c}(k)$ via~\eqref{eq:em-cherryml-resp}.
+  \State \textbf{Sufficient-statistic accumulation.} Compute
+  $(\hat W^{(t+1,k)}, \hat U^{(t+1,k)}, \hat V^{(t+1,k)})$
+  via~\eqref{eq:em-cherryml-WUk}.
+  \State \textbf{Per-class GTR inner EM.} For each class $k$, run the
+  closed-form GTR coordinate-ascent M-step of
+  Section~\ref{sec:bw-tkf91} on
+  $(\hat W^{(t+1,k)}, \hat U^{(t+1,k)}, \hat V^{(t+1,k)})$ to obtain
+  $\theta^{(t+1)}_k$.  Because the responsibility weights are fixed,
+  this step is a standard CherryML rate fit on a single GTR model
+  with weighted observations.
+  \State \textbf{Class-weight update.}
+  $\eqm^{(t+1)}_k \propto \sum_{m,c} \gamma^{(t)}_{m,c}(k)$.
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\noindent
+The outer iteration is monotone in
+$\mathcal{L}_{\text{site-mix}}$: the column responsibilities are the
+exact posterior over $z_c$ and the per-class GTR M-step is exact
+ascent on its (responsibility-weighted) Q-function.  The inner GTR
+EM is itself iterative because the GTR M-step couples
+$(\exch^{(k)}, \eqm^{(k)})$ nonlinearly
+(Section~\ref{sec:bw-tkf91}, item~2 of the M-step list); a few
+inner sweeps per outer iteration suffice in practice.
+
+\paragraph{Why CherryML, not Maraschino.}
+No indel rates appear in~\eqref{eq:em-cherryml-ll}: the model assumes
+the alignment is given and that all alignment columns share a single
+TKF92 indel process whose parameters are held fixed (or estimated
+elsewhere, e.g.\ by Maraschino on the same cherries).  Mixing
+\emph{only} the substitution model means the
+$(\insrate, \delrate, \ext)$-related row-normalisation and
+fragment-extension responsibility issues of TKF92 do not arise;
+the relevant sufficient statistics are exactly those of CherryML.
+The only structural change relative to plain CherryML is the per-MSA,
+per-column responsibility weighting in~\eqref{eq:em-cherryml-WUk},
+which couples cherries that share columns of the same MSA.
+
+\paragraph{Relation to per-class GTR mixtures elsewhere.}
+The per-class GTR M-step of equation~\eqref{eq:em-cherryml-WUk} is
+exactly the reversible-mixture update of
+Appendix~\ref{sec:mstep-mixture}; the only difference between this
+appendix and Algorithm~\ref{alg:em-around-cherryml} is the
+provenance of the responsibilities (here: cross-cherry column
+sharing within an MSA; in the appendix: any user-supplied per-site
+posterior).  Site-mixture parameters fitted by
+EM-around-CherryML can therefore be plugged into
+mixture-aware downstream methods --- including Maraschino with a
+fixed indel-process backbone --- without further re-derivation.
+
+\subsection{Expected sufficient statistics as fast custom VJPs}
+\label{sec:suffstat-vjp}
+
+The Maraschino objective
+(equation~(\ref{eq:maraschino-tkf92-ll})) is concretely a sum of
+log-probabilities, each of which has a closed-form gradient via the
+score identity and the BDI / bridge-expectation sufficient statistics.
+Specifically, the $(\insrate,\delrate)$-gradient of
+$\log \tkftrans'_{\xstate\to\ystate}(\insrate,\delrate,t,\ext)$
+is given exactly by the score-derivative tables
+of Sections~\ref{sec:score-table-general}--\ref{sec:score-table-limits},
+and the $(\exch,\eqm)$-gradient of
+$\log[\eqm_\anctok \exp(\revsub t)_{\anctok\destok}]$ is given by the
+bridge-expectation dwell times and jump counts
+(equations~(\ref{eq:em-dwell})--(\ref{eq:em-counts})).
+
+For training pipelines built around stochastic-gradient optimizers
+such as Adam, this observation enables a substantial speedup.
+Rather than relying on autograd to back-propagate through a matrix
+exponential and an eigendecomposition, we register a
+\emph{custom vector-Jacobian product (VJP)} that returns the
+score-derivative-and-bridge-expectation closed forms directly:
+\begin{itemize}[nosep]
+\item Forward pass: compute and cache the matrix exponential
+$P(t) = e^{\revsub t}$ and the BDI link-level transition factors
+$(\alpha,\beta,\gamma)$ at each cherry-time bin.
+\item Backward pass: contract the upstream cotangent with the
+expected sufficient statistics (bridge expectations and BDI score
+expressions) instead of with the autograd-computed Jacobian.
+\end{itemize}
+The forward and backward costs are both
+$O(|\alphabet|^2)$ per bin per emission state for the substitution
+part and $O(1)$ for the indel part, matching the cost of evaluating
+the closed-form M-step itself.
+
+This pattern generalises beyond Maraschino.  Any model whose
+M-step is closed-form linear in expected sufficient statistics admits
+a corresponding fast custom VJP that exposes those expectations as the
+gradient of the observed log-likelihood (this is, again, the score
+identity~(\ref{eq:score-identity})).  Concretely, this enables Adam
+and other gradient-based optimizers to train TKF91, TKF92, and
+mixture-of-TKF92 models at a per-step cost matching exact EM, while
+retaining Adam's flexibility to incorporate arbitrary differentiable
+regularizers (e.g., weight decay on the BDI rates, KL-divergence
+priors on the GTR exchangeability), to interleave updates with
+non-EM-amenable parameters (e.g., the per-component mixture
+weights of Section~\ref{sec:em-around-maraschino} when fit
+jointly with neural-network embeddings), and to work
+with the mini-batch SVI-BW pseudocount stream of
+Section~\ref{sec:svi-bw}.

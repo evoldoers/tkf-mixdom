@@ -1,0 +1,63 @@
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.log
+*.out
+*.pdf
+*.run.xml
+*.synctex.gz
+*.toc
+*.fdb_latexmk
+*.fls
+
+# Emacs
+*~
+\#*\#
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+dist/
+build/
+data/
+python/pfam_counts.npz
+python/pfam/
+.claude/worktrees/
+misc/.claude/
+python/.cache/
+plots/
+python/results/*_plots/
+python/results/maraschino/*.npz
+
+# Training params: only params/best/ and params/test/ are committed
+# Everything else (pfam/*.npz, results/*.npz) is transient
+python/params/*.npz
+!python/params/best/
+!python/params/test/
+
+# Per-Pfam-family derived data — large, rebuildable, lives in S3.
+# `scripts/sync_data_from_s3.sh` pulls the canonical copy when needed.
+python/gamma_labels/
+python/gamma_labels_G6/
+python/results/
+
+# Per-experiment result JSONs/logs — keep out of git; live in S3.
+# `scripts/upload_results_to_s3.sh` writes them to
+# s3://tkf-mixdom-gpu-618647024028/results/<run-id>/.
+python/experiments/*.json
+python/experiments/*.log
+python/experiments/*.tsv
+python/experiments/results/
+# But the canonical entry-list spec files ARE tracked (they are
+# benchmark inputs, not outputs — without them, the benchmark scripts
+# can't pick which families to score).
+!python/experiments/*_spec.json
+!python/experiments/architectural_comparison_protocol.md
+
+# AWS state
+.aws/

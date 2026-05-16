@@ -1,0 +1,126 @@
+[
+  {
+    "iter": 0,
+    "eta": 0.19952623149688797,
+    "batch_indices": [
+      82,
+      36,
+      20,
+      5,
+      93,
+      16,
+      94,
+      52,
+      72,
+      90
+    ],
+    "batch_size": 10,
+    "mean_elbo_per_family": -245.8188504104496,
+    "scaled_elbo": -24581.88504104496,
+    "val_elbo_per_family": null,
+    "main_ins": 0.045762303183098964,
+    "main_del": 0.09486836664121891,
+    "dom_ins": [
+      0.04123619943857193
+    ],
+    "dom_del": [
+      0.04610588401556015
+    ],
+    "visits_min": 0,
+    "visits_max": 1,
+    "visits_unseen": 90
+  },
+  {
+    "iter": 1,
+    "eta": 0.18664876487807674,
+    "batch_indices": [
+      98,
+      97,
+      68,
+      61,
+      80,
+      54,
+      60,
+      58,
+      91,
+      4
+    ],
+    "batch_size": 10,
+    "mean_elbo_per_family": 53.9844619215189,
+    "scaled_elbo": 5398.4461921518905,
+    "val_elbo_per_family": null,
+    "main_ins": 0.05755600388713544,
+    "main_del": 0.1164569023648897,
+    "dom_ins": [
+      0.04402310028672218
+    ],
+    "dom_del": [
+      0.04960835352540016
+    ],
+    "visits_min": 0,
+    "visits_max": 1,
+    "visits_unseen": 80
+  },
+  {
+    "iter": 2,
+    "eta": 0.17561965827870596,
+    "batch_indices": [
+      89,
+      75,
+      14,
+      76,
+      74,
+      87,
+      83,
+      64,
+      59,
+      23
+    ],
+    "batch_size": 10,
+    "mean_elbo_per_family": 76.96958879423178,
+    "scaled_elbo": 7696.958879423179,
+    "val_elbo_per_family": null,
+    "main_ins": 0.06822908833851227,
+    "main_del": 0.13553790043153321,
+    "dom_ins": [
+      0.04650779068470001
+    ],
+    "dom_del": [
+      0.052696794271469116
+    ],
+    "visits_min": 0,
+    "visits_max": 1,
+    "visits_unseen": 70
+  },
+  {
+    "iter": 3,
+    "eta": 0.16605029572473692,
+    "batch_indices": [
+      33,
+      17,
+      2,
+      40,
+      86,
+      27,
+      18,
+      19,
+      11,
+      65
+    ],
+    "batch_size": 10,
+    "mean_elbo_per_family": -5.098216648464256,
+    "scaled_elbo": -509.8216648464256,
+    "val_elbo_per_family": null,
+    "main_ins": 0.08623106715492447,
+    "main_del": 0.16691709531368967,
+    "dom_ins": [
+      0.05013757944107056
+    ],
+    "dom_del": [
+      0.057319749146699905
+    ],
+    "visits_min": 0,
+    "visits_max": 1,
+    "visits_unseen": 60
+  }
+]

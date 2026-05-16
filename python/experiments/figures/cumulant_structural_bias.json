@@ -1,0 +1,57 @@
+{
+  "note": "q_cond = TKF91 prior (data-independent) \u2014 pair_marg is exact Felsenstein truth posterior.",
+  "rows": [
+    {
+      "n_fams": 1,
+      "oracle_total": 2470.0,
+      "bp_total": 2467.910627833438,
+      "bias_l1": 117.55191889357349,
+      "rel_l1": 0.04759186999739817,
+      "I_to_I_bp": 20.74636562354801,
+      "I_to_I_oracle": 0.0,
+      "D_to_D_bp": 4.4834705500976,
+      "D_to_D_oracle": 2.0,
+      "D_to_E_bp": 1.2106822257321364,
+      "D_to_E_oracle": 1.0
+    },
+    {
+      "n_fams": 5,
+      "oracle_total": 12113.0,
+      "bp_total": 12099.446680738547,
+      "bias_l1": 521.0445430066774,
+      "rel_l1": 0.043015317675776224,
+      "I_to_I_bp": 85.45837821429156,
+      "I_to_I_oracle": 0.0,
+      "D_to_D_bp": 12.860357722344887,
+      "D_to_D_oracle": 8.0,
+      "D_to_E_bp": 5.195834293892744,
+      "D_to_E_oracle": 3.0
+    },
+    {
+      "n_fams": 10,
+      "oracle_total": 24461.0,
+      "bp_total": 24427.027861018352,
+      "bias_l1": 1119.75619575252,
+      "rel_l1": 0.04577720435601652,
+      "I_to_I_bp": 189.61899544546017,
+      "I_to_I_oracle": 4.0,
+      "D_to_D_bp": 20.517214527218414,
+      "D_to_D_oracle": 10.0,
+      "D_to_E_bp": 10.526707211430388,
+      "D_to_E_oracle": 3.0
+    },
+    {
+      "n_fams": 30,
+      "oracle_total": 72685.0,
+      "bp_total": 72626.29128150645,
+      "bias_l1": 3720.982157497096,
+      "rel_l1": 0.05119326074839507,
+      "I_to_I_bp": 629.2974068987382,
+      "I_to_I_oracle": 14.0,
+      "D_to_D_bp": 82.17644471336325,
+      "D_to_D_oracle": 22.0,
+      "D_to_E_bp": 35.975040194588374,
+      "D_to_E_oracle": 4.0
+    }
+  ]
+}

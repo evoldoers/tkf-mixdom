@@ -1,0 +1,577 @@
+% varanc-presence.tex — Mixture-of-trees variational TKF92 ancestral presence/absence
+% To be \input from tkf.tex
+
+\section{Mixture-of-trees variational ancestral presence/absence}
+\label{sec:varanc-presence}
+
+This appendix derives a variational lower bound on the indel
+log-likelihood of an MSA under the TKF92 conditional WFST
+$\tkfwfst'(\insrate,\delrate,\evoltime,\ext)$ of
+Section~\ref{sec:tkf92-wfst} when applied independently
+on each branch of a phylogenetic tree, combined with a
+TKF stationary HMM at the root.
+The bound is parameterised by a tree-structured graphical model
+on per-column ancestral presence/absence indicators with three
+irreversible states \{NotYetInserted, Present, Deleted\}.
+It is a proper lower bound on the full TKF92 marginal
+log-likelihood $\log p(\text{MSA} \mid \parsetree, \theta)$, with
+gap split into a standard $q$-dependent variational
+KL term and a $q$-independent ``restriction'' term arising because
+our latent space cannot represent ancestor residues that get
+inserted and then fully deleted on every leaf-bound lineage before
+reaching any leaf
+(Section~\ref{sec:varanc-presence-restricted}).
+For ancestral-presence inference at the observed columns the
+restriction term is irrelevant, since it cancels from the q-optimal
+posterior;
+for parameter learning it does not, and a tighter bound would
+require explicit modelling of those ghost-column histories.
+Special-case parameter settings recover an irreversible 3-state
+analogue of Felsenstein gap-CTMC reconstruction and Fitch parsimony.
+
+\subsection{Setting and approximation}
+\label{sec:varanc-presence-setting}
+
+Fix a rooted phylogenetic tree $\parsetree$ with internal-node set
+$\mathcal{I}$, leaf set $\mathcal{L}$, and a branch length
+$\branchlen_e > 0$ on each edge $e$.
+We are given a multiple-sequence alignment with $L$ columns whose rows
+are the leaf sequences of $\parsetree$;
+let $X^v_n \in \{0,1\}$ denote the observed presence indicator
+($1$ if leaf $v \in \mathcal{L}$ has a residue in column $n$).
+The task is to infer per-internal-node presence indicators
+$\{X^v_n\}_{v \in \mathcal{I}, 1 \le n \le L}$.
+
+We replace the full TKF92 generative model on the tree with the
+following \emph{per-branch conditional approximation}:
+each branch $v \to w$ is taken to evolve its row according to the
+TKF92 conditional WFST $\tkfwfst'$ acting independently on the whole
+parent sequence, with no shared latent fragment structure across
+branches.
+A residue inserted by the WFST on one branch may therefore be
+partially deleted, character by character, on a later branch
+(unlike in the strict TKF92 process, where fragments are indivisible).
+The WFST $\tkfwfst'$ is itself a closed-form approximation to the
+finite-time transition probabilities of the General Geometric Indel
+(GGI) model — the maximum-entropy CTMC with given expected per-site
+indel rates and expected inserted-fragment length — and has been
+shown empirically to fit GGI Gillespie simulations
+\cite{Holmes2020} and pairwise-alignment data
+\cite{LargeHolmes2026} well.
+Using it as the per-branch transition law of the tree-level model in
+this appendix is therefore a small additional approximation on top of
+the GGI approximation itself.
+
+\subsection{Restricted generative model}
+\label{sec:varanc-presence-restricted}
+
+The model joint over leaf and internal-node presence patterns at the
+$L$ MSA columns is
+\begin{equation}
+\label{eq:joint}
+p(\text{MSA},\, \{X^v\}_{v \in \mathcal{I}} \mid \parsetree, \theta)
+= p_{\text{singlet}}\!\big(X^{\text{root}} \mid \theta\big)\,
+   \prod_{(v \to w) \in \parsetree}
+   P\!\big(X^w \mid X^v, \branchlen_{vw}, \theta\big),
+\end{equation}
+where $p_{\text{singlet}}$ is the TKF stationary distribution
+(Section~\ref{sec:varanc-presence-singlet}, below) and each
+$P(X^w \mid X^v, t)$ is the per-branch presence-pattern conditional
+defined by the WFST path log-likelihood
+(Section~\ref{sec:varanc-presence-path-LL}).
+Marginalising~\eqref{eq:joint} over internal patterns supported on
+the $L$ observed MSA columns gives a quantity we denote
+$\tilde{p}(\text{MSA} \mid \parsetree, \theta)$.
+The full TKF92 marginal $p(\text{MSA} \mid \parsetree, \theta)$ also
+sums over evolutionary histories with ancestral residues that get
+inserted and then fully deleted on every leaf-bound lineage before
+reaching any leaf — \emph{ghost columns} that leave no MSA trace
+and so are not representable as values of $X^v_n$ at observed
+columns $1, \ldots, L$.
+Since each ghost-column history adds a non-negative probability to
+$p$ that is absent from $\tilde{p}$,
+\begin{equation}
+\label{eq:tildep-le-p}
+\tilde{p}(\text{MSA} \mid \parsetree, \theta)
+\;\leq\;
+p(\text{MSA} \mid \parsetree, \theta).
+\end{equation}
+The gap $\log p - \log \tilde{p} \geq 0$ depends on the model
+parameters and the tree but not on the variational distribution $q$
+introduced below.
+For the ancestral-presence reconstruction task — fix $\theta$,
+optimise $q$ to recover internal-node marginals at the observed
+columns — this gap is a $q$-independent constant and the
+restricted-model posterior at observed columns coincides with the
+full-model posterior conditioned on the same support, so all
+inferences below proceed unchanged.
+
+\subsection{Singlet HMM at the root}
+\label{sec:varanc-presence-singlet}
+
+The TKF92 stationary HMM (Section~\ref{sec:tkf92-machines}) emits a
+sequence of length $L_{\text{root}}$ with
+\begin{equation}
+\label{eq:singlet-tkf92}
+p_{\text{singlet}}(L_{\text{root}})
+= \begin{cases}
+1 - \kappa & L_{\text{root}} = 0, \\
+\kappa\, p^{L_{\text{root}} - 1}\,(1-\ext)(1-\kappa)
+       & L_{\text{root}} \geq 1,
+\end{cases}
+\end{equation}
+where $\kappa = \insrate/\delrate$ and $p = \ext + (1-\ext)\kappa$.
+Identifying $L_{\text{root}}$ with the number of MSA columns at which
+the root is in state $\state{P}$
+($L_{\text{root}} = \sum_n \delta(X^{\text{root}}_n = 1)$) gives the
+root prior in the joint~\eqref{eq:joint}.
+The two-cases form arises because the TKF92 singlet HMM has distinct
+``from $\sta$'' (probability $\kappa$ to emit, $1-\kappa$ to end) and
+``from emitting state'' (probability $p$ to extend, $(1-\ext)(1-\kappa)$
+to end) transition contexts.
+
+For TKF91 ($\ext = 0$): $p = \kappa$ and the two cases collapse to the
+single form $p_{\text{singlet}}(L_{\text{root}}) = (1-\kappa)\kappa^{L_{\text{root}}}$.
+
+\paragraph{Note on a tempting shortcut.}
+One might hope to avoid the singlet by interpreting the root as the
+output of a pseudo-branch with $\evoltime \to \infty$ and an
+all-absent pseudo-parent.
+For TKF91 this works — the $t \to \infty$ limit of $\tkfwfst$ with an
+empty input does recover the singlet sequence-length distribution.
+For TKF92 it does \emph{not}: the WFST's $(1-\ext)$ factors are tied
+to the fragment-extension structure of the Pair HMM and the limiting
+output mass for length $L \geq 1$ is $\kappa\,p^{L-1}(1-\kappa)$
+rather than the correct $\kappa\,p^{L-1}(1-\ext)(1-\kappa)$ —
+i.e.\ the WFST does not normalise on an empty input under TKF92.
+We therefore include the singlet term explicitly.
+
+\subsection{Per-branch path log-likelihood}
+\label{sec:varanc-presence-path-LL}
+
+Consider a single branch $v \to w$ of length $\branchlen$.
+Reading the parent and child rows of the MSA column by column gives,
+for each $n \in \{1, \ldots, L\}$, an ordered pair
+$(X^v_n, X^w_n) \in \{0,1\}^2$.
+Map each pair to a WFST column-state
+$S_n \in \{\mat, \ins, \del, \mathsf{Ig}\}$ via
+\begin{equation}
+\label{eq:state-map}
+S_n =
+\begin{cases}
+  \mat & \text{if } (X^v_n, X^w_n) = (1,1) \\
+  \ins & \text{if } (X^v_n, X^w_n) = (0,1) \\
+  \del & \text{if } (X^v_n, X^w_n) = (1,0) \\
+  \mathsf{Ig} & \text{if } (X^v_n, X^w_n) = (0,0),
+\end{cases}
+\end{equation}
+where the symbol $\mathsf{Ig}$ (``Ignore'') marks columns absent in
+both parent and child and so contributing no transition to the WFST
+path.
+Add boundary sentinels $S_0 = \sta$ and $S_{L+1} = \fin$.
+Stripping out columns with $S_n = \mathsf{Ig}$ collapses the sequence
+$(S_0, S_1, \ldots, S_L, S_{L+1})$
+to a unique path through the WFST whose nontrivial transitions are
+between consecutive non-Ignore columns.
+The branch log-likelihood is the sum of the corresponding entries of
+$\log \tkfwfst'(\insrate, \delrate, \branchlen, \ext)$ from
+equation~\eqref{eq:tkf92-wfst}.
+Equivalently, summing over each column's incoming transition,
+\begin{equation}
+\label{eq:branch-LL}
+\log P(X^w \mid X^v, \branchlen, \theta)
+= \sum_{N=1}^{L+1}
+   \delta(S_N \neq \mathsf{Ig})
+   \sum_{M=0}^{N-1}
+     \delta(S_M \neq \mathsf{Ig})
+     \log \tkfwfst'_{S_M S_N}
+     \prod_{K=M+1}^{N-1} \delta(S_K = \mathsf{Ig}),
+\end{equation}
+where $\theta = (\insrate, \delrate, \ext)$,
+$\delta(\cdot)$ is a Kronecker indicator,
+and the empty product (when $M+1 > N-1$) equals~$1$.
+For each non-Ignore column $N$ the inner sum picks out the unique
+$M < N$ that is also non-Ignore with all columns strictly between
+$M$ and $N$ in state $\mathsf{Ig}$;
+that pair contributes $\log \tkfwfst'_{S_M S_N}$ and all other
+$M$ contribute zero.
+
+\subsection{Tree-structured variational family}
+\label{sec:varanc-presence-q}
+
+We approximate the joint posterior
+$P(\{X^v_n\}_{v \in \mathcal{I}} \mid \{X^v_n\}_{v \in \mathcal{L}})$
+by a product over MSA columns
+\begin{equation}
+\label{eq:q-factor}
+q(\{X^v_n\}_{v \in \mathcal{I}, 1 \le n \le L})
+= \prod_{n=1}^{L} q_n(\{X^v_n\}_{v \in \mathcal{I}}),
+\end{equation}
+where each per-column distribution $q_n$ is a directed graphical
+model on the tree with node values in
+\begin{equation}
+\label{eq:Z-states}
+\mathcal{Z} = \{\textsc{NotYetInserted},\ \textsc{Present},\ \textsc{Deleted}\}
+\equiv \{\state{N}, \state{P}, \state{D}\}.
+\end{equation}
+The variable at the root is drawn from a free distribution
+$q_n^{\text{root}} \in \Delta^{\mathcal{Z}}$;
+along each edge $v \to w$ the variable $Z^w_n \in \mathcal{Z}$ is
+drawn conditionally on $Z^v_n$ from a free distribution
+$q_n^{v \to w}(\cdot \mid \cdot)$.
+The 9-entry matrix $q_n^{v \to w}(z' \mid z)$ has 4 entries pinned to
+zero to enforce irreversibility:
+\begin{equation}
+\label{eq:irreversibility}
+q_n^{v \to w}(\state{D} \mid \state{N}) =
+q_n^{v \to w}(\state{N} \mid \state{P}) =
+q_n^{v \to w}(\state{N} \mid \state{D}) =
+q_n^{v \to w}(\state{P} \mid \state{D}) = 0.
+\end{equation}
+The two unconstrained rows ($\state{N}$ and $\state{P}$ parents) each
+have two surviving outcomes, contributing one free parameter per row;
+the $\state{D}$ row is deterministic
+($q_n^{v \to w}(\state{D} \mid \state{D}) = 1$).
+This leaves two free parameters per (edge, column).
+Leaf-node states $Z^v_n$ for $v \in \mathcal{L}$ are clamped: if
+$X^v_n = 1$, then $Z^v_n = \state{P}$; if $X^v_n = 0$, then
+$Z^v_n \in \{\state{N}, \state{D}\}$ with the variational mass split
+between the two by $q_n$.
+
+The presence indicator at internal node $v$ is recovered as
+\begin{equation}
+\label{eq:Z-to-X}
+X^v_n = \delta(Z^v_n = \state{P}),
+\end{equation}
+so that any realisation drawn from $q_n$ has the property that the
+nodes with $X^v_n = 1$ form a connected subtree of $\parsetree$
+(or the empty set, which by hypothesis cannot arise once the leaf
+clamps are respected, since every column of the supplied MSA contains
+at least one Present leaf).
+
+\paragraph{Why this support.}
+Under the strict TKF92 process, each MSA column corresponds to a
+single insertion event in the history of the tree; the residue
+descends, and the set of Present nodes is necessarily a connected
+subtree containing the insertion point.
+A factorised mean-field $q$ with independent Bernoulli marginals at
+each $(v, n)$ would assign positive mass to disconnected
+Present-sets, which (i) are unreachable under the model, and
+(ii) would force the substitution likelihood to factor as a product
+of independent Felsenstein recursions on the two pieces — corresponding
+to two separate insertions co-located in one MSA column,
+a different generative process.
+The 3-state irreversible $q$ rules out both pathologies by
+construction.
+
+\subsection{\texorpdfstring{Expected log-likelihood under $q$}{Expected log-likelihood under q}}
+\label{sec:varanc-presence-elbo}
+
+For a parent-child pair $(v, w)$ on the tree, define the per-column
+state probability under $q_n$:
+\begin{align}
+\label{eq:column-state-probs}
+P_q(S_n = \mat)
+  &= q_n(Z^v_n = \state{P},\, Z^w_n = \state{P}), \\
+P_q(S_n = \del)
+  &= q_n(Z^v_n = \state{P},\, Z^w_n = \state{D}), \\
+P_q(S_n = \ins)
+  &= q_n(Z^v_n = \state{N},\, Z^w_n = \state{P}), \\
+P_q(S_n = \mathsf{Ig})
+  &= q_n(Z^v_n = \state{N},\, Z^w_n = \state{N})
+   + q_n(Z^v_n = \state{D},\, Z^w_n = \state{D}).
+\end{align}
+The four other $(z, z')$ joint marginals are zero by
+equation~\eqref{eq:irreversibility}.
+Each pairwise marginal
+$q_n(Z^v_n, Z^w_n)$ is computed by belief propagation
+(Section~\ref{sec:varanc-presence-bp}).
+
+The product factorisation~\eqref{eq:q-factor} makes the per-branch
+expected log-likelihood factor across columns:
+\begin{equation}
+\label{eq:E-branch-LL}
+\expect_q\!\big[\log P(X^w \mid X^v, \branchlen, \theta)\big]
+= \sum_{s, s'}
+   \log \tkfwfst'_{s s'}\,
+   W_{s s'}^{(v \to w)},
+\end{equation}
+where $s$ ranges over $\smide \setminus \{\fin\}$ and $s'$ ranges
+over $\smide \setminus \{\sta\}$ (so $\sta$ enters only as a source
+and $\fin$ only as a destination, both via the deterministic boundary
+sentinels), and
+\begin{equation}
+\label{eq:W-pair}
+W_{s s'}^{(v \to w)}
+\;=\;
+\sum_{N=1}^{L+1}
+\sum_{M=0}^{N-1}
+P_q(S_M = s)\,P_q(S_N = s')
+\prod_{K=M+1}^{N-1} P_q(S_K = \mathsf{Ig})
+\end{equation}
+is the expected number of times the path uses transition
+$s \to s'$ on this branch.
+Boundary terms have $P_q(S_0 = \sta) = 1$ and
+$P_q(S_{L+1} = \fin) = 1$ deterministically.
+
+\paragraph{Root-prior contribution.}
+Under the per-column factorisation~\eqref{eq:q-factor}, the
+expected singlet log-likelihood at the root
+(equation~\eqref{eq:singlet-tkf92}) reduces to
+\begin{equation}
+\label{eq:E-singlet-root}
+\expect_q\!\big[\log p_{\text{singlet}}(X^{\text{root}})\big]
+= \log p \cdot \sum_{n=1}^{L} q_n(X^{\text{root}}_n = 1)
+   + \big(1 - P_q(L_{\text{root}}{=}0)\big)\,c_1
+   + P_q(L_{\text{root}}{=}0)\,\log(1 - \kappa),
+\end{equation}
+with $c_1 = \log\!\big[\kappa(1-\ext)(1-\kappa)/p\big]$ and
+$P_q(L_{\text{root}}{=}0) = \prod_{n=1}^{L} q_n(X^{\text{root}}_n = 0)$
+the variational mass on an empty root sequence.
+For TKF91 ($\ext = 0$) the second and third terms collapse to a
+single $q$-independent constant $\log(1-\kappa)$ and~\eqref{eq:E-singlet-root}
+reduces to the textbook form
+$\log(1-\kappa) + \log\kappa \cdot \sum_n q_n(X^{\text{root}}_n = 1)$.
+For TKF92 the $L_{\text{root}}{=}0$ special case must be retained;
+note that $P_q(L_{\text{root}}{=}0)$ is small but generically nonzero,
+since some columns may have positive variational mass on root being
+$\state{N}$ (the column was inserted on a strict subtree below the
+root).
+
+\subsection{ELBO}
+\label{sec:varanc-presence-elbo-derivation}
+
+For any product-of-trees $q$ that gives joint marginals
+$q_n(Z^v_n, Z^w_n)$ at every (edge, column),
+\begin{equation}
+\label{eq:elbo}
+\boxed{\;\;
+\log p(\text{MSA} \mid \parsetree, \theta)
+\;\geq\;
+\log \tilde{p}(\text{MSA} \mid \parsetree, \theta)
+\;\geq\;
+\mathcal{L}[q]
+\;=\;
+\expect_q\!\big[\log p_{\text{singlet}}(X^{\text{root}})\big]
++ \sum_{(v \to w) \in \parsetree}
+   \expect_q\!\big[\log P(X^w \mid X^v, \branchlen_{vw}, \theta)\big]
++ H\!\big[q(\{X^v\}_{v \in \mathcal{I}} \mid \text{MSA})\big].
+\;\;}
+\end{equation}
+The first two terms are given by~\eqref{eq:E-singlet-root}
+and~\eqref{eq:E-branch-LL} respectively;
+the third is the entropy of the leaf-conditioned variational
+distribution.
+The leftmost inequality is~\eqref{eq:tildep-le-p};
+the right inequality is the standard Jensen bound on the restricted
+joint~\eqref{eq:joint}.
+
+\paragraph{Entropy decomposition.}
+The variational $q$ is parameterised through a directed graphical
+model on the full tree (root + internal + leaf nodes) with edge
+conditionals $q^{v \to w}_n(\cdot \mid \cdot)$.
+Writing $q_{\text{joint}}$ for this joint and conditioning on the
+observed leaf states gives
+$q(\{X^v\}_{v \in \mathcal{I}} \mid \text{MSA})
+ = q_{\text{joint}}(\text{internals},\,\text{MSA})\,/\,Z_q$,
+where $Z_q = \sum_{\text{internals}} q_{\text{joint}}$ is the
+per-column belief-propagation partition function summed over columns.
+The leaf-conditioned entropy then decomposes as
+\begin{equation}
+\label{eq:entropy}
+H\!\big[q(\text{internals} \mid \text{MSA})\big]
+= -\,\expect_q\!\big[\log q_{\text{joint}}\big] + \log Z_q,
+\end{equation}
+where the first term factors over the directed graphical model:
+\begin{equation}
+\label{eq:cross-entropy-decomp}
+-\expect_q\!\big[\log q_{\text{joint}}\big]
+= -\sum_{n=1}^{L}\!\!\sum_{z \in \mathcal{Z}}\!
+       q_n^{\text{root}}(z)\,\log q_n^{\text{root}}(z)
+\;-\;
+\sum_{(v \to w) \in \parsetree}
+\sum_{n=1}^{L}\!\!\sum_{z, z' \in \mathcal{Z}}\!
+   q_n(Z^v_n{=}z, Z^w_n{=}z')\,\log q_n^{v \to w}(z' \mid z).
+\end{equation}
+The first term is the per-column root entropy.
+Each per-edge term is a \emph{cross-entropy} between the BP-derived
+joint marginal $q_n(Z^v_n, Z^w_n)$ and the prior edge conditional
+$q_n^{v \to w}$;
+it is \emph{not} the parent-marginal-weighted entropy
+$\expect_{q_n(Z^v_n)}\!\big[H(q_n^{v \to w}(\cdot \mid Z^v_n))\big]$,
+which only equals~\eqref{eq:cross-entropy-decomp} when the leaves
+impose no evidence on the edge — generically a different quantity
+once the BP-conditioning shifts pair marginals away from the prior
+factorisation.
+The $\log Z_q$ term in~\eqref{eq:entropy} comes out of the up-pass
+partition function and ensures the entropy is on the conditioned
+distribution rather than the joint.
+
+\paragraph{Bound interpretation.}
+Equation~\eqref{eq:elbo} is a proper lower bound on the full TKF92
+marginal log-likelihood $\log p(\text{MSA})$, with the gap split into
+two non-negative pieces:
+\begin{equation}
+\label{eq:gap-decomp}
+\log p(\text{MSA}) - \mathcal{L}[q]
+\;=\;
+\underbrace{\big(\log p(\text{MSA}) - \log \tilde{p}(\text{MSA})\big)}_{\text{restriction gap}}
+\;+\;
+\underbrace{\text{KL}\!\big[q(\text{internals} \mid \text{MSA})\,\|\,\tilde{p}(\text{internals} \mid \text{MSA})\big]}_{\text{variational gap}}.
+\end{equation}
+The variational gap is the standard Jensen slack on the restricted
+joint~\eqref{eq:joint} and depends on $q$;
+the restriction gap is the contribution of ghost-column histories
+that our latent space cannot represent
+(Section~\ref{sec:varanc-presence-restricted}) and depends on the
+model parameters $\theta$ and the tree but not on $q$.
+For ancestral-presence reconstruction (fix $\theta$, optimise $q$)
+the restriction gap is a constant additive offset, so
+maximising~\eqref{eq:elbo} is equivalent to minimising the KL
+divergence from $q$ to the true model posterior on the support of
+observed-column internal-node configurations.
+For parameter learning over $\theta$ this equivalence breaks: the
+restriction gap shifts with $\theta$, so the bound is not tight up to
+a parameter-independent constant.
+A tighter bound would require augmenting $q$ to model ghost columns
+explicitly — for instance via per-(branch, gap-region) latent counts
+of inserted-then-fully-deleted residues — at the cost of additional
+machinery beyond the per-MSA-column factorisation used here.
+Equivalently and intuitively, one recovers the full marginal in the
+limit of inserting infinitely many additional ``empty'' columns into
+the alignment between (and around) every observed column, with all
+leaves clamped to absent at those columns and the variational $q$
+free over their internal states;
+the present formulation simply truncates this padding to zero.
+
+\subsection{Stable computation: cumulant trick}
+\label{sec:varanc-presence-cumulant}
+
+The expected transition count $W_{s s'}^{(v \to w)}$
+in~\eqref{eq:W-pair} appears at first sight to require
+$O(L^2)$ work per (branch, state-pair).
+A standard prefix-sum reduces this to $O(L)$.
+
+For brevity drop the branch superscript and write
+$P_n^{\mathsf{Ig}} = P_q(S_n = \mathsf{Ig})$,
+$P_n^{s} = P_q(S_n = s)$ for $s \in \{\sta, \mat, \del, \ins, \fin\}$
+(with $P_0^{\sta} = 1$, $P_{L+1}^{\fin} = 1$, all other boundary
+values zero).
+Define the running log-Ignore mass
+\begin{equation}
+\label{eq:cumulant}
+C_N \;=\; \sum_{k=1}^{N} \log P_k^{\mathsf{Ig}},
+\qquad C_0 = 0.
+\end{equation}
+Then $\prod_{K=M+1}^{N-1} P_K^{\mathsf{Ig}} = \exp(C_{N-1} - C_M)$,
+and~\eqref{eq:W-pair} factorises as
+\begin{equation}
+\label{eq:W-prefix}
+W_{s s'}
+\;=\;
+\sum_{N=1}^{L+1}
+P_N^{s'}\,e^{C_{N-1}}
+\;\cdot\;
+\underbrace{\sum_{M=0}^{N-1} P_M^{s}\,e^{-C_M}}_{\text{prefix sum in }M}.
+\end{equation}
+Both inner factors are non-negative; the difference $C_{N-1} - C_M$
+is non-positive (it is a sum of log-probabilities), so the geometric
+factor lies in $(0, 1]$ and~\eqref{eq:W-prefix} is numerically benign
+in float64 for any practical $L$.
+For very long alignments where individual exponents could underflow,
+one $\epsilon$-floors $P_n^{\mathsf{Ig}}$ before computing $C_n$;
+the floor is harmless because the product weights paths that traverse
+many Ignore columns, which contribute negligibly to the expectation.
+
+The total work for the per-branch expected log-likelihood
+is $O(L \cdot |S|^2)$ with $|S| \le 5$ states,
+yielding $O(B L)$ overall for $B$ branches.
+This is fully vectorisable across columns and branches.
+
+\paragraph{Why the inner sum is in probability space.}
+Equation~\eqref{eq:branch-LL} for a fixed deterministic realisation
+of the indicators is purely a sum of $\log \tkfwfst'$ entries:
+no probabilities, no products, no exponentials.
+The probability-space arithmetic in~\eqref{eq:W-prefix} arises only
+when we marginalise over the variational distribution: each summand
+is a probability mass (product of independent column factors) times a
+real-valued $\log \tkfwfst'$ entry, and the sum collapses these
+weighted log-transitions into the expected transition count.
+
+\subsection{Belief propagation for pairwise marginals}
+\label{sec:varanc-presence-bp}
+
+The pairwise marginals $q_n(Z^v_n, Z^w_n)$ feeding
+equations~\eqref{eq:column-state-probs} are computed by the standard
+Felsenstein up-down algorithm on $\parsetree$.
+For each column $n$:
+\begin{enumerate}[nosep]
+\item \emph{Up pass:} for every node $v$ and every state
+  $z \in \mathcal{Z}$, accumulate
+  $\beta_v^n(z) = \prod_{w: \text{child of } v} \sum_{z'}
+                  q_n^{v \to w}(z' \mid z)\,\beta_w^n(z')$,
+  with leaf base case
+  $\beta_v^n(z) = \delta(\text{leaf clamp at } v, n \text{ is consistent with } z)$.
+\item \emph{Down pass:} for every internal $v$ and state $z$,
+  accumulate the root-conditioned posterior
+  $\alpha_v^n(z)$ in standard fashion.
+\item \emph{Marginals:} for every edge $v \to w$ and every state pair,
+  $q_n(Z^v_n = z, Z^w_n = z')
+    = \alpha_v^n(z)\,q_n^{v \to w}(z' \mid z)\,
+      \beta_w^n(z') / \mathcal{Z}_n$,
+  where $\mathcal{Z}_n$ is the per-column partition function from the
+  up pass at the root.
+\end{enumerate}
+The up and down passes are $O(|\mathcal{I}| \cdot |\mathcal{Z}|^2)$
+per column and trivially vectorise across columns
+(same tree topology, different leaf clamps and different per-column
+edge conditionals).
+For typical protein alignments
+($L \approx 360$ amino acids on average in UniProtKB/Swiss-Prot
+\cite{UniProtStatistics}, with the long tail extending to a few thousand)
+this is unproblematic; for DNA MSAs (gene-scale regions in the few-kbp
+range \cite{XuEtAl2006}, longer for syntenic blocks)
+the per-column independence keeps cost linear in $L$.
+
+\subsection{Special cases and scalability}
+\label{sec:varanc-presence-special-cases}
+
+\paragraph{Irreversible Felsenstein-3.}
+Tie the per-(edge, column) variational conditionals
+$q_n^{v \to w}(\cdot \mid \cdot)$ across columns to a single
+per-edge transition matrix $\bar{q}^{v \to w}(\cdot \mid \cdot)$ —
+equivalently, parameterise each $\bar{q}^{v \to w}$ as the
+transition matrix of an irreversible 3-state CTMC over
+$(\state{N}, \state{P}, \state{D})$ with rates fitted by maximum
+likelihood on the leaf data.
+The variational marginals $q_n$ are then exactly the Felsenstein
+posteriors of this CTMC at column $n$, and the ELBO reduces to the
+log-likelihood of the leaf clamps under that CTMC plus the (now
+column-independent) expected log of $\tkfwfst'$.
+
+\paragraph{Fitch parsimony.}
+The zero-temperature limit of the irreversible Felsenstein-3
+posterior — assigning each internal node deterministically to its
+most-likely state under the CTMC — recovers the Fitch parsimony
+labelling of presence/absence under uniform priors and unit
+transition costs.
+
+\paragraph{Scalability of stochastic ELBO optimisation.}
+The free-parameter count scales as $2 \cdot |\mathcal{E}| \cdot L$
+(plus a per-column root parameter)
+where $|\mathcal{E}|$ is the number of tree edges and $L$ is the
+number of MSA columns.
+The variational $q$ factorises over columns, but the ELBO is
+non-trivially coupled across columns through the prefix-of-Ignore
+factor in equation~\eqref{eq:W-prefix}, which weights each
+$(M, N)$ transition contribution by the chain of intervening Ignore
+probabilities.
+Match-rich columns (where most lineages are clamped to $\state{P}$)
+have $P_n^{\mathsf{Ig}} \approx 0$ and so act as anchors that break
+the chain: contributions from $(M, N)$ pairs that straddle such an
+anchor column are damped to zero, decoupling the gradient on either
+side.
+For both protein-scale and DNA-scale alignments with non-trivial
+column coverage, ELBO optimisation should therefore scale linearly
+with total residue count without running into long-range coupling
+pathologies.

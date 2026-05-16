@@ -1,0 +1,111 @@
+# Makefile for BAliBASE expected-pairwise-F1 sweeps.
+#
+# Invoke from the python/ directory:
+#     cd python && make -f experiments/Makefile.expected_balibase all
+#
+# Outputs land in experiments/expected_balibase/ as one JSON per method
+# with a 'method_name' field. They share schema and are directly
+# comparable.
+#
+# Override checkpoints via the make CLI, e.g.:
+#     make -f experiments/Makefile.expected_balibase \
+#         MIXDOM_NPZ=pfam/svi_bw_d3f2c10_postfix_best_val.json \
+#         expected_balibase/expected_balibase_mixdom.json
+
+PYTHON           ?= uv run python
+RUNNER           ?= experiments/expected_pairwise_balibase.py
+OUTDIR           ?= experiments/expected_balibase
+BALIBASE_DIR     ?= /home/yam/bio-datasets/data/balibase/bali3pdbm
+
+# Param files. Override any of these on the make CLI as needed.
+TKF92_JSON       ?= experiments/tkf92_fitted_params.json
+TKF92_MIX_NPZ    ?= pfam/tkf92_mixture_K20_train.npz
+CHERRYML_NPZ     ?= pfam/cherryml_mixture_C20_n5000.npz
+MIXDOM_NPZ       ?= pfam/svi_bw_d3f1_postfix_best_val.npz
+
+# Method labels (free-form, appears as 'method_name' in output JSON).
+NAME_TKF92       ?= tkf92_lg08
+NAME_TKF92_MIX   ?= tkf92_K20
+NAME_CHERRYML    ?= cherryml_C20
+NAME_MIXDOM      ?= mixdom_d3f1
+NAME_MAFFT       ?= mafft_auto
+NAME_MUSCLE      ?= muscle
+
+# Common CLI bits.
+ENV              := JAX_ENABLE_X64=1
+COMMON_FLAGS     := --balibase-dir $(BALIBASE_DIR)
+# Mixture / CherryML use K-component batching; restrict pair-batch
+# size to fit 11 GiB local GPU. Override on the make CLI.
+MIX_PAIR_CHUNK   ?= 8
+# Set to 1 to also emit the gap_factor=0 SPS-maximising FSA branch.
+FSA_SPS          ?= 1
+ifeq ($(FSA_SPS),1)
+  FSA_SPS_FLAG   := --fsa-sps
+else
+  FSA_SPS_FLAG   :=
+endif
+
+TKF92_OUT        := $(OUTDIR)/expected_balibase_tkf92.json
+TKF92_MIX_OUT    := $(OUTDIR)/expected_balibase_tkf92_K20.json
+CHERRYML_OUT     := $(OUTDIR)/expected_balibase_cherryml_C20.json
+MIXDOM_OUT       := $(OUTDIR)/expected_balibase_mixdom_d3f1.json
+MAFFT_OUT        := $(OUTDIR)/expected_balibase_mafft.json
+MUSCLE_OUT       := $(OUTDIR)/expected_balibase_muscle.json
+
+.PHONY: all clean dirs single mixtures aligners
+all: $(TKF92_OUT) $(TKF92_MIX_OUT) $(CHERRYML_OUT) $(MIXDOM_OUT) \
+     $(MAFFT_OUT) $(MUSCLE_OUT)
+single:    $(TKF92_OUT) $(MIXDOM_OUT)
+mixtures:  $(TKF92_MIX_OUT) $(CHERRYML_OUT)
+aligners:  $(MAFFT_OUT) $(MUSCLE_OUT)
+
+$(OUTDIR):
+	mkdir -p $@
+
+$(TKF92_OUT): $(RUNNER) $(TKF92_JSON) | $(OUTDIR)
+	$(ENV) $(PYTHON) $(RUNNER) \
+	    --method tkf92 \
+	    --method-name $(NAME_TKF92) \
+	    --params $(TKF92_JSON) \
+	    --out $@ $(COMMON_FLAGS) $(FSA_SPS_FLAG)
+
+$(TKF92_MIX_OUT): $(RUNNER) $(TKF92_JSON) $(TKF92_MIX_NPZ) | $(OUTDIR)
+	$(ENV) $(PYTHON) $(RUNNER) \
+	    --method tkf92_mixture \
+	    --method-name $(NAME_TKF92_MIX) \
+	    --anchor $(TKF92_JSON) \
+	    --params $(TKF92_MIX_NPZ) \
+	    --pair-chunk $(MIX_PAIR_CHUNK) \
+	    --out $@ $(COMMON_FLAGS) $(FSA_SPS_FLAG)
+
+$(CHERRYML_OUT): $(RUNNER) $(TKF92_JSON) $(CHERRYML_NPZ) | $(OUTDIR)
+	$(ENV) $(PYTHON) $(RUNNER) \
+	    --method cherryml_mixture \
+	    --method-name $(NAME_CHERRYML) \
+	    --anchor $(TKF92_JSON) \
+	    --params $(CHERRYML_NPZ) \
+	    --pair-chunk $(MIX_PAIR_CHUNK) \
+	    --out $@ $(COMMON_FLAGS) $(FSA_SPS_FLAG)
+
+$(MIXDOM_OUT): $(RUNNER) $(MIXDOM_NPZ) | $(OUTDIR)
+	$(ENV) $(PYTHON) $(RUNNER) \
+	    --method mixdom \
+	    --method-name $(NAME_MIXDOM) \
+	    --params $(MIXDOM_NPZ) \
+	    --out $@ $(COMMON_FLAGS) $(FSA_SPS_FLAG)
+
+$(MAFFT_OUT): $(RUNNER) | $(OUTDIR)
+	$(ENV) $(PYTHON) $(RUNNER) \
+	    --method mafft \
+	    --method-name $(NAME_MAFFT) \
+	    --out $@ $(COMMON_FLAGS) $(FSA_SPS_FLAG)
+
+$(MUSCLE_OUT): $(RUNNER) | $(OUTDIR)
+	$(ENV) $(PYTHON) $(RUNNER) \
+	    --method muscle \
+	    --method-name $(NAME_MUSCLE) \
+	    --out $@ $(COMMON_FLAGS) $(FSA_SPS_FLAG)
+
+clean:
+	rm -f $(TKF92_OUT) $(TKF92_MIX_OUT) $(CHERRYML_OUT) $(MIXDOM_OUT) \
+	      $(MAFFT_OUT) $(MUSCLE_OUT)

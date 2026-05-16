@@ -1,0 +1,89 @@
+\subsection{Stochastic Variational Baum-Welch}
+\label{sec:svi-bw}
+
+For large datasets it is impractical to run the E-step over all training pairs every iteration.
+A natural stochastic extension is to sample a minibatch of pairs, run the E-step on those, and update parameters.
+Naively replacing the full sufficient statistics with each batch's statistics discards information from previous batches
+and results in noisy, slowly converging parameter estimates.
+
+The framework of stochastic variational inference~\cite{hoffman2013svi}
+provides a principled resolution in the conditionally conjugate case.
+Each M-step parameter group in TKF91\ifdefined\MIXDOMPAPER{} (and TKF92 and MixDom)\else{} (and TKF92, including the mixture-of-TKF92 extension of Section~\ref{sec:em-around-maraschino})\fi{} has an
+exponential-family complete-data log-likelihood, regular for the
+multinomial groups (mixture weights, fragment-type transitions,
+site-class distributions) and curved for the BDI rates and the
+reversible-CTMC (GTR) submodel
+(Sections~\ref{sec:bdi},~\ref{sec:bridge-expectations}).
+For the multinomial groups we use Dirichlet priors that are strictly
+conjugate; for the BDI and GTR groups we use independent
+Gamma${}\times{}$Dirichlet pseudocounts that are non-conjugate
+regularisers in the reversible / curved-family parameterisation
+\ifdefined\MIXDOMPAPER (Section~\ref{sec:bw-mixdom-priors})\fi.
+For the conjugate groups, Hoffman et al.'s natural-gradient argument
+applies in full and the update~\eqref{eq:svi-update} below is exact
+natural-gradient ascent on the variational ELBO.
+For the non-conjugate groups, the natural-gradient interpretation no
+longer holds verbatim, but the same exponential-moving-average update
+remains a sound stochastic-MAP-EM scheme: each M-step is affine in the
+augmented sufficient statistics, so an EMA of statistics commutes with
+the M-step and converges to the MAP fixed point of full-batch EM under
+the standard Robbins--Monro step-size conditions.  In practice both
+groups are updated by the same rule:
+\begin{equation}\label{eq:svi-update}
+\bar{T}^{(t+1)} = (1 - \rho_t)\,\bar{T}^{(t)}
+  + \rho_t\!\left(\bar{T}_0 + \frac{N}{|B_t|}\,T_{B_t}\right),
+\end{equation}
+where $\bar{T}^{(t)}$ denotes the running sufficient statistics
+at iteration~$t$
+(transition counts $\hat{n}_{ij}$,
+bridge-expectation dwell times~$W_i$ and jump counts~$U_{ij}$,
+character counts~$V_i$,
+and BDI expectations $\hat{B}, \hat{D}, \hat{S}$),
+$\bar{T}_0$ the prior pseudocounts,
+$T_{B_t}$ the batch sufficient statistics from the E-step on minibatch~$B_t$,
+$N$ the total number of training pairs,
+$|B_t|$ the batch size,
+and $\rho_t = (t + \tau)^{-\kappa}$ the Robbins--Monro step size
+with delay $\tau \geq 0$ and forgetting rate $\kappa \in (0.5, 1]$.
+
+The M-step---quadratic solve for indel rates~(\ref{eq:kappa-quadratic}),
+Dirichlet MAP for mixture weights,
+Beta MAP for extension rates,
+and the iterative coordinate ascent for $(\exch, \eqm)$---is
+then applied to $\bar{T}^{(t+1)}$ exactly as in full-batch EM.
+Each M-step maximizes a (penalised) Q-function that is linear in the
+sufficient statistics, so averaging the statistics before solving is
+equivalent to finding the MAP of the averaged Q-function.
+For the conjugate parameter groups this maximizer is also the natural
+parameter of the updated variational posterior; for the non-conjugate
+groups it is the MAP of the regularised Q-function and not a
+variational posterior, but the iteration is identical.
+
+This retains the closed-form exactness of every M-step
+while enabling online processing of arbitrarily large pair collections,
+with each training pair visited only once.
+The two hyperparameters $\tau$ and $\kappa$ have robust defaults
+($\tau = 10$, $\kappa = 0.7$) that work across a range of dataset sizes
+without tuning~\cite{hoffman2013svi}.
+
+\paragraph{Equivalent formulations of the prior pseudocounts.}
+Equation~\eqref{eq:svi-update} places the prior pseudocounts $\bar T_0$
+inside the EMA update. An equivalent implementation accumulates only
+the data contribution in $\bar T$ and adds $\bar T_0$ at M-step time:
+\[
+\tilde T^{(t+1)} = (1-\rho_t)\,\tilde T^{(t)} + \rho_t\, \tfrac{N}{|B_t|}\, T_{B_t},
+\qquad \theta^{(t+1)} = \mathrm{M\text{-}step}\bigl(\tilde T^{(t+1)} + \bar T_0\bigr).
+\]
+For every M-step considered in this paper (Dirichlet MAP,
+Gamma-augmented counts, pooled GTR formula), the M-step operator is
+affine in its sufficient statistics, so
+$\mathrm{M}(\bar T^{(t)}) = \mathrm{M}(\tilde T^{(t)} + \bar T_0)$
+exactly at every iteration; the two prescriptions yield numerically
+identical estimates.
+This affineness is what we actually need for the EMA-of-pseudocounts
+formulation, and it holds whether or not the prior is strictly
+conjugate to the complete-data likelihood
+\ifdefined\MIXDOMPAPER(Section~\ref{sec:bw-mixdom-priors} discusses the distinction)\fi. The post-hoc form is slightly more convenient for
+implementation because each M-step keeps the prior encapsulated in its
+closed-form update; see the code comment at the SVI loop for details.
+

@@ -1,0 +1,1215 @@
+\section{Formal Grammar Elaboration Rules}
+\label{sec:appendix-grammar}
+
+The TKF family of evolutionary models---TKF91, TKF92, MixDom,
+the TKF Structure Tree, and the TKF Genome---describes the joint
+evolution of biological sequences subject to insertions, deletions,
+and substitutions.  Despite their apparent diversity, all these models
+share a common constructive pattern: they begin with a simple weighted
+context-free grammar (WCFG) for a geometrically distributed number of
+links, and then systematically elaborate that grammar through a
+series of formal transformations.
+
+In the TKF91 model~\cite{ThorneEtAl91}, each link carries a single character evolving by a
+continuous-time Markov chain (CTMC).  TKF92~\cite{ThorneEtAl92}
+extends this by replacing each character with a geometrically
+distributed fragment of characters.  The MixDom model nests a TKF92
+process inside a TKF91 process, decorating links with mixtures of
+domain types, fragment types, and substitution classes.  The TKF
+Structure Tree~\cite{Holmes2004} uses stochastic context-free grammar
+(SCFG) recursion to model RNA secondary structure with stems (emitting
+paired characters left and right) and loops.  The TKF Genome extends
+these ideas to entire genomes with coding sequences, introns, RNA structures,
+and conserved elements.
+
+Making the elaboration steps explicit and composable has several benefits:
+\begin{enumerate}[label=(\roman*)]
+\item \textbf{Correctness}: each transformation can be verified independently,
+  rather than checking a large monolithic grammar.
+\item \textbf{Modularity}: new models (e.g., RNA models with basepair stacking,
+  codon models with reading-frame-aware indels) can be constructed by
+  composing well-understood building blocks.
+\item \textbf{Automation}: the transformations are sufficiently formal
+  to be implemented as software operations on grammar objects,
+  enabling automatic derivation of dynamic programming algorithms
+  from high-level model specifications.
+\end{enumerate}
+
+This appendix defines seven elaboration rules and the associated
+null-state management procedures, then shows how each known
+TKF-family model arises as a specific sequence of elaborations.
+
+\subsection{Base Grammar}
+
+\subsubsection{Weighted Context-Free Grammars}
+
+\begin{definition}[Weighted Context-Free Grammar]
+A \emph{weighted context-free grammar} (WCFG) is a tuple
+$\WCFG = (\NT, \TM, \PR, S, \WF)$ where:
+\begin{itemize}
+\item $\NT$ is a finite set of nonterminal symbols.
+\item $\TM$ is a finite set of terminal symbols, disjoint from $\NT$.
+\item $S \in \NT$ is the start symbol.
+\item $\PR$ is a finite set of production rules of the form $X \to \alpha$
+  where $X \in \NT$ and $\alpha \in (\NT \cup \TM)^*$.
+\item $\WF : \PR \to \mathbb{R}_{\geq 0}$ assigns a nonneg weight to each production.
+\end{itemize}
+The grammar is \emph{proper} if for every nonterminal $X$,
+the weights of all productions with left-hand side $X$ sum to 1:
+$\sum_{(X \to \alpha) \in \PR} \WF(X \to \alpha) = 1$.
+In a proper WCFG, weights are probabilities and the grammar defines
+a stochastic context-free grammar (SCFG).
+\end{definition}
+
+\begin{definition}[Elaboration Rule]
+An \emph{elaboration rule} (or grammar transformation) is a map
+$\mathcal{E} : \WCFG \to \WCFG'$ that takes a WCFG
+and a set of elaboration parameters, and produces a new WCFG.
+An elaboration is \emph{validity-preserving} if it maps
+proper grammars to proper grammars.
+\end{definition}
+
+We distinguish between the \emph{single-sequence grammar}
+(describing the stationary distribution over sequences)
+and the \emph{pair grammar} (describing the joint distribution
+over ancestor--descendant sequence pairs).  Most elaborations
+operate on the single-sequence grammar; the Evolution elaboration
+(Section~\ref{sec:evolution-appendix}) converts a single-sequence grammar
+into a pair grammar.
+
+\subsubsection{The Link Grammar}
+\label{sec:base-appendix}
+
+The fundamental building block of all TKF-family models is a grammar
+generating a geometrically distributed number of ``links.''
+This grammar arises from the stationary distribution of the linear
+birth-death-immigration (BDI) process with per-capita birth rate
+$\insrate$, per-capita death rate $\delrate > \insrate$, and
+immigration rate $\immrate = \insrate$.
+
+\begin{definition}[Link Grammar]
+\label{def:link-grammar-appendix}
+The \emph{link grammar} $\WCFG_{\mathrm{link}}(\kappa)$ with
+parameter $\kappa = \insrate/\delrate \in [0,1)$ is the WCFG
+with nonterminals $\{\texttt{IMM}, \texttt{MOR}\}$, start symbol
+$\texttt{IMM}$, and productions:
+\begin{align}
+\texttt{IMM} &\to \texttt{MOR}\;\texttt{IMM} && \text{weight } \kappa \label{eq:imm-extend} \\
+\texttt{IMM} &\to \epsilon && \text{weight } 1-\kappa \label{eq:imm-end} \\
+\texttt{MOR} &\to \texttt{MOR}\;\texttt{MOR} && \text{weight } \kappa \label{eq:mor-extend} \\
+\texttt{MOR} &\to \epsilon && \text{weight } 1-\kappa \label{eq:mor-end}
+\end{align}
+\end{definition}
+
+\begin{remark}
+In this grammar, $\texttt{IMM}$ (the ``immortal link'') generates
+a sequence of $n \sim \geomdist(\kappa)$ mortal links.
+Each $\texttt{MOR}$ can recursively generate further mortal links;
+the recursive self-loop in~\eqref{eq:mor-extend} reflects the
+offspring-generating property of the BDI process.
+The distinction between $\texttt{IMM}$ and $\texttt{MOR}$
+captures the different roles: the immortal link corresponds to the
+BDI regime $\immrate = \insrate, X(0) = 0$ (immigration from nothing),
+while mortal links correspond to $\immrate = 0, X(0) = 1$
+(a single founder that can die).
+\end{remark}
+
+\begin{remark}
+The grammar in Definition~\ref{def:link-grammar-appendix} generates only
+the empty string $\epsilon$, since $\texttt{MOR}$ has no terminal-producing
+rules.  The elaboration rules below will add terminal emissions
+(characters, character pairs, etc.) to the mortal links.
+\end{remark}
+
+\begin{proposition}
+The link grammar $\WCFG_{\mathrm{link}}(\kappa)$ is proper for
+any $\kappa \in [0,1)$.  Under the start symbol $\texttt{IMM}$,
+the number of $\texttt{MOR}$ expansions
+before reaching $\epsilon$ is distributed as $\geomdist(\kappa)$
+(with support $\{0,1,2,\ldots\}$ and mean $\kappa/(1-\kappa)$).
+\end{proposition}
+
+\begin{proof}
+For $\texttt{IMM}$: the productions~\eqref{eq:imm-extend}
+and~\eqref{eq:imm-end} have weights $\kappa$ and $1-\kappa$,
+summing to 1.  Similarly for $\texttt{MOR}$.
+The number of $\texttt{MOR}$ nonterminals generated by
+$\texttt{IMM}$ before choosing $\epsilon$
+is geometric with parameter $\kappa$ by the standard
+geometric series argument.
+\end{proof}
+
+\subsection{Elaboration Rules}
+
+We now define each elaboration rule as a formal grammar transformation.
+For each rule, we specify:
+\begin{itemize}
+\item The \emph{input} grammar fragment (which productions are targeted).
+\item The \emph{output} grammar fragment (the replacement productions).
+\item The \emph{parameters} introduced by the elaboration.
+\item The \emph{validity conditions} under which the transformation preserves properness.
+\end{itemize}
+
+\subsubsection{CTMC Expansion}
+\label{sec:ctmc-expansion-appendix}
+
+The most basic elaboration decorates each link with a character
+(or tuple of characters) that evolves according to a finite-state
+CTMC.  This is the step that takes the bare link grammar to a model
+with observable sequences.
+
+\begin{definition}[Emission Type]
+An \emph{emission type} specifies where terminal symbols appear
+relative to the recursive expansion of a nonterminal:
+\begin{itemize}
+\item \textbf{Left-emission}: terminal appears to the left of the recursive part.
+  Production form: $X \to c\;\alpha$ where $c \in \TM$.
+\item \textbf{Right-emission}: terminal appears to the right.
+  Production form: $X \to \alpha\;c$.
+\item \textbf{LR-emission}: terminals appear on both sides.
+  Production form: $X \to c_L\;\alpha\;c_R$ where $c_L, c_R \in \TM$.
+  This is the form needed for RNA basepair models (stems).
+\end{itemize}
+\end{definition}
+
+\begin{definition}[CTMC Expansion]
+\label{def:ctmc-appendix}
+Let $\WCFG$ be a WCFG containing a nonterminal $X$ with an
+$\epsilon$-generating production used for link termination.
+Let $\alphabet$ be a finite alphabet, $\eqm$ a probability distribution
+over $\alphabet$, and $\exch$ a rate matrix with stationary distribution $\eqm$.
+The \emph{left CTMC expansion} of $X$ with parameters $(\alphabet, \eqm, \exch)$
+replaces every production $X \to \alpha$ (where $\alpha \neq \epsilon$)
+with the family of productions:
+\begin{equation}
+X \to c\;\alpha \qquad \text{weight } \WF(X \to \alpha) \cdot \eqm_c
+\quad \text{for each } c \in \alphabet
+\end{equation}
+The $\epsilon$-production $X \to \epsilon$ is left unchanged.
+
+The \emph{right CTMC expansion} replaces $X \to \alpha$ ($\alpha \neq \epsilon$) with:
+\begin{equation}
+X \to \alpha\;c \qquad \text{weight } \WF(X \to \alpha) \cdot \eqm_c
+\quad \text{for each } c \in \alphabet
+\end{equation}
+
+The \emph{LR CTMC expansion} with alphabet $\alphabet \times \alphabet$
+and equilibrium distribution $\eqm(c_L, c_R)$ replaces
+$X \to \alpha$ ($\alpha \neq \epsilon$) with:
+\begin{equation}
+X \to c_L\;\alpha\;c_R \qquad \text{weight } \WF(X \to \alpha) \cdot \eqm(c_L, c_R)
+\quad \text{for each } (c_L, c_R) \in \alphabet \times \alphabet
+\end{equation}
+\end{definition}
+
+\begin{proposition}
+Left, right, and LR CTMC expansion are validity-preserving:
+if $\WCFG$ is proper, then so is the elaborated grammar.
+\end{proposition}
+
+\begin{proof}
+For left CTMC expansion: the total weight of productions with
+LHS $X$ becomes
+$\sum_{c \in \alphabet} \sum_{\alpha \neq \epsilon} \WF(X \to \alpha) \cdot \eqm_c
++ \WF(X \to \epsilon)
+= \sum_{\alpha \neq \epsilon} \WF(X \to \alpha) \cdot 1 + \WF(X \to \epsilon)
+= \sum_\alpha \WF(X \to \alpha) = 1$.
+The right and LR cases are analogous.
+\end{proof}
+
+\begin{example}[TKF91]
+\label{ex:ctmc-tkf91-appendix}
+Applying left CTMC expansion to $\texttt{MOR}$ in the link grammar
+$\WCFG_{\mathrm{link}}(\kappa)$ with alphabet $\alphabet$
+and equilibrium distribution $\eqm$ yields:
+\begin{align*}
+\texttt{IMM} &\to \texttt{MOR}\;\texttt{IMM} && \kappa \\
+\texttt{IMM} &\to \epsilon && 1-\kappa \\
+\texttt{MOR} &\to c\;\texttt{MOR}\;\texttt{MOR} && \kappa \cdot \eqm_c \quad (c \in \alphabet)\\
+\texttt{MOR} &\to c && (1-\kappa) \cdot \eqm_c \quad (c \in \alphabet)
+\end{align*}
+This is the stationary (single-sequence) grammar for TKF91:
+it generates a geometric number of links, each carrying a character
+drawn i.i.d.\ from $\eqm$.
+\end{example}
+
+\begin{example}[TKF Structure Tree stems]
+\label{ex:ctmc-lr-appendix}
+In the TKF Structure Tree, stems use LR CTMC expansion.
+The nonterminal $S$ (``stem'') generates basepairs:
+\begin{align*}
+S &\to c_L\;S\;c_R && (1-\kappa_S) \cdot \eqm_S(c_L, c_R) \\
+S &\to L && \kappa_S
+\end{align*}
+where $L$ is the loop nonterminal (which uses left CTMC expansion),
+and $\eqm_S(c_L, c_R)$ is the joint equilibrium distribution over
+basepairs.  The LR emission enables the grammar to generate
+palindromic structures characteristic of RNA secondary structure.
+\end{example}
+
+\subsubsection{Fragment Expansion}
+\label{sec:fragment-appendix}
+
+Fragment expansion takes TKF91 to TKF92 by replacing each single-character
+link with a geometrically distributed sequence of characters.
+
+\begin{definition}[Fragment Expansion]
+\label{def:fragment-appendix}
+Let $\WCFG$ be a WCFG with a nonterminal $\texttt{MOR}$ representing
+a mortal link.  The \emph{fragment expansion} with parameter
+$\ext \in [0,1)$ (the extension probability) replaces $\texttt{MOR}$
+with three nonterminals $\texttt{MOR\_S}$ (fragment start),
+$\texttt{MOR\_X}$ (fragment extend), and $\texttt{MOR\_E}$
+(fragment end), defined as follows.
+
+Every production in $\WCFG$ that references $\texttt{MOR}$
+on its right-hand side is updated to reference $\texttt{MOR\_S}$ instead.
+Then:
+
+\medskip
+\noindent\textbf{Before} (link with single terminal slot):
+\begin{align*}
+\texttt{MOR} &\to [\text{terminal}]\;\alpha && \WF_{\text{orig}}
+\end{align*}
+
+\noindent\textbf{After} (link with geometric fragment):
+\begin{align*}
+\texttt{MOR\_S} &\to \texttt{MOR\_X} && 1 \\
+\texttt{MOR\_X} &\to [\text{terminal}]\;\texttt{MOR\_X} && \ext \\
+\texttt{MOR\_X} &\to [\text{terminal}]\;\texttt{MOR\_E} && 1 - \ext \\
+\texttt{MOR\_E} &\to \alpha && \WF_{\text{orig}}
+\end{align*}
+
+Here $[\text{terminal}]$ denotes whatever terminal emission was
+associated with $\texttt{MOR}$ (a single character from a CTMC expansion,
+or a character pair, etc.), and $\alpha$ denotes the rest of the
+original production's right-hand side (the recursive continuation).
+
+More precisely, if $\texttt{MOR}$ had productions
+$\texttt{MOR} \to c\;\texttt{MOR}\;\texttt{MOR}$ (weight $\kappa \cdot \eqm_c$)
+and $\texttt{MOR} \to c$ (weight $(1-\kappa) \cdot \eqm_c$)
+after CTMC expansion, the fragment expansion produces:
+\begin{align*}
+\texttt{MOR\_S} &\to \texttt{MOR\_X} && 1 \\
+\texttt{MOR\_X} &\to c\;\texttt{MOR\_X} && \ext \cdot \eqm_c \quad (c \in \alphabet) \\
+\texttt{MOR\_X} &\to c\;\texttt{MOR\_E} && (1-\ext) \cdot \eqm_c \quad (c \in \alphabet) \\
+\texttt{MOR\_E} &\to \texttt{MOR\_S}\;\texttt{MOR\_S} && \kappa \\
+\texttt{MOR\_E} &\to \epsilon && 1-\kappa
+\end{align*}
+where $\texttt{MOR\_E}$ takes over the inter-link continuation logic
+from the original $\texttt{MOR}$.
+\end{definition}
+
+\begin{proposition}
+Fragment expansion is validity-preserving.
+The expected number of terminals per fragment is $1/(1-\ext)$.
+\end{proposition}
+
+\begin{remark}
+Fragment expansion must be applied \emph{after} CTMC expansion
+(or simultaneously), because it assumes the link already has
+terminal emissions.  If applied to a bare link grammar (no terminals),
+the result would have fragments of $\epsilon$'s, which is degenerate.
+\end{remark}
+
+\begin{example}[TKF92]
+TKF92 = link grammar $\to$ (fragment expansion with parameter $\ext$)
+$\to$ (CTMC expansion with $\alphabet, \eqm, \exch$).
+Equivalently, CTMC expansion first, then fragment expansion.
+Both orderings yield the same grammar, because fragment expansion
+simply wraps the terminal emission in a geometric self-loop.
+The resulting grammar generates sequences where each link produces
+a fragment of $K \sim \geomdist(\ext)$ characters from $\eqm$.
+\end{example}
+
+\subsubsection{Mixture Expansion}
+\label{sec:mixture-appendix}
+
+Mixture expansion decorates a link with a latent categorical variable
+whose value determines subsequent model parameters.
+
+\begin{definition}[Mixture Expansion]
+\label{def:mixture-appendix}
+Let $\WCFG$ be a WCFG containing a nonterminal $X$.
+Let $\{1, \ldots, K\}$ be a finite set of mixture components
+with weights $p_1, \ldots, p_K > 0$ satisfying $\sum_k p_k = 1$.
+The \emph{mixture expansion} of $X$ with components $K$
+and weights $(p_k)$ replaces $X$ with $K$ new nonterminals
+$X_1, \ldots, X_K$ and modifies all productions referencing $X$
+as follows.
+
+Every production $Y \to \alpha\;X\;\beta$ in $\WCFG$
+(where $Y \neq X$ and $\alpha, \beta \in (\NT \cup \TM)^*$)
+is replaced by $K$ productions:
+\begin{equation}
+Y \to \alpha\;X_k\;\beta \qquad \text{weight } \WF(Y \to \alpha X \beta) \cdot p_k
+\quad \text{for } k = 1, \ldots, K
+\end{equation}
+
+The productions of $X$ itself are copied to each $X_k$:
+for each production $X \to \gamma$, create
+\begin{equation}
+X_k \to \gamma_k \qquad \text{weight } \WF(X \to \gamma)
+\end{equation}
+where $\gamma_k$ is $\gamma$ with any self-references to $X$ replaced
+by $X_k$ (maintaining the component assignment within a link).
+
+Each $X_k$ may then undergo different subsequent elaborations
+(e.g., different CTMC parameters, different fragment extension rates).
+\end{definition}
+
+\begin{proposition}
+Mixture expansion is validity-preserving.
+\end{proposition}
+
+\begin{proof}
+For $Y$: the total weight of productions referencing $X_k$ is
+$\sum_k \WF(\cdot) \cdot p_k = \WF(\cdot) \cdot 1$.
+For each $X_k$: the production weights are copied from $X$, hence sum to 1.
+\end{proof}
+
+\begin{remark}
+In principle, the mixture component selector could itself evolve
+via a CTMC across evolutionary time, provided that nested expansions
+are resampled from equilibrium upon a change of component.
+In this appendix, we restrict attention to the simpler case where
+the component assignment is fixed throughout the lifetime of a link
+(i.e., it is sampled once at birth and does not change).
+\end{remark}
+
+\begin{example}[MixDom: three levels of mixture]
+In the MixDom model, mixture expansion is applied at three levels:
+\begin{enumerate}
+\item \textbf{Domain mixture}: each top-level link is assigned a
+  domain type $\dom \sim \catdist(\domdist_1,\ldots,\domdist_\ndom)$, determining
+  $(\insrate_\dom, \delrate_\dom)$ for the nested TKF92 process.
+\item \textbf{Fragment process}: within domain $\dom$, the initial
+  fragment type is $\frag \sim \catdist(\fragdist_{\dom 1},\ldots,\fragdist_{\dom\nfrag})$.
+  Subsequent fragments are drawn
+  from the $\nfrag \times \nfrag$ transition matrix $\ext^{(\dom)}_{\srcfrag\destfrag}$
+  (the $\nfrag = 1$ case reduces to IID geometric extension).
+\item \textbf{Site class mixture}: within fragment state $\frag$ of domain $\dom$,
+  each character position is assigned a class $\class \sim \catdist(\classdist_{\dom\frag 1},\ldots,\classdist_{\dom\frag\nclasses})$,
+  determining the substitution parameters $(\exch^{(\class)}, \eqm^{(\class)})$.
+\end{enumerate}
+\end{example}
+
+\subsubsection{Link Sequence Concatenation}
+\label{sec:concatenation-appendix}
+
+Concatenation decorates a single link with two or more consecutive
+sub-links.
+
+\begin{definition}[Link Sequence Concatenation]
+\label{def:concat-appendix}
+Let $\WCFG$ be a WCFG with nonterminal $X$ representing a link.
+The \emph{binary concatenation} of $X$ replaces it with
+two new nonterminals $X_A, X_B$ and the production:
+\begin{equation}
+X \to X_A\;X_B \qquad \text{weight } 1
+\end{equation}
+$X_A$ and $X_B$ may then be independently elaborated.
+For $n$-ary concatenation, $X$ is replaced by
+$X \to X_1\;X_2\;\cdots\;X_n$.
+\end{definition}
+
+\begin{remark}[Concatenation combined with mixture and fragments]
+A powerful pattern combines mixture, fragment, and concatenation
+to decorate a link with a variable-length sequence of
+categorically typed sub-links:
+\begin{enumerate}
+\item Apply fragment expansion to the link, creating a geometric
+  number of sub-link slots.
+\item Apply mixture expansion to each sub-link slot, assigning it
+  a categorical type.
+\item If correlations between adjacent types are desired,
+  replace the i.i.d.\ mixture with an HMM output distribution:
+  the type sequence is generated by a hidden Markov model
+  whose transition matrix captures adjacency preferences.
+\end{enumerate}
+This yields a variable number of concatenated sub-links
+of varying types with Markovian correlations.
+In the TKF Genome, this pattern is used for genomic regions
+(coding, noncoding, structural) within a top-level link sequence.
+\end{remark}
+
+\begin{example}[TKF Genome: region concatenation]
+The TKF Genome's top-level grammar has:
+\begin{align*}
+\texttt{GENOME} &\to \texttt{REGION}\;\texttt{GENOME} && 1-\kappa_R \\
+\texttt{GENOME} &\to \epsilon && \kappa_R \\
+\texttt{REGION} &\to \texttt{INTER} && p_N \\
+                &\;\;|\;\; \texttt{FWDCDS} && p_G/2 \\
+                &\;\;|\;\; \texttt{REVCDS} && p_G/2 \\
+                &\;\;|\;\; \texttt{STRUCT} && p_S \\
+                &\;\;|\;\; \texttt{CONS} && p_C
+\end{align*}
+Here $\texttt{REGION}$ is both a mixture expansion (over region types)
+and a concatenation point (each region type expands into its own sub-grammar).
+\end{example}
+
+\subsubsection{Non-Recursive Nesting}
+\label{sec:nonrecursive-appendix}
+
+Non-recursive nesting splices a complete sub-grammar into the
+transitions of a mortal link, without introducing bifurcation
+or self-reference.  This is how nesting works in MixDom.
+
+\begin{definition}[Non-Recursive Nesting]
+\label{def:nonrec-nest-appendix}
+Let $\WCFG_{\mathrm{outer}}$ be a link grammar with nonterminal
+$\texttt{MOR}$ (mortal link), and let $\WCFG_{\mathrm{inner}}$ be
+an independent link grammar with its own start symbol
+$\texttt{IMM}_{\mathrm{inner}}$ and parameters.
+The \emph{non-recursive nesting} of $\WCFG_{\mathrm{inner}}$
+into $\texttt{MOR}$ of $\WCFG_{\mathrm{outer}}$ replaces
+each terminal-emitting production of $\texttt{MOR}$ with:
+\begin{equation}
+\texttt{MOR} \to \texttt{IMM}_{\mathrm{inner}}\;\alpha
+\qquad \text{weight } \WF_{\mathrm{orig}}
+\end{equation}
+where $\alpha$ is the original continuation.
+The inner grammar generates a complete sequence of inner links,
+each with its own parameters, for every outer mortal link.
+
+More precisely, wherever $\texttt{MOR}$ previously emitted a terminal
+symbol $c$, it now expands into the entire inner grammar
+$\WCFG_{\mathrm{inner}}$, which itself may generate zero or more
+characters.  The inner grammar's $\epsilon$-productions
+(zero-length inner sequences) give rise to null states
+in the combined grammar.
+\end{definition}
+
+\begin{remark}
+The key difference from recursive nesting (Section~\ref{sec:recursive-appendix})
+is that $\WCFG_{\mathrm{inner}}$ does \emph{not} reference any
+nonterminals of $\WCFG_{\mathrm{outer}}$.  There is no possibility
+of re-entering the outer grammar from within the inner grammar.
+This ensures that the combined grammar generates strings from
+a regular language (at each level), rather than a context-free language.
+\end{remark}
+
+\begin{example}[MixDom as non-recursive nesting]
+The MixDom model nests a Markovian fragment process (inner grammar)
+into each mortal link of a TKF91 process (outer grammar).
+The outer link grammar has parameters $(\insrate_0, \delrate_0)$ and the inner
+grammar, for domain type $\dom$, has parameters
+$(\insrate_\dom, \delrate_\dom, \ext^{(\dom)}_{\srcfrag\destfrag}, \classdist_{\dom\frag\class}, \exch^{(\class)}, \eqm^{(\class)})$.
+Each outer mortal link, instead of emitting a single character,
+expands into a domain sequence governed by the Markovian fragment process.
+
+Since the inner grammar can generate the empty string
+(the inner link sequence may have length zero), this nesting
+creates null states in the combined Pair HMM.  These must be
+eliminated by the procedures of Section~\ref{sec:null-management-appendix}.
+\end{example}
+
+\subsubsection{Recursive Nesting}
+\label{sec:recursive-appendix}
+
+Recursive nesting, used in the TKF Structure Tree, allows
+transitions into a mortal link to spawn a bifurcation:
+a new nonterminal whose sub-grammar may reference the
+original grammar's nonterminals.
+
+\begin{definition}[Recursive Nesting]
+\label{def:rec-nest-appendix}
+Let $\WCFG$ be a link grammar with nonterminals including
+$\texttt{MOR}$ (mortal link).  Let $\texttt{BIF}$ be a new
+nonterminal with its own sub-grammar $\WCFG_{\mathrm{bif}}$
+that may reference nonterminals of $\WCFG$ (including
+$\texttt{IMM}$ and $\texttt{MOR}$).
+
+The \emph{right recursive nesting} of $\texttt{BIF}$ at $\texttt{MOR}$
+replaces each terminal-emitting production of $\texttt{MOR}$ with a
+mixture of terminal emission and bifurcation:
+
+\noindent\textbf{Before}:
+\begin{align*}
+\texttt{MOR} &\to c\;\alpha && \WF_{\mathrm{orig}} \cdot \eqm_c
+\end{align*}
+
+\noindent\textbf{After}:
+\begin{align*}
+\texttt{MOR} &\to c\;\alpha && \WF_{\mathrm{orig}} \cdot s \cdot \eqm_c
+  && \text{(terminal link, probability } s\text{)} \\
+\texttt{MOR} &\to \texttt{BIF}\;\alpha && \WF_{\mathrm{orig}} \cdot (1-s) \cdot \domdist_{\mathrm{bif}}
+  && \text{(bifurcation, probability } 1-s\text{)}
+\end{align*}
+where $s \in (0,1]$ is the probability that a link is a terminal
+(character-emitting) link rather than a nesting point, and
+$\domdist_{\mathrm{bif}}$ is a distribution over bifurcation types
+if there are multiple $\texttt{BIF}$ variants.
+
+For \emph{left recursive nesting}:
+\begin{align*}
+\texttt{MOR} &\to \alpha\;\texttt{BIF} && \WF_{\mathrm{orig}} \cdot (1-s) \cdot \domdist_{\mathrm{bif}}
+\end{align*}
+
+The sub-grammar $\WCFG_{\mathrm{bif}}$ for $\texttt{BIF}$
+defines how the bifurcation expands.  Since it may reference
+the start symbol of $\WCFG$ (e.g., $\texttt{IMM}$), the
+combined grammar is genuinely recursive: link sequences can
+contain nested link sequences of arbitrary depth.
+\end{definition}
+
+\begin{remark}
+The recursive nesting creates null cycles whenever the nested
+sub-grammar can generate the empty string.  These must be
+handled by the null-state management procedures
+(Section~\ref{sec:null-management-appendix}).
+In the TKF Structure Tree, the nullability fixed-point iteration
+solves for the probability that each nonterminal generates $\epsilon$.
+\end{remark}
+
+\begin{example}[TKF Structure Tree: stems and loops]
+\label{ex:structure-tree-appendix}
+The TKF Structure Tree has two types of link sequences:
+\begin{itemize}
+\item \emph{Loop sequences} ($L$): left-emitting links generating
+  single nucleotides. Nonterminal rule:
+  $L \to c_L\;L$ with CTMC expansion (left emission).
+\item \emph{Stem sequences} ($S$): LR-emitting links generating
+  basepairs. Nonterminal rule:
+  $S \to c_L\;S\;c_R$ with CTMC expansion (LR emission).
+\end{itemize}
+The recursive nesting works as follows.
+Within a loop sequence, a mortal link may either emit a character
+(probability $s_L$) or spawn a stem (probability $1-s_L$):
+\[
+L \to c\;L \quad |\quad S\;L
+\]
+At the base of a stem (when the self-loop terminates),
+the grammar transitions to a loop:
+\[
+S \to c_L\;S\;c_R \quad |\quad L
+\]
+This creates the alternating stem--loop structure
+characteristic of RNA secondary structure.
+The recursion arises because a loop can spawn a stem,
+which eventually returns to a loop, which can spawn another stem,
+\emph{ad infinitum}.
+\end{example}
+
+\begin{example}[TKF92 with Recursive Domains]
+The recursive domain model has nonterminals $\texttt{L}_\dom$
+(link sequence for domain $\dom$),
+$\texttt{A}_\dom$ (aligned component),
+$\texttt{I}_\dom$ (inserted component),
+$\texttt{D}_\dom$ (deleted component), etc.
+The aligned component rule is:
+\begin{align*}
+\texttt{A}_\dom &\to c && s_\dom \cdot \eqm_{\dom,c}
+  \quad\text{(terminal: character)} \\
+\texttt{A}_\dom &\to \texttt{L}_{\dom'} && (1-s_\dom) \cdot \domdist_{\dom\dom'}
+  \quad\text{(bifurcation: nested link sequence)}
+\end{align*}
+Since $\texttt{L}_{\dom'}$ can reference $\texttt{L}_\dom$
+(if $\dom' = \dom$ or through a chain of domain transitions),
+this creates genuine recursion: link sequences contain domains
+that contain further link sequences.
+\end{example}
+
+\subsubsection{Evolution}
+\label{sec:evolution-appendix}
+
+The Evolution elaboration converts a single-sequence grammar
+(describing the stationary distribution) into a pair grammar
+(describing the joint ancestor--descendant distribution
+at evolutionary time $\evoltime$).
+
+\begin{definition}[Evolution Elaboration]
+\label{def:evolution-appendix}
+Let $\WCFG_1$ be a single-sequence grammar with link nonterminal
+$X$ generating terminals from alphabet $\alphabet$ with equilibrium
+distribution $\eqm$.  Let $\exch$ be the CTMC rate matrix and
+$\evoltime > 0$ the evolutionary time.
+
+Define the TKF parameters:
+\begin{align*}
+\alpha &= e^{-\delrate \evoltime}, \quad
+\beta = \frac{\insrate(e^{-\insrate\evoltime} - e^{-\delrate\evoltime})}
+  {\delrate e^{-\insrate\evoltime} - \insrate e^{-\delrate\evoltime}}, \quad
+\gamma = 1 - \frac{\delrate\beta}{\insrate(1-\alpha)}, \quad
+\kappa = \frac{\insrate}{\delrate}
+\end{align*}
+
+The evolution elaboration replaces each link nonterminal $X$
+in $\WCFG_1$ with three nonterminals $X_\mat$, $X_\ins$, $X_\del$
+in the pair grammar $\WCFG_2$:
+
+\medskip
+\noindent\textbf{Before} (single-sequence grammar, left-emitting):
+\begin{align*}
+X &\to c\;X\;X && \kappa \cdot \eqm_c  && \text{(link with offspring)} \\
+X &\to c        && (1-\kappa) \cdot \eqm_c  && \text{(terminal link)}
+\end{align*}
+
+\noindent\textbf{After} (pair grammar):
+
+For the \emph{immortal link} continuation, each nonterminal
+$Y$ that previously generated the link sequence
+$Y \to X\;Y\;|\;\epsilon$ transforms as follows:
+\begin{align*}
+Y_\mat &\to X_\mat\;Y_\mat &&
+  (1-\beta_Y)\kappa\alpha \\
+Y_\mat &\to X_\ins\;Y_\mat &&
+  \beta_Y \\
+Y_\mat &\to X_\del\;Y_\del &&
+  (1-\beta_Y)\kappa(1-\alpha) \\
+Y_\mat &\to \epsilon &&
+  (1-\beta_Y)(1-\kappa) \\[6pt]
+Y_\del &\to X_\mat\;Y_\mat &&
+  (1-\gamma_Y)\kappa\alpha \\
+Y_\del &\to X_\ins\;Y_\mat &&
+  \gamma_Y \\
+Y_\del &\to X_\del\;Y_\del &&
+  (1-\gamma_Y)\kappa(1-\alpha) \\
+Y_\del &\to \epsilon &&
+  (1-\gamma_Y)(1-\kappa) \\
+\end{align*}
+where $\beta_Y$ and $\gamma_Y$ use the appropriate $(\insrate, \delrate)$
+for the link sequence that $Y$ belongs to.
+
+The subscript indicates the alignment type:
+\begin{itemize}
+\item $X_\mat$ (\textbf{match}): ancestral link survived; emits
+  aligned pair $(c_a, c_d)$ with probability
+  $\eqm_{c_a} \cdot \exp(\revsub \evoltime)_{c_a c_d}$.
+\item $X_\ins$ (\textbf{insert}): new link born in descendant;
+  emits descendant-only character $c_d$ with probability $\eqm_{c_d}$.
+\item $X_\del$ (\textbf{delete}): ancestral link died; emits
+  ancestor-only character $c_a$ with probability $\eqm_{c_a}$.
+\end{itemize}
+
+The transition weights are precisely the entries of the TKF91
+Pair HMM transition matrix $\tkftrans(\insrate, \delrate, \evoltime)$.
+\end{definition}
+
+\begin{proposition}
+The evolution elaboration roughly triples the number of nonterminals
+(each single-sequence nonterminal becomes three pair nonterminals).
+For LR-emitting nonterminals (as in stem sequences),
+match states emit paired tuples $(c_L^a, c_R^a, c_L^d, c_R^d)$,
+insert states emit $(c_L^d, c_R^d)$, and delete states emit
+$(c_L^a, c_R^a)$.
+\end{proposition}
+
+\begin{remark}
+When fragment expansion has been applied before evolution,
+the fragment self-loop interleaves with the alignment states.
+In TKF92, the Pair HMM transition matrix becomes
+$\tkftrans'$ where the $\mat$, $\ins$, and $\del$ self-loops
+gain a fragment-extension component:
+\[
+\tkftrans'_{aa} = \ext + (1-\ext)\tkftrans_{aa}
+\qquad \text{for } a \in \{\mat, \ins, \del\}
+\]
+and off-diagonal transitions are scaled by $(1-\ext)$:
+\[
+\tkftrans'_{ab} = (1-\ext)\tkftrans_{ab}
+\qquad \text{for } a \neq b
+\]
+\end{remark}
+
+\begin{remark}
+For LR-emitting grammars (such as stem sequences in the TKF Structure Tree),
+the evolution elaboration creates nonterminals $X_M, X_I, X_D$
+whose left and right emissions are correlated:
+\begin{itemize}
+\item $X_M \to c_L^x\;c_L^y\;X_M\;c_R^y\;c_R^x$:
+  ancestral basepair $(c_L^x, c_R^x)$ evolved to
+  descendant basepair $(c_L^y, c_R^y)$ (match).
+\item $X_I$: emits only descendant basepair $c_L^y\;\cdots\;c_R^y$ (insertion).
+\item $X_D$: emits only ancestral basepair $c_L^x\;\cdots\;c_R^x$ (deletion).
+\end{itemize}
+The ancestor terminals go on the outside, the descendant terminals
+on the inside (or vice versa), preserving the palindromic nesting.
+\end{remark}
+
+\begin{example}[TKF91 Pair HMM]
+Applying evolution to the TKF91 single-sequence grammar
+(Example~\ref{ex:ctmc-tkf91-appendix}) yields the standard 5-state
+Pair HMM $(\sta, \mat, \ins, \del, \fin)$ with transition matrix
+$\tkftrans(\insrate, \delrate, \evoltime)$.
+\end{example}
+
+\subsection{Null State Management}
+\label{sec:null-management-appendix}
+
+\subsubsection{Null State Identification}
+
+\begin{definition}[Null state]
+A nonterminal $X$ in a WCFG is \emph{nullable} if there exists
+a derivation $X \Rightarrow^* \epsilon$.
+The \emph{nullability} $\nullability(X) = P(X \Rightarrow^* \epsilon)$
+is the probability that a parse tree rooted at $X$ yields the
+empty string.
+\end{definition}
+
+Elaborations that create null states include:
+\begin{enumerate}
+\item \textbf{Non-recursive nesting}: the inner grammar may generate
+  the empty string (e.g., a domain in MixDom may contain zero fragments).
+\item \textbf{Recursive nesting}: nested link sequences can be empty.
+\item \textbf{Mixture expansion} combined with nesting:
+  a mixture component that expands into a nullable sub-grammar.
+\end{enumerate}
+
+In the MixDom Pair HMM, null states arise because each domain's
+inner TKF92 process can generate an empty sequence.
+The probability of an empty domain at evolutionary time $\evoltime$
+is $\emptyseg_\evoltime = \sum_\dom \domdist_\dom (1-\kappa_\dom)(1-\beta_\dom)$.
+
+\subsubsection{Null State Removal: The $(I - T_{NN})^{-1}$ Closure}
+\label{sec:null-removal-appendix}
+
+\begin{definition}[Null Closure]
+Let $\WCFG$ be a WCFG (or equivalently an HMM/transducer) with
+states partitioned into emitting states $\Omega$ and non-emitting
+(null) states $\mathcal{Z}$.  Let $T_{\mathcal{Z}\mathcal{Z}}$
+be the submatrix of transition weights among null states.
+The \emph{null closure} is:
+\begin{equation}
+\nullcl = (I - T_{\mathcal{Z}\mathcal{Z}})^{-1}
+= \sum_{k=0}^{\infty} T_{\mathcal{Z}\mathcal{Z}}^k
+\end{equation}
+This converges provided the spectral radius
+$\rho(T_{\mathcal{Z}\mathcal{Z}}) < 1$.
+\end{definition}
+
+\begin{proposition}[Effective Transition Matrix]
+The effective transition matrix between emitting (and start/end) states,
+with all null-state paths summed out, is:
+\begin{equation}
+\effT = T_{\Omega\Omega}
++ T_{\Omega\mathcal{Z}} \cdot (I - T_{\mathcal{Z}\mathcal{Z}})^{-1}
+\cdot T_{\mathcal{Z}\Omega}
+\end{equation}
+where subscripts denote submatrices restricted to the indicated
+state sets.
+\end{proposition}
+
+
+\subsubsection{Null Cycle Detection and Removal}
+\label{sec:null-cycles-appendix}
+
+\begin{definition}[Null Cycle]
+A \emph{null cycle} in a WCFG is a chain of unit productions
+(productions whose right-hand side is a single nonterminal)
+that returns to the starting nonterminal:
+$X \to Y_1 \to Y_2 \to \cdots \to X$.
+In the context of HMMs/transducers, this corresponds to a
+cycle among non-emitting states.
+\end{definition}
+
+Null cycles arise in two main situations:
+\begin{enumerate}
+\item \textbf{Non-recursive nesting with empty inner grammars}:
+  when the inner grammar can produce $\epsilon$, a path
+  $\sta \to \texttt{MOR}_{\mathrm{outer}} \to
+  \texttt{IMM}_{\mathrm{inner}} \to \epsilon \to
+  \texttt{MOR}_{\mathrm{outer}}$ creates a cycle
+  through null states.
+\item \textbf{Recursive nesting}: the chain
+  $\texttt{L}'_\dom \to \texttt{M}'_\dom \to \texttt{S}'_\dom
+  \to \texttt{A}'_\dom \to \texttt{L}'_{\dom'}$ creates a
+  null cycle when $\dom' = \dom$ or when the chain of domain
+  transitions eventually returns to $\dom$.
+\end{enumerate}
+
+\begin{definition}[Null Cycle Removal]
+To remove null cycles from a WCFG:
+\begin{enumerate}
+\item \textbf{Compute nullabilities}: for each nonterminal $X$,
+  compute $\nullability(X) = P(X \Rightarrow^* \epsilon)$.
+  In the non-recursive case, this can be done in closed form.
+  In the recursive case, iterate the fixed-point equations:
+  \begin{equation}
+  \nullability(X) = \sum_{(X \to \alpha) \in \PR}
+    \WF(X \to \alpha) \cdot \prod_{Y \in \alpha} \nullability(Y)
+  \end{equation}
+  where the product is over nonterminals in $\alpha$,
+  with $\nullability(\text{terminal}) = 0$ and
+  $\nullability(\epsilon) = 1$.
+
+  Initialize $\nullability^{(0)}(X) = 0$ for all $X$
+  and iterate until convergence.
+
+\item \textbf{Create non-nullable copies}: for each nullable
+  nonterminal $X$, create $X'$ whose productions never generate
+  $\epsilon$.  For a bifurcation rule $X \to Y\;Z$,
+  the non-nullable version adds:
+  \begin{align*}
+  X' &\to Y'\;Z' && \WF(X \to YZ) \\
+  X' &\to Y' && \WF(X \to YZ) \cdot \nullability(Z) \\
+  X' &\to Z' && \WF(X \to YZ) \cdot \nullability(Y)
+  \end{align*}
+  This accounts for the two ways one child can be null.
+
+\item \textbf{Remove unit-production cycles}: identify cycles
+  $X' \to Y'_1 \to \cdots \to X'$ among the non-nullable
+  nonterminals.  For each such cycle, compute the transition
+  matrix $\mathcal{A}$ among the cycle's nonterminals and replace
+  the cycle with its closure $(I - \mathcal{A})^{-1}$,
+  distributing the accumulated weight to the non-cyclic
+  continuations.
+\end{enumerate}
+\end{definition}
+
+\begin{example}[Recursive domains: nullability fixed point]
+In the recursive domain model,
+$\nullability(\texttt{C}_\dom)$ (nullability of the child
+link sequence nonterminal) satisfies:
+\[
+\nullability(\texttt{C}_\dom) =
+\frac{1 - \kappa_\dom}
+{1 - \kappa_\dom (1-s_\dom) \sum_{\dom'}
+  \domdist_{\dom\dom'} \nullability(\texttt{C}_{\dom'})}
+\]
+This is solved by initializing $x_\dom^{(0)} = 0$ and iterating:
+\[
+x_\dom^{(k+1)} =
+\frac{1 - \kappa_\dom}
+{1 - \kappa_\dom (1-s_\dom) \sum_{\dom'}
+  \domdist_{\dom\dom'} x_{\dom'}^{(k)}}
+\]
+After convergence, the null cycles
+$\texttt{L}'_\dom \to \texttt{L}'_{\dom'}$ and
+$\texttt{C}'_\dom \to \texttt{C}'_{\dom'}$
+are removed using the $(I - \mathcal{A})^{-1}$ and
+$(I - \mathcal{B})^{-1}$ closures respectively,
+where $\mathcal{A}$ and $\mathcal{B}$ are the
+$\ndom \times \ndom$ transition matrices among domain types.
+\end{example}
+
+\subsection{Composition Properties}
+
+\subsubsection{Commutativity and Order}
+
+The elaboration rules do not, in general, commute.
+The following table summarizes the ordering constraints.
+
+\begin{center}
+\begin{tabular}{p{4cm}p{8cm}}
+\toprule
+\textbf{Constraint} & \textbf{Reason} \\
+\midrule
+CTMC expansion commutes with mixture expansion &
+Mixture selects which CTMC parameters to use;
+the order of these two operations does not affect the final grammar.
+Both orderings produce the same set of productions. \\[6pt]
+Fragment expansion must follow (or be simultaneous with) CTMC expansion &
+Fragment expansion wraps terminal emissions in a geometric self-loop.
+Without terminals, fragment expansion produces fragments of $\epsilon$'s. \\[6pt]
+Non-recursive nesting must follow both CTMC and fragment expansion of the inner grammar &
+The inner grammar must be fully specified before it can be spliced
+into the outer grammar. \\[6pt]
+Evolution must be applied last (after all structural elaborations) &
+Evolution triples the nonterminals and introduces
+alignment-dependent transition weights ($\alpha, \beta, \gamma$).
+Applying structural elaborations after evolution would require
+modifying all three copies independently. \\[6pt]
+Mixture expansion commutes with concatenation &
+Both are structural operations on different aspects of a link. \\[6pt]
+Null state removal must follow all nullable elaborations but precede distillation &
+All null states must be identified before they can be summed out.
+The distilled order-1 machines assume null-free grammars. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Validity Conditions}
+
+\begin{definition}[Well-Formed Elaborated Grammar]
+An elaborated grammar $\WCFG'$ is \emph{well-formed} if:
+\begin{enumerate}
+\item \textbf{Properness}: for every nonterminal $X$,
+  the production weights sum to 1.
+\item \textbf{No unresolved null cycles}: after null state removal,
+  no cycles among non-emitting states remain.
+  Equivalently, $\rho(T_{\mathcal{Z}\mathcal{Z}}) < 1$
+  for the null-state transition matrix.
+\item \textbf{Convergent nullability}: for recursive grammars,
+  the fixed-point iteration for nullabilities converges.
+  A sufficient condition is that $\kappa_\dom < 1$ and
+  $s_\dom > 0$ for all domain types (every link has a positive
+  probability of being terminal rather than a nesting point).
+\item \textbf{Finite expected derivation length}: the expected
+  total number of terminals generated is finite.
+  For the link grammar, this requires $\kappa < 1$.
+  For recursive nesting, additional conditions on the nesting
+  probabilities are needed.
+\end{enumerate}
+\end{definition}
+
+\begin{proposition}
+Each elaboration rule defined above is validity-preserving
+under its stated conditions.  Composition of validity-preserving
+elaborations is validity-preserving, provided the ordering
+constraints above are respected.
+\end{proposition}
+
+\subsubsection{Derivation of Existing Models}
+\label{sec:derivations-appendix}
+
+We now show explicitly how each known TKF-family model arises
+as a sequence of elaborations applied to the base link grammar.
+
+\paragraph{TKF91.}
+
+\begin{equation*}
+\boxed{\text{TKF91}} =
+\WCFG_{\mathrm{link}}(\kappa)
+\xrightarrow{\text{CTMC}(\alphabet, \eqm, \exch)}
+\WCFG_{\mathrm{TKF91}}
+\end{equation*}
+
+\noindent Steps:
+\begin{enumerate}
+\item Start with the link grammar $\WCFG_{\mathrm{link}}(\kappa)$
+  (Definition~\ref{def:link-grammar-appendix}).
+\item Apply left CTMC expansion (Definition~\ref{def:ctmc-appendix}) to
+  $\texttt{MOR}$ with alphabet $\alphabet$, equilibrium $\eqm$,
+  rate matrix $\exch$.
+\end{enumerate}
+Result: each mortal link emits a single character from $\eqm$.
+The pair grammar is obtained by applying evolution
+(Definition~\ref{def:evolution-appendix}), yielding the standard 5-state
+Pair HMM with transition matrix $\tkftrans(\insrate, \delrate, \evoltime)$.
+
+\paragraph{TKF92.}
+
+\begin{equation*}
+\boxed{\text{TKF92}} =
+\WCFG_{\mathrm{link}}(\kappa)
+\xrightarrow{\text{Frag}(\ext)}
+\xrightarrow{\text{CTMC}(\alphabet, \eqm, \exch)}
+\WCFG_{\mathrm{TKF92}}
+\end{equation*}
+
+\noindent Steps:
+\begin{enumerate}
+\item Start with $\WCFG_{\mathrm{link}}(\kappa)$.
+\item Apply fragment expansion (Definition~\ref{def:fragment-appendix})
+  with extension probability $\ext$.
+\item Apply left CTMC expansion to each fragment position.
+\end{enumerate}
+Result: each mortal link emits a fragment of $K \sim \geomdist(\ext)$
+characters.  The pair grammar has self-looping match/insert/delete
+states with fragment-extension probability $\ext$.
+
+\paragraph{MixDom: Markovian fragments.}
+
+\begin{equation*}
+\boxed{\text{MixDom}} =
+\WCFG_{\mathrm{link}}(\kappa_0)
+\xrightarrow{\text{Mix}(\domdist_\dom)}
+\xrightarrow[\text{for each } \dom]{\text{NonRecNest}\bigl(
+  \WCFG_{\mathrm{link}}(\kappa_\dom)
+  \xrightarrow{\text{HMM}(\ext^{(\dom)})}
+  \xrightarrow{\text{Mix}(\fragdist_{\dom\frag})}
+  \xrightarrow{\text{Mix}(\classdist_{\dom\frag\class})}
+  \xrightarrow{\text{CTMC}(\alphabet, \eqm^{(\class)}, \exch^{(\class)})}
+\bigr)}
+\WCFG_{\mathrm{MixDom}}
+\end{equation*}
+
+\noindent Steps:
+\begin{enumerate}
+\item Start with $\WCFG_{\mathrm{link}}(\kappa_0)$ (outer/top-level link grammar).
+\item Apply mixture expansion (Definition~\ref{def:mixture-appendix}) to
+  $\texttt{MOR}$ with domain types $\dom \sim \catdist(\domdist_1,\ldots,\domdist_\ndom)$.
+\item For each domain type $\dom$, construct an inner grammar:
+  \begin{enumerate}
+  \item Start with $\WCFG_{\mathrm{link}}(\kappa_\dom)$ (inner link grammar).
+  \item Replace geometric fragment extension with the Markovian fragment HMM
+    governed by the $\nfrag \times \nfrag$ transition matrix $\ext^{(\dom)}_{\srcfrag\destfrag}$.
+  \item Apply mixture expansion for initial fragment types $\frag \sim \catdist(\fragdist_{\dom 1},\ldots,\fragdist_{\dom\nfrag})$.
+  \item Apply mixture expansion for site classes $\class \sim \catdist(\classdist_{\dom\frag 1},\ldots,\classdist_{\dom\frag\nclasses})$.
+  \item Apply CTMC expansion with $(\alphabet, \eqm^{(\class)}, \exch^{(\class)})$.
+  \end{enumerate}
+\item Apply non-recursive nesting (Definition~\ref{def:nonrec-nest-appendix}):
+  splice each domain's inner grammar into the corresponding
+  outer mortal link.
+\item Apply null state removal (Section~\ref{sec:null-removal-appendix}):
+  the inner grammar can generate empty sequences
+  (null domains), creating the null states $\mnull, \inull, \dnull$
+  in the null-separated Pair HMM.  The $(I - T_{\mathcal{Z}\mathcal{Z}})^{-1}$
+  closure reduces the 8-state null-separated Pair HMM to the effective
+  5-state matrix $\nonemptytrans$.
+\end{enumerate}
+
+\paragraph{TKF Structure Tree.}
+
+\begin{equation*}
+\boxed{\text{TKF Structure Tree}} =
+\WCFG_{\mathrm{link}}(\kappa_L)
+\xrightarrow{\text{CTMC}_L(\alphabet, \eqm_L, \exch_L)}
+\xrightarrow{\text{RecNest}\bigl(
+  \WCFG_{\mathrm{link}}(\kappa_S)
+  \xrightarrow{\text{CTMC}_{LR}(\alphabet^2, \eqm_S, \exch_S)}
+\bigr)}
+\WCFG_{\mathrm{ST}}
+\end{equation*}
+
+\noindent Steps:
+\begin{enumerate}
+\item Start with $\WCFG_{\mathrm{link}}(\kappa_L)$ (loop link grammar).
+\item Apply left CTMC expansion for loops
+  with $(\alphabet, \eqm_L, \exch_L)$.
+\item Apply recursive nesting (Definition~\ref{def:rec-nest-appendix}):
+  within the loop, a mortal link may spawn a stem.
+  The stem sub-grammar is:
+  \begin{enumerate}
+  \item Start with $\WCFG_{\mathrm{link}}(\kappa_S)$ (stem link grammar).
+  \item Apply LR CTMC expansion with basepair alphabet
+    $(\alphabet \times \alphabet, \eqm_S, \exch_S)$.
+  \item At stem termination, return to the loop grammar
+    (creating the recursion $S \to L$).
+  \end{enumerate}
+\item The loop grammar now has two types of mortal links:
+  \begin{itemize}
+  \item Character-emitting links (probability $s_L$):
+    emit a single nucleotide $c$ with $\eqm_L(c)$.
+  \item Stem-spawning links (probability $1 - s_L$):
+    expand into a stem $S$ nonterminal.
+  \end{itemize}
+\end{enumerate}
+
+The LR emission in the stem grammar is critical:
+the rule $S \to c_L\;S\;c_R$ emits characters on
+\emph{both} sides of the recursive expansion,
+generating the palindromic base-pairing structure of RNA stems.
+
+\paragraph{TKF Genome.}
+
+\begin{equation*}
+\boxed{\text{TKF Genome}} =
+\WCFG_{\mathrm{link}}(\kappa_R)
+\xrightarrow{\text{Concat+Mix(region types)}}
+\xrightarrow{\text{various nested elaborations per region type}}
+\WCFG_{\mathrm{Genome}}
+\end{equation*}
+
+\noindent Steps:
+\begin{enumerate}
+\item Start with $\WCFG_{\mathrm{link}}(\kappa_R)$ (top-level genomic region grammar).
+\item Apply concatenation + mixture: each link is a ``region''
+  selected from types
+  $\{\texttt{INTER}, \texttt{FWDCDS}, \texttt{REVCDS},
+    \texttt{STRUCT}, \texttt{CONS}\}$
+  with probabilities $(p_N, p_G/2, p_G/2, p_S, p_C)$.
+\item Each region type undergoes its own elaboration chain:
+  \begin{itemize}
+  \item \texttt{INTER}: link grammar + left CTMC expansion
+    (single nucleotides, neutral evolution).
+  \item \texttt{FWDCDS}/\texttt{REVCDS}: link grammar + concatenation
+    into codons ($c_1 c_2 c_3$) + CTMC expansion
+    with codon substitution model + recursive nesting for introns
+    (introns contain a nested $\texttt{GENOME}$ nonterminal,
+    flanked by splice donor/acceptor sites).
+  \item \texttt{STRUCT}: link grammar with LR CTMC expansion (stems)
+    + recursive nesting into loops (left CTMC expansion).
+  \item \texttt{CONS}: link grammar + left CTMC expansion
+    (conserved elements).
+  \end{itemize}
+\item The intron nesting creates recursion:
+  $\texttt{GENOME} \to \texttt{CDS} \to \texttt{CODON} \to
+  \texttt{INTRON} \to \texttt{GENOME}$.
+\end{enumerate}
+
+\subsection{Toward Implementation}
+
+\subsubsection{Grammar Objects with Transformation Methods}
+
+The elaboration rules defined above can be implemented as methods
+on a grammar object:
+
+\begin{verbatim}
+class WCFG:
+    nonterminals: Set[str]
+    terminals: Set[str]
+    productions: List[Production]
+    start: str
+
+    def ctmc_expand(self, nonterminal, alphabet,
+                    equilibrium, emission_type='left'):
+        """CTMC Expansion"""
+
+    def fragment_expand(self, nonterminal, extension_prob):
+        """Fragment Expansion"""
+
+    def mixture_expand(self, nonterminal, components, weights):
+        """Mixture Expansion"""
+
+    def concatenate(self, nonterminal, parts):
+        """Link Sequence Concatenation"""
+
+    def nest_nonrecursive(self, nonterminal, inner_grammar):
+        """Non-Recursive Nesting"""
+
+    def nest_recursive(self, nonterminal, bifurcation_grammar,
+                       terminal_prob, side='right'):
+        """Recursive Nesting"""
+
+    def evolve(self, time, rates):
+        """Evolution"""
+
+    def remove_null_states(self):
+        """Null State Removal"""
+\end{verbatim}
+
+Each method validates the preconditions (e.g., that fragment
+expansion targets a nonterminal with terminal emissions),
+performs the transformation, and returns the modified grammar.
+
+\subsubsection{Automatic Derivation of DP Algorithms}
+
+Given an elaborated grammar, the dynamic programming algorithm
+(Forward, Backward, Inside, Viterbi) can be derived automatically
+by:
+
+\begin{enumerate}
+\item \textbf{State space identification}: each nonterminal in the
+  elaborated grammar corresponds to a state in the DP.
+  Emitting states correspond to observable positions (sequence characters);
+  non-emitting states are handled by null closure.
+
+\item \textbf{Transition structure}: the productions define
+  the recurrence relations.  Linear (non-branching) productions
+  yield HMM-style recurrences; branching (bifurcation) productions
+  yield CYK-style recurrences.
+
+\item \textbf{Emission probabilities}: determined by the CTMC
+  parameters and the emission type (left, right, LR, match/insert/delete).
+
+\item \textbf{Fill order}: determined by the topological sort of
+  nonterminals (after null cycle removal).
+  For recursive grammars, the fill order follows the CYK pattern
+  (by span length for context-free rules).
+\end{enumerate}
+
+\subsubsection{Connection to Existing Frameworks}
+
+The elaboration rules defined here are compatible with existing
+grammar and transducer frameworks:
+
+\begin{itemize}
+\item \textbf{Transducer composition}: the Evolution elaboration
+  produces a transducer (Pair HMM / WFST).  These can be composed
+  on phylogenetic trees using the standard composition and
+  intersection operations for Mealy machines in waiting-machine
+  normal form.
+
+\item \textbf{SCFG parsers}: the elaborated grammars (especially
+  those with recursive nesting and LR emission) are SCFGs
+  amenable to Inside/Outside parsing algorithms.
+
+\item \textbf{Distillation}: the elaborated pair grammars can be
+  distilled to order-1 machines (HMMs and WFSTs) by computing
+  adjacency frequencies and normalizing, as described in
+  Section~\ref{sec:distill-hmm}.
+  This step loses the hierarchical structure but
+  produces compact machines suitable for phylogenetic composition.
+\end{itemize}

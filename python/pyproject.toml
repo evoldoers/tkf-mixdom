@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tkfmixdom"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "jax[cuda12]>=0.4",
+    "jaxlib>=0.4",
+    "matplotlib>=3.10.8",
+    "mpmath>=1.4.1",
+    "optax>=0.2.7",
+    "zstandard>=0.25.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["tkfmixdom*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--ignore=tests/level5_gpu --ignore=tests/level6_stochastic_fail"
+markers = [
+    "fast: completes in <5s per file — routine CI",
+    "medium: completes in 5-30s per file — per-commit",
+    "slow: completes in 30-120s per file — per-PR",
+    "glacial: completes in >120s per file — nightly only",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
