@@ -1,0 +1,381 @@
+% exploded-mixdom.tex — Definitive map of the exploded MixDom Pair HMM,
+% null elimination, and exact count restoration.
+%
+% This file specifies:
+% 1. The full exploded state space with all null states explicit
+% 2. Every transition weight in terms of model parameters
+% 3. The null elimination that yields the collapsed 5N+2 model
+
+\section{Exploded MixDom Pair HMM}
+\label{sec:exploded-mixdom}
+
+\subsection{State Space}
+
+The exploded MixDom Pair HMM makes every structural decision explicit
+as a separate state transition. Let $\ndom$ denote the number of domain
+types, $\nfrag$ the number of fragment types per domain. Parameters are
+indexed by domain type $k$ and fragment type $f$.
+
+The states are shown in Table~\ref{tab:exploded-state-space}
+(emitting states marked with $\star$).
+
+\begin{table}[t]
+\centering
+\caption{Exploded MixDom Pair HMM state space.}
+\label{tab:exploded-state-space}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.50\linewidth} >{\raggedright\arraybackslash}p{0.45\linewidth} >{\raggedleft\arraybackslash}p{0.05\linewidth}}
+\hline
+\textbf{Category} & \textbf{States} & \textbf{Count} \\
+\hline
+\textbf{Start/End}
+& $\sta$, $\fin$ & $2$ \\
+
+\textbf{Domain-level} (top-level TKF91 states)
+& $\matdom$, $\insdom$, $\deldom$, $\matdomend$, $\insdomend$, $\deldomend$ & $6$ \\
+
+\textbf{Domain type selection} (one per domain type $k$)
+& $\matdomtype{k}$, $\insdomtype{k}$, $\deldomtype{k}$ & $3\ndom$ \\
+
+\textbf{Fragment-level} (inner TKF states within $\matdomtype{k}$)
+& $\mkfrag{k}$, $\mkifrag{k}$, $\mkdfrag{k}$ & $3\ndom$ \\
+
+\textbf{Fragment-level} (single looping state within $\insdomtype{k}$, $\deldomtype{k}$)
+& $\ikfrag{k}$, $\dkfrag{k}$ & $2\ndom$ \\
+
+\textbf{Fragment type selection} (one per fragment type $f$)
+& $\mkfragtype{k}{f}$, $\mkifragtype{k}{f}$, $\mkdfragtype{k}{f}$,
+  $\ikfragtype{k}{f}$, $\dkfragtype{k}{f}$ & $5\ndom\nfrag$ \\
+
+\textbf{Emit states} (the only emitting states)
+& $\mkfragemit{k}{f}$, $\mkifragemit{k}{f}$, $\mkdfragemit{k}{f}$,
+  $\ikfragemit{k}{f}$, $\dkfragemit{k}{f}$ & $5\ndom\nfrag$ \\
+
+\textbf{Fragment end} (fragment termination)
+& $\mkfragend{k}{f}$, $\mkifragend{k}{f}$, $\mkdfragend{k}{f}$,
+  $\ikfragend{k}{f}$, $\dkfragend{k}{f}$ & $5\ndom\nfrag$ \\
+\hline
+\textbf{Total} & \multicolumn{2}{r}{$8 + 8\ndom + 15\ndom\nfrag$} \\
+\hline
+\end{tabular}
+\end{table}
+
+The emitting states correspond to the compound states of the collapsed model:
+$\mkfragemit{k}{f} = \matmat_{kf}$, $\mkifragemit{k}{f} = \matins_{kf}$,
+$\mkdfragemit{k}{f} = \matdel_{kf}$, $\ikfragemit{k}{f} = \insins_{kf}$,
+$\dkfragemit{k}{f} = \deldel_{kf}$.
+
+\subsection{Transition Weights}
+
+All transitions are between non-emitting states, or from non-emitting to
+emitting, or from emitting to non-emitting (Mealy machine: emissions occur
+on the transitions into emit states).
+
+We use BDI parameters for two TKF91 processes:
+\begin{itemize}[nosep]
+\item Top-level (domain sequence): $\alpha_0, \beta_0, \gamma_0, \kappa_0$
+  from $(\insrate_0, \delrate_0, \evoltime)$
+\item Per-domain $k$ (fragment sequence): $\alpha_k, \beta_k, \gamma_k, \kappa_k$
+  from $(\insrate_k, \delrate_k, \evoltime)$
+\end{itemize}
+
+\subsubsection{Top-level transitions}
+
+These implement the TKF91 Pair HMM structure with $\matdom/\insdom/\deldom/\fin$ (for incoming connections) and $\sta/\matdomend/\insdomend/\deldomend$ (for outgoing connections)
+playing the roles of $\sta/\mat/\ins/\del/\fin$:
+\begin{align}
+\sta &\to \matdom: \quad \tkftrans_{\sta\mat}(\insrate_0,\delrate_0,\evoltime) \\
+\sta &\to \insdom: \quad \tkftrans_{\sta\ins}(\insrate_0,\delrate_0,\evoltime) \\
+\sta &\to \deldom: \quad \tkftrans_{\sta\del}(\insrate_0,\delrate_0,\evoltime) \\
+\sta &\to \fin: \quad \tkftrans_{\sta\fin}(\insrate_0,\delrate_0,\evoltime) \\
+\matdomend &\to \matdom: \quad \tkftrans_{\mat\mat}(\insrate_0,\delrate_0,\evoltime) \\
+\matdomend &\to \insdom: \quad \tkftrans_{\mat\ins}(\insrate_0,\delrate_0,\evoltime) \\
+\matdomend &\to \deldom: \quad \tkftrans_{\mat\del}(\insrate_0,\delrate_0,\evoltime) \\
+\matdomend &\to \fin: \quad \tkftrans_{\mat\fin}(\insrate_0,\delrate_0,\evoltime) \\
+\insdomend &\to \matdom: \quad \tkftrans_{\ins\mat}(\insrate_0,\delrate_0,\evoltime) \\
+\insdomend &\to \insdom: \quad \tkftrans_{\ins\ins}(\insrate_0,\delrate_0,\evoltime) \\
+\insdomend &\to \deldom: \quad \tkftrans_{\ins\del}(\insrate_0,\delrate_0,\evoltime) \\
+\insdomend &\to \fin: \quad \tkftrans_{\ins\fin}(\insrate_0,\delrate_0,\evoltime) \\
+\deldomend &\to \matdom: \quad \tkftrans_{\del\mat}(\insrate_0,\delrate_0,\evoltime) \\
+\deldomend &\to \insdom: \quad \tkftrans_{\del\ins}(\insrate_0,\delrate_0,\evoltime) \\
+\deldomend &\to \deldom: \quad \tkftrans_{\del\del}(\insrate_0,\delrate_0,\evoltime) \\
+\deldomend &\to \fin: \quad \tkftrans_{\del\fin}(\insrate_0,\delrate_0,\evoltime)
+\end{align}
+
+\subsubsection{Domain type selection}
+
+\begin{align}
+\matdom &\to \matdomtype{k}: \quad v_k \quad\text{(domain weight)} \\
+\insdom &\to \insdomtype{k}: \quad v_k \\
+\deldom &\to \deldomtype{k}: \quad v_k
+\end{align}
+
+\subsubsection{Domain-to-fragment entry (M-type domains)}
+
+Within $\matdomtype{k}$, the fragment-level TKF91 begins.
+Again, this follows the TKF91 Pair HMM structure, now with $\mkfrag{k}/\mkifrag{k}/\mkdfrag{k}\matdomend$ (for incoming connections) and $\matdomtype{k}/\mkfragend{k}/\mkifragend{k}/\mkdfragend{k}$ states (for outgoing connections)
+playing the roles of $\sta/\mat/\ins/\del/\fin$:
+\begin{align}
+\matdomtype{k} &\to \mkfrag{k}: \quad \tkftrans_{\sta\mat}(\insrate_k,\delrate_k,\evoltime) \\
+\matdomtype{k} &\to \mkifrag{k}: \quad \tkftrans_{\sta\ins}(\insrate_k,\delrate_k,\evoltime) \\
+\matdomtype{k} &\to \mkdfrag{k}: \quad \tkftrans_{\sta\del}(\insrate_k,\delrate_k,\evoltime) \\
+\matdomtype{k} &\to \matdomend: \quad \tkftrans_{\sta\fin}(\insrate_k,\delrate_k,\evoltime) \\
+\mkfragend{k} &\to \mkfrag{k}: \quad \tkftrans_{\mat\mat}(\insrate_k,\delrate_k,\evoltime) \\
+\mkfragend{k} &\to \mkifrag{k}: \quad \tkftrans_{\mat\ins}(\insrate_k,\delrate_k,\evoltime) \\
+\mkfragend{k} &\to \mkdfrag{k}: \quad \tkftrans_{\mat\del}(\insrate_k,\delrate_k,\evoltime) \\
+\mkfragend{k} &\to \matdomend: \quad \tkftrans_{\mat\fin}(\insrate_k,\delrate_k,\evoltime) \\
+\mkifragend{k} &\to \mkfrag{k}: \quad \tkftrans_{\ins\mat}(\insrate_k,\delrate_k,\evoltime) \\
+\mkifragend{k} &\to \mkifrag{k}: \quad \tkftrans_{\ins\ins}(\insrate_k,\delrate_k,\evoltime) \\
+\mkifragend{k} &\to \mkdfrag{k}: \quad \tkftrans_{\ins\del}(\insrate_k,\delrate_k,\evoltime) \\
+\mkifragend{k} &\to \matdomend: \quad \tkftrans_{\ins\fin}(\insrate_k,\delrate_k,\evoltime) \\
+\mkdfragend{k} &\to \mkfrag{k}: \quad \tkftrans_{\del\mat}(\insrate_k,\delrate_k,\evoltime) \\
+\mkdfragend{k} &\to \mkifrag{k}: \quad \tkftrans_{\del\ins}(\insrate_k,\delrate_k,\evoltime) \\
+\mkdfragend{k} &\to \mkdfrag{k}: \quad \tkftrans_{\del\del}(\insrate_k,\delrate_k,\evoltime) \\
+\mkdfragend{k} &\to \matdomend: \quad \tkftrans_{\del\fin}(\insrate_k,\delrate_k,\evoltime)
+\end{align}
+
+The $\matdomtype{k} \to \matdomend$ transition is the ``phantom''
+null path: the domain is entered but the inner model immediately terminates
+with no fragments emitted. This leads to null cycles that must be eliminated by Schur complement.
+
+\subsubsection{Domain-to-fragment entry (I/D-type domains)}
+
+$\insdomtype{k}$ and $\deldomtype{k}$ have a single looping fragment state:
+\begin{align}
+\insdomtype{k} &\to \ikfrag{k}: \quad \kappa_k \\
+\insdomtype{k} &\to \insdomend: \quad 1 - \kappa_k \\
+\deldomtype{k} &\to \dkfrag{k}: \quad \kappa_k \\
+\deldomtype{k} &\to \deldomend: \quad 1 - \kappa_k
+\end{align}
+
+Again, the $\to \insdomend / \deldomend$ transitions are null (empty domain).
+
+\subsubsection{Fragment type selection}
+
+\begin{align}
+\mkfrag{k} &\to \mkfragtype{k}{f}: \quad w_{kf} \quad\text{(fragment weight)} \\
+\mkifrag{k} &\to \mkifragtype{k}{f}: \quad w_{kf} \\
+\mkdfrag{k} &\to \mkdfragtype{k}{f}: \quad w_{kf} \\
+\ikfrag{k} &\to \ikfragtype{k}{f}: \quad w_{kf} \\
+\dkfrag{k} &\to \dkfragtype{k}{f}: \quad w_{kf}
+\end{align}
+
+\subsubsection{Fragment emission}
+
+These are the only transitions with emissions (the exploded HMM is represented as a Mealy machine, so emissions occur on transitions; the collapsed HMM treats emissions as state-based).
+The emission probability is summed over site classes $\class \in \{1,\ldots,\nclasses\}$,
+weighted by the per-fragment class distribution $\classdist_{k\frag\class}$:
+\begin{align}
+\mkfragtype{k}{f} &\xrightarrow{(\anctok,\destok)} \mkfragemit{k}{f}: \quad \sum_{\class=1}^{\nclasses} \classdist_{k\frag\class}\, \eqm^{(\class)}_\anctok \exp(\revsub^{(\class)} \evoltime)_{\anctok\destok}
+  \quad\text{(align $(\anctok,\destok)$)} \\
+\mkifragtype{k}{f} &\xrightarrow{(\epsilon,\destok)} \mkifragemit{k}{f}: \quad \sum_{\class=1}^{\nclasses} \classdist_{k\frag\class}\, \eqm^{(\class)}_\destok
+  \quad\text{(insert $\destok$)} \\
+\mkdfragtype{k}{f} &\xrightarrow{(\anctok,\epsilon)} \mkdfragemit{k}{f}: \quad \sum_{\class=1}^{\nclasses} \classdist_{k\frag\class}\, \eqm^{(\class)}_\anctok
+  \quad\text{(delete $\anctok$)} \\
+\ikfragtype{k}{f} &\xrightarrow{(\epsilon,\destok)} \ikfragemit{k}{f}: \quad \sum_{\class=1}^{\nclasses} \classdist_{k\frag\class}\, \eqm^{(\class)}_\destok
+  \quad\text{(insert $\destok$)} \\
+\dkfragtype{k}{f} &\xrightarrow{(\anctok,\epsilon)} \dkfragemit{k}{f}: \quad \sum_{\class=1}^{\nclasses} \classdist_{k\frag\class}\, \eqm^{(\class)}_\anctok
+  \quad\text{(delete $\anctok$)}
+\end{align}
+
+\subsubsection{Intra-fragment fragment-type transition vs.\ fragment termination}
+\label{sec:mixdom-frag-trans}
+
+Within each fragment of domain $k$ the fragment-type process
+is a Markov chain on $\nfrag+2$ states (start, end, and $\nfrag$ fragment-type
+states): from the current emit state with fragment-type $f$, the chain
+either advances within the fragment to fragment-type $g$ with probability
+$\ext^{(k)}_{fg}$, or terminates the fragment (transition to the end state)
+with probability $\notext^{(k)}_f = 1 - \sum_g \ext^{(k)}_{fg}$. Different
+fragments are statistically independent realisations of this chain.
+The transition from each emit state goes to any fragment-type's type-selection
+state within the current fragment (not just the same type), or to the fragment end:
+\begin{align}
+\mkfragemit{k}{f} &\to \mkfragtype{k}{g}: \quad \ext^{(k)}_{fg} \quad\text{(intra-fragment type transition $f \to g$)} \\
+\mkfragemit{k}{f} &\to \mkfragend{k}{f}: \quad \notext^{(k)}_f \quad\text{(fragment termination)} \\
+\mkifragemit{k}{f} &\to \mkifragtype{k}{g}: \quad \ext^{(k)}_{fg}  \\
+\mkifragemit{k}{f} &\to \mkifragend{k}{f}: \quad \notext^{(k)}_f  \\
+\mkdfragemit{k}{f} &\to \mkdfragtype{k}{g}: \quad \ext^{(k)}_{fg}  \\
+\mkdfragemit{k}{f} &\to \mkdfragend{k}{f}: \quad \notext^{(k)}_f  \\
+\ikfragemit{k}{f} &\to \ikfragtype{k}{g}: \quad \ext^{(k)}_{fg}  \\
+\ikfragemit{k}{f} &\to \ikfragend{k}{f}: \quad \notext^{(k)}_f  \\
+\dkfragemit{k}{f} &\to \dkfragtype{k}{g}: \quad \ext^{(k)}_{fg}  \\
+\dkfragemit{k}{f} &\to \dkfragend{k}{f}: \quad \notext^{(k)}_f
+\end{align}
+where $g$ ranges over all $\nfrag$ fragment types.
+For $\nfrag = 1$, this reduces to a scalar self-extension with
+$\ext^{(k)}_{11} = \ext_{k1}$ and $\notext^{(k)}_1 = 1 - \ext_{k1}$.
+
+\subsection{Null State Classification}
+
+Every state except $\sta$, $\fin$, and the five emit states
+$\mkfragemit{k}{f}$, $\mkifragemit{k}{f}$, $\mkdfragemit{k}{f}$,
+$\ikfragemit{k}{f}$, $\dkfragemit{k}{f}$ is a \textbf{null state}
+(non-emitting). The collapsed model retains only $\sta$, $\fin$, and
+the $5\ndom\nfrag$ emit states.
+
+\subsection{Null Elimination}
+
+The null states are eliminated by the standard HMM null closure:
+\[
+\chi_{\text{emit},\text{emit}} = T_{\text{emit},\text{emit}}
++ T_{\text{emit},\text{null}} (I - T_{\text{null},\text{null}})^{-1} T_{\text{null},\text{emit}}
+\]
+Since there are no direct emit$\to$emit transitions in the exploded model
+(every path between emit states passes through at least one null state),
+$T_{\text{emit},\text{emit}} = 0$ and:
+\[
+\chi = T_{\text{emit},\text{null}} (I - T_{\text{null},\text{null}})^{-1} T_{\text{null},\text{emit}}
+\]
+
+This gives the collapsed $\chi$ matrix with states
+$\{\sta, \fin, \matmat_{kf}, \matins_{kf}, \matdel_{kf}, \insins_{kf}, \deldel_{kf}\}$,
+matching the collapsed MixDom Pair HMM in Section~\ref{sec:nestpairhmm}.
+
+Each state in the ($5\ndom\nfrag$+2)-state collapsed HMM corresponds to an uneliminated state in the ($15\ndom\nfrag+8\ndom+8$)-state exploded HMM: either $\sta$ ($\sta\sta$), $\fin$ ($\fin\fin$), or one of the emit states
+$\mkfragemit{\srcdom}{\srcfrag}$ ($\mat\mat_{\srcdom\srcfrag}$), $\mkifragemit{\srcdom}{\srcfrag}$ ($\mat\ins_{\srcdom\srcfrag}$), $\mkdfragemit{\srcdom}{\srcfrag}$ ($\mat\del_{\srcdom\srcfrag}$),
+  $\ikfragemit{\srcdom}{\srcfrag}$ ($\ins\ins_{\srcdom\srcfrag}$), $\dkfragemit{\srcdom}{\srcfrag}$ ($\del\del_{\srcdom\srcfrag}$).
+The transition weight from $\ustate\xstate_{\srcdom\srcfrag}$ to $\vstate\ystate_{\destdom\destfrag}$ in the collapsed Pair HMM
+has the form $\domexit(\ustate,\xstate,\srcdom,\srcfrag) \times \nonemptytrans_{\ustate\vstate}(\ustate,\vstate) \times \domenter(\vstate,\ystate,\destdom,\destfrag) + \delta_{\ustate\vstate} \samedom (p_\text{SameDom}(\ustate,\xstate,\srcdom,\srcfrag,\destfrag) + \delta_{\xstate\ystate} p_\text{SameFrag}(\srcdom,\srcfrag,\destfrag))$
+corresponding to the following path segments
+\begin{itemize}
+  \item $\domexit(\ustate,\xstate,\srcdom,\srcfrag)$ represents transitions from the emit state to the end state of the domain, e.g. $\tkftrans_{\mat\fin}(\mat,\ins,\srcdom,\srcfrag)$ represents $\mkifragemit{\srcdom}{\srcfrag} \to \mkifragend{\srcdom}{\srcfrag} \to \matdomend$;
+  \item $\nonemptytrans_{\ustate\vstate}(\ustate,\vstate)$ represents the sum over all paths from the domain end state (or $\sta$), through zero or more empty domains, to the next (nonempty) domain start (or $\fin$), e.g. $\nonemptytrans_{\mat\del}(\mat,\del)$ represents paths like $\matdomend \to (\ldots \insdom \to \insdomtype{\ndom'} \to \insdomend \ldots )^\ast \to \deldom$. This is where null cycle elimination happens;
+  \item $\domenter(\vstate,\ystate,\destdom,\destfrag)$ represents paths from the domain start state to an emit state inside the domain, e.g. $\tkftrans_{\sta\mat}(\mat,\ins,\destdom,\destfrag)$ represents $\matdom \to \matdomtype{\destdom} \to \mkifrag{\destdom} \to \mkifragtype{\destdom}{\destfrag}$;
+  \item $p_\text{SameDom}(\xstate,\ystate,\srcdom,\srcfrag,\destfrag)$ represents paths from the emit state to another emit state of similar profile but (potentially) different fragment type within the same domain, e.g. $p_\text{SameDom}(\mat,\ins,\srcdom,\srcfrag,\destfrag)$ represents $\mkifragemit{\srcdom}{\srcfrag} \to \matdomend \to \matdom \to \matdomtype{\srcdom} \to \mkifrag{\srcdom} \to \mkifragtype{\srcdom}{\destfrag}$;
+  \item $p_\text{SameFrag}(\srcdom,\srcfrag,\destfrag) = \ext^{(\srcdom)}_{\srcfrag\destfrag}$ represents intra-fragment Markov transitions between fragment-types (extending the current fragment by one position), e.g.\ $\mkfragemit{\srcdom}{\srcfrag} \to \mkfragtype{\srcdom}{\destfrag}$ with weight $\ext^{(\srcdom)}_{\srcfrag\destfrag}$. Different fragments are independent; the Markov structure is strictly \emph{within} a single fragment, allowing the fragment-type to change at each position (not just self-loop).
+\end{itemize}
+
+\subsection{Exact Count Restoration}
+\label{sec:count-restoration}
+
+Given Forward-Backward expected transition counts $\hat{n}_\chi(i,j)$
+on the collapsed model, we recover the expected counts on the
+exploded model using the null closure inverse.
+
+Define:
+\begin{align}
+C &= (I - T_{\text{null},\text{null}})^{-1} \quad\text{(null closure)} \\
+C_{ab} &= \text{expected visits to null state $b$, starting from null state $a$}
+\end{align}
+
+For each collapsed transition $\hat{n}_\chi(s, s')$ from emit state $s$
+to emit state $s'$, the path in the exploded model is:
+\[
+s \xrightarrow{1} \text{FragEnd}(s) \xrightarrow{\text{null chain}} \text{FragType}(s') \xrightarrow{1} s'
+\]
+
+The null chain from $\text{FragEnd}(s)$ to $\text{FragType}(s')$ passes
+through a sequence of null states. The expected count for each null
+transition $(a \to b)$ along this chain is:
+\begin{equation}
+\hat{n}_{\text{exploded}}(a, b) = \sum_{s, s'} \hat{n}_\chi(s, s')
+\cdot \frac{T_{\text{emit},a'} \cdot C_{a',a} \cdot T_{a,b} \cdot C_{b,b'} \cdot T_{b',\text{emit}'}}
+           {\chi(s, s')}
+\label{eq:count-restoration-general}
+\end{equation}
+where $a'$ is the first null state entered from $s$, and $b'$ is the
+last null state before reaching $s'$.
+
+More explicitly, each collapsed transition decomposes into contributions
+to the following parameter groups.
+
+\subsubsection{Intra-fragment type transitions vs.\ new-fragment transitions}
+
+For a transition $\hat{n}_\chi(s, s')$ where $s = \text{Emit}_{kf}^X$
+and $s' = \text{Emit}_{kg}^Y$ with the same domain $k$, the path
+splits into:
+\begin{itemize}[nosep]
+\item \textbf{Intra-fragment fragment-type transition}: $s \to \text{FragType}_{kg} \to s'$,
+  with weight $\ext^{(k)}_{fg}$. This applies to all transitions where
+  $X = Y$ (same TKF state type) and allows $f \neq g$. It extends the
+  current fragment by one position without generating a new TKF92 link.
+\item \textbf{New fragment via domain loop}: $s \to \text{FragEnd}_{kf} \to \ldots \to \text{Frag}_k \to \text{FragType}_{kg} \to s'$,
+  with weight $\notext^{(k)}_f \cdot \tkftrans_k[X,Y] \cdot w_{kg}$ (for M-type)
+  or $\notext^{(k)}_f \cdot \kappa_k \cdot w_{kg}$ (for I/D-type). This
+  terminates the current fragment and initiates an independent fresh
+  fragment via the TKF92 process.
+\end{itemize}
+
+The expected intra-fragment fragment-type transition count from $f$ to $g$ is:
+\begin{equation}
+\hat{n}_{\text{ext}}(k,f,g) = \hat{n}_\chi(s, s') \cdot \frac{\ext^{(k)}_{fg}}{\ext^{(k)}_{fg} + \notext^{(k)}_f \cdot p_{\text{new},g}}
+\end{equation}
+where $p_{\text{new},g}$ is the new-fragment-to-type-$g$ probability.
+These counts form an $\nfrag \times \nfrag$ matrix per domain,
+and the M-step row-normalizes $(\hat{n}_{\text{ext}}(k,f,g), \hat{n}_{\notext}(k,f))$
+to obtain the updated $\ext^{(k)}_{fg}$.
+
+\subsubsection{Intra-domain TKF transitions}
+
+Each new-fragment transition (after fragment termination) contributes
+one TKF transition at the domain level: $\tkftrans_k[X, Y]$ for M-type
+domains, or $\kappa_k$ / $(1-\kappa_k)$ for I/D-type domains.
+
+These counts go into the domain-$k$ TKF91 count matrix (for M-type)
+or the $\kappa_k$ / $(1-\kappa_k)$ accumulators (for I/D-type).
+
+\subsubsection{Domain entry/exit and phantom counts}
+
+Inter-domain transitions pass through $\matdomend / \insdomend / \deldomend$
+(exit from source domain) and $\matdom / \insdom / \deldom$ then
+$\matdomtype{k}$ (entry to destination domain).
+
+Within the entry, the path $\matdomtype{k} \to \mkfrag{k}$ uses
+$\tkftrans_k[\sta, \cdot]$. The phantom path $\matdomtype{k} \to \matdomend$
+has probability $\tkftrans_k[\sta, \fin] = (1-\beta_k)(1-\kappa_k)$ and
+contributes a phantom birth-death event to domain $k$'s BDI statistics.
+
+Similarly for I/D-type entries: $\insdomtype{k} \to \insdomend$ with
+probability $(1-\kappa_k)$ is a phantom I/D-type domain.
+
+\subsubsection{Top-level TKF transitions}
+
+Each inter-domain transition contributes one TKF transition at the top level:
+$\tkftrans_0[U, V]$ where $U \in \{\sta, \mat, \ins, \del\}$ is the
+domain-end type and $V$ is the domain-start type.
+
+The null domain paths (empty domains via $\matdomtype{k} \to \matdomend$)
+contribute additional phantom top-level transitions via the null closure
+$(I - T_{\text{null},\text{null}})^{-1}$.
+
+\subsubsection{Domain and fragment weight counts}
+
+Each domain entry contributes one count to $v_k$ (domain weight).
+Each fragment-type selection contributes one count to $w_{kf}$ (fragment weight).
+
+\subsection{Parameter Group Decomposition}
+
+Each transition in the exploded model involves exactly one of the
+following parameter factors:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Parameter & Factor & Where it appears \\
+\hline
+$\alpha_0$ & $(1-\beta_0)\kappa_0\alpha_0$ & Top-level $\to \matdom$ \\
+$1-\alpha_0$ & $(1-\beta_0)\kappa_0(1-\alpha_0)$ & Top-level $\to \deldom$ \\
+$\beta_0$ & $\beta_0$ & Top-level $\to \insdom$ \\
+$1-\beta_0$ & $(1-\beta_0)$ & Top-level $\to \matdom, \deldom, \fin$ \\
+$\gamma_0$ & $\gamma_0$ & $\deldomend \to \insdom$ \\
+$1-\gamma_0$ & $(1-\gamma_0)$ & $\deldomend \to \matdom, \deldom, \fin$ \\
+$\kappa_0$ & $\kappa_0$ & Top-level $\to \matdom, \deldom$ \\
+$1-\kappa_0$ & $(1-\kappa_0)$ & Top-level $\to \fin$ \\
+$\alpha_k$ & $(1-\beta_k)\kappa_k\alpha_k$ & Domain-$k$ $\to$ MatFrag \\
+$\beta_k$ & $\beta_k$ & Domain-$k$ $\to$ InsFrag \\
+$\gamma_k$ & $\gamma_k$ & Domain-$k$ DelFragEnd $\to$ InsFrag  \\
+$\kappa_k$ & $\kappa_k$ & Domain-$k$ $\to$ MatFrag/DelFrag, I/D-type continuation \\
+$1-\kappa_k$ & $(1-\kappa_k)$ & Domain-$k$ $\to$ DomEnd \\
+$\ext^{(k)}_{fg}$ & $\ext^{(k)}_{fg}$ & Intra-fragment fragment-type transition $f \to g$ \\
+$\notext^{(k)}_f$ & $1 - \sum_g \ext^{(k)}_{fg}$ & Fragment termination \\
+$v_k$ & $v_k$ & Domain type selection \\
+$w_{kf}$ & $w_{kf}$ & Fragment type selection \\
+\hline
+\end{tabular}
+\end{center}
+
+Because each exploded transition involves a product of these factors,
+and each factor's log depends on at most one natural parameter ($\insrate_k$
+or $\delrate_k$), the Q-function on the exploded model decomposes into
+independent BDI score terms.
+The null-state count restoration maps collapsed counts exactly onto exploded counts, allowing the M-step to decompose into the same parameter-group updates used in the component TKF91/TKF92 models, together with standard mixture-weight updates.

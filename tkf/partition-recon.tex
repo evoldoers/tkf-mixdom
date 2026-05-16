@@ -1,0 +1,473 @@
+% partition-recon.tex — Partition-conditioned ancestral reconstruction
+% for MixDom with vanishing top-level indel rates and Markovian fragments.
+% \input from tkf.tex or read standalone.
+
+\section{Generalized Phylo-HMM for MixDom}
+\label{sec:partition-recon}
+
+This appendix presents a polynomial-time algorithm for marginal ancestral
+reconstruction in a restricted MixDom model. The restriction is:
+the top-level TKF91 process has vanishing indel rates
+$\insrate_\main, \delrate_\main \to 0$ at fixed ratio
+$\kappa_\main = \insrate_\main / \delrate_\main$.
+As input we assume an MSA with a tree and a per-node gap/residue
+annotation (in practice obtained by Fitch parsimony on gaps).
+
+\subsection{The Vanishing-Top-Level-Indel Limit}
+\label{sec:vanishing-top}
+
+Setting $\insrate_\main = \delrate_\main = 0$ literally produces
+$0/0$ indeterminate forms in the TKF91 transition probabilities
+(eq.~\ref{sec:lhopital}). We instead take the limit
+$\insrate_\main, \delrate_\main \to 0^+$ with $\kappa_\main$ fixed.
+In this limit the TKF91 $\alpha, \beta, \gamma$ coefficients
+evaluated at a branch length $\evoltime > 0$ satisfy
+$\alpha = e^{-\delrate_\main \evoltime} \to 1$,
+$\beta = \insrate_\main(1-e^{-(\delrate_\main - \insrate_\main)\evoltime})/
+(\delrate_\main - \insrate_\main e^{-(\delrate_\main-\insrate_\main)\evoltime}) \to 0$, and
+$\gamma \to 0$. Inspecting the entries of the 5$\times$5 top-level
+matrix $\tkftrans_\main$:
+\begin{align*}
+  \tkftrans_\main(\sta,\mat) &= (1-\beta)\kappa_\main\alpha \to \kappa_\main, \\
+  \tkftrans_\main(\sta,\ins) &= \beta \to 0, \\
+  \tkftrans_\main(\sta,\del) &= (1-\beta)\kappa_\main(1-\alpha) \to 0, \\
+  \tkftrans_\main(\sta,\fin) &= (1-\beta)(1-\kappa_\main) \to 1-\kappa_\main, \\
+  \tkftrans_\main(\mat,\mat) &\to \kappa_\main, \quad
+  \tkftrans_\main(\mat,\ins), \tkftrans_\main(\mat,\del) \to 0, \\
+  \tkftrans_\main(\mat,\fin) &\to 1-\kappa_\main.
+\end{align*}
+The $\ins$ and $\del$ columns become structurally unreachable on every
+branch, while the $\sta \to \mat \to \dots \to \mat \to \fin$ chain
+survives with probability $\kappa_\main^{\ndom}(1-\kappa_\main)$ for a
+chain of $\ndom$ top-level match states. In other words, the number of
+top-level domains $\ndom$ is distributed $\geomdist(\kappa_\main)$ at
+the root, and every descendant preserves the same ordered list of
+domains (no top-level births or deaths). The ratio $\kappa_\main$ thus
+becomes the single top-level parameter that survives the limit; all
+branch-length dependence at the top level vanishes.
+
+\subsection{Partition Decomposition}
+\label{sec:partition}
+
+Let the MSA have $L$ columns. Conditional on the number of top-level
+domains $\ndom_*$ and their classes $d_1, \dots, d_{\ndom_*}$,
+the full model decomposes into $\ndom_*$ independent
+nested processes, each responsible for some contiguous subset
+of columns. Since there are no top-level births or deaths on any
+branch, each domain is either entirely absent or entirely present on
+each branch, and the correspondence between columns and domains is a
+single partition shared across the whole tree. Let
+\[
+  P = (b_1, b_2, \dots, b_B), \qquad b_i = [l_{i-1}+1,\, l_i],
+\]
+with $0 = l_0 < l_1 < \dots < l_B = L$, be a partition of
+$\{1,\dots,L\}$ into $B$ contiguous blocks, and let $d_{b_i} \in \{1,\dots,\ndom\}$
+be the class label of block $i$, where $\ndom$ is the number of
+top-level domain classes in the model.
+Then
+\begin{equation}
+  P(\text{MSA} \mid \text{tree}, \text{model})
+  = \sum_{P}\; P(P \mid \text{model}) \prod_{i=1}^{B} G(l_{i-1}+1, l_i, d_{b_i}),
+  \label{eq:partition-sum}
+\end{equation}
+where the block likelihood $G(k, l, \dom)$ is the standalone
+phylogenetic likelihood of the sub-MSA on columns $k..l$ under
+the within-domain model for domain class $\dom$, now including
+the Markovian fragment process with transition matrix $\ext^{(\dom)}$
+and per-fragment site class distributions $\classdist_{\dom\frag\class}$.
+The partition prior is
+\begin{equation}
+  P(P \mid \text{model}) = (1-\kappa_\main)\, \kappa_\main^{B}\,
+  \prod_{i=1}^{B} \domdist_{d_{b_i}},
+  \label{eq:partition-prior}
+\end{equation}
+where $\domdist$ is the top-level class (stationary) distribution.
+When marginalising over $P$ the number of summands is exponential in
+$L$, so direct evaluation of~\eqref{eq:partition-sum} is intractable.
+It is, however, a generalised hidden Markov model in which each
+``emission'' is an arbitrarily long contiguous block of columns.
+
+\subsection{Why the State Space Cannot Be Collapsed}
+
+A standard reduction of a generalised HMM to an ordinary HMM would
+introduce a hidden state at every column encoding ``which within-domain
+Pair-HMM state each phylogenetic lineage is in''. Under a single TKF92,
+each lineage has three relevant states ($\mat, \ins, \del$), but the
+per-column state vector across $T$ tree nodes has $3^T$ values.
+Furthermore, once a new top-level domain begins the within-domain Pair
+HMMs on every lineage all reset to $\sta$, so the memory of the within-domain
+state on any previously gapped lineage is lost at every block boundary:
+a newly present lineage can only be reasoned about as starting from
+$\sta$ at the first column of the new block. Conditioning on the
+partition $P$, on the other hand, makes each block a self-contained
+problem on a sub-MSA, and eliminates the combinatorial explosion
+at the price of a quadratic sum over start columns.
+
+\subsection{Setup and Definitions}
+\label{sec:partition-setup}
+
+We pretend there is an ``infinitely long'' branch above the root node, so
+every fragment on the root row is modeled as an insertion. We partition
+the alignment into blocks of domain type $\dom$.
+
+\paragraph{Column presence profile.}
+Let $A(j)$ denote the column presence/absence profile for column $j$---a
+binary vector with one entry per tree node, where $1$ indicates the node
+has a residue at column $j$ and $0$ indicates a gap (as determined by
+Fitch parsimony).
+
+\paragraph{Fragment continuity.}
+Define
+\[
+k_{\min}(i,j) = \min\{ k : i \leq k \leq j,\ A(k') = A(j)\ \text{for all}\ k \leq k' \leq j \}
+\]
+This is the first column in $i..j$ that can be part of the same fragment
+as column $j$ (i.e., the earliest column from which an unbroken run of
+identical presence profiles extends to $j$).
+
+\paragraph{Per-branch TKF state.}
+Let $S_{\mathrm{tkf}}(r, i, j)$ be the TKF Pair HMM emit state for
+row (branch) $r$ at column $j$, given block start $i$. This is a
+deterministic function of the presence/absence pattern: if all entries
+are zero for columns $i..j$ on branch $r$, the state is $\sta$;
+otherwise, the state depends on
+$(\text{ancestor\_present}_r(j),\; \text{descendant\_present}_r(j))$,
+mapping to $\mat$, $\ins$, or $\del$ as appropriate.
+
+\paragraph{Per-branch TKF transitions.}
+Let $B_{\mathrm{tkf}}(\dom, r, s, s')$ be the TKF91 branch transition
+matrix entry for domain $\dom$, branch $r$, from state $s$ to state $s'$.
+Define
+\[
+T_{\mathrm{tkf}}(\dom, i, j) = \prod_r B_{\mathrm{tkf}}(\dom, r, S_{\mathrm{tkf}}(r, i, j{-}1),\; S_{\mathrm{tkf}}(r, i, j))
+\]
+as the product of TKF91 transitions across all rows from column $j{-}1$
+to column $j$ within a block starting at column $i$.
+Similarly define
+\[
+T_{\mathrm{tkf,start}}(\dom, j) = \prod_r B_{\mathrm{tkf}}(\dom, r, \sta,\; S_{\mathrm{tkf}}(r, j, j))
+\]
+for block-start transitions and
+\[
+T_{\mathrm{tkf,end}}(\dom, i, j) = \prod_r B_{\mathrm{tkf}}(\dom, r, S_{\mathrm{tkf}}(r, i, j),\; \fin)
+\]
+for block-closing transitions.
+
+\paragraph{Felsenstein emission likelihood.}
+Let $U(j, \class)$ be the Felsenstein pruning likelihood for column $j$
+under site class $\class$, computed over the present subtree at column $j$
+with the substitution model $(\exch^{(\class)}, \eqm^{(\class)})$.
+
+\subsection{Intra-Block Forward Recurrence}
+\label{sec:intra-block-forward}
+
+Within a block assigned to domain $\dom$ spanning columns $i..j$, the
+Markovian fragment process induces a forward recurrence over fragment
+states.
+
+\paragraph{Transition probabilities.}
+Fragment-to-fragment transition (same fragment continues):
+\[
+T_{\mathrm{ext}}(\dom, j, \srcfrag, \destfrag) = \ext^{(\dom)}_{\srcfrag\destfrag}
+\]
+This transition is only available when $A(j{-}1) = A(j)$ (the presence
+profile has not changed, so the same fragment can continue).
+
+Fragment termination followed by new fragment start (the presence
+profile changes, or the Markov chain starts a new fragment):
+\[
+T_{\mathrm{notext}}(\dom, i, j, \srcfrag, \destfrag) = \notext^{(\dom)}_\srcfrag \cdot T_{\mathrm{tkf}}(\dom, i, j) \cdot \fragdist_{\dom\destfrag}
+\]
+
+\paragraph{Emission weight.}
+Each column $j$ in fragment state $\destfrag$ contributes the
+class-averaged Felsenstein likelihood:
+\[
+E(\dom, j, \destfrag) = \sum_{\class=1}^{\nclasses} \classdist_{\dom\destfrag\class}\, U(j, \class)
+\]
+
+\paragraph{Forward recurrence.}
+Define $F_{i,j,\dom,\destfrag}$ as the probability of columns $i..j$
+within a block starting at $i$ in domain $\dom$, with column $j$ in
+fragment state $\destfrag$.
+
+Base case:
+\begin{equation}
+F_{i,i,\dom,\destfrag} = T_{\mathrm{tkf,start}}(\dom, i) \cdot \fragdist_{\dom\destfrag} \cdot E(\dom, i, \destfrag)
+\label{eq:intra-forward-base}
+\end{equation}
+
+Recursion for $j > i$:
+\begin{equation}
+F_{i,j,\dom,\destfrag} = \sum_{\srcfrag=1}^{\nfrag} F_{i,j{-}1,\dom,\srcfrag} \cdot
+\left(
+  \delta(A(j{-}1){=}A(j))\, T_{\mathrm{ext}}(\dom, j, \srcfrag, \destfrag)
+  + T_{\mathrm{notext}}(\dom, i, j, \srcfrag, \destfrag)
+\right) \cdot E(\dom, j, \destfrag)
+\label{eq:intra-forward-recurse}
+\end{equation}
+where $\delta(A(j{-}1){=}A(j))$ restricts the fragment extension term to
+columns with identical presence profiles.
+
+\paragraph{Block likelihood.}
+\begin{equation}
+G(i, j, \dom) = \sum_{\srcfrag=1}^{\nfrag} F_{i,j,\dom,\srcfrag} \cdot \notext^{(\dom)}_\srcfrag \cdot T_{\mathrm{tkf,end}}(\dom, i, j)
+\label{eq:block-likelihood}
+\end{equation}
+
+\subsection{The Forward Recursion}
+\label{sec:forward-recursion}
+
+Define the Forward quantity
+\begin{equation}
+  F(l, \dom) = P(\text{columns } 1..l \text{ of MSA, with last block ending at } l
+  \text{ in domain class } \dom \mid \text{tree}, \text{model}).
+\end{equation}
+Encoding the partition prior~\eqref{eq:partition-prior} into the
+recursion, we initialise with a virtual start marker $F(0, \emptyset) = 1$
+and advance by
+\begin{equation}
+  F(l, \dom) = \kappa_\main\, \domdist_{\dom}\,
+  \sum_{k=0}^{l-1} \bar F(k)\, G(k+1, l, \dom),
+  \label{eq:forward-compact}
+\end{equation}
+where $\bar F(0) := 1$ and $\bar F(k) := \sum_m F(k,m)$ for $k > 0$.
+The total data log-likelihood is obtained by closing off the final
+block with the top-level termination factor:
+\begin{equation}
+  P(\text{MSA}\mid\text{tree},\text{model})
+  = (1-\kappa_\main) \sum_{\dom} F(L, \dom).
+  \label{eq:total-ll}
+\end{equation}
+
+\paragraph{Full MSA probability.}
+Given a specific partition into blocks $(i_1,j_1,\dom_1), \ldots, (i_B,j_B,\dom_B)$,
+the probability of the partitioned MSA given the tree is
+\[
+P(\text{partitioned MSA} \mid \text{tree}) = (1-\kappa_\main) \prod_{b=1}^{B} \kappa_\main\, \domdist_{\dom_b}\, G(i_b, j_b, \dom_b)
+\]
+
+\subsection{The Backward Recursion}
+\label{sec:backward-recursion}
+
+Since the domain class of the \emph{next} block does not depend on the
+class of the current block (the partition prior factorises over blocks),
+the backward variable can be collapsed to a scalar.
+Define
+\begin{equation}
+  \bar\beta(l) = P(\text{columns } l{+}1..L \text{ of MSA}
+  \mid \text{last block ended at column } l,\, \text{tree}, \text{model}).
+\end{equation}
+The boundary condition and recursion are
+\begin{align}
+  \bar\beta(L) &= 1-\kappa_\main, \label{eq:backward-base}\\
+  \bar\beta(k) &= \sum_{l=k+1}^{L}
+    \Bigl[\kappa_\main \sum_{\dom} \domdist_\dom\, G(k{+}1, l, \dom)\Bigr]\,
+    \bar\beta(l),
+    \qquad k < L.
+  \label{eq:backward}
+\end{align}
+The total likelihood is recoverable as
+$\bar\beta(0)$---equivalent to~\eqref{eq:total-ll}
+(since the $k{=}0$ case expands to
+$(1{-}\kappa_\main)\sum_\dom \kappa_\main \domdist_\dom
+\sum_{l=1}^{L} G(1,l,\dom)\,[\cdots]$,
+matching the forward expression).
+
+\subsection{Intra-Block Backward Recurrence}
+\label{sec:intra-block-backward}
+
+To compute posterior fragment state and site class probabilities, we
+need an intra-block backward recurrence. Define
+$B_{i,k,j,\dom,\srcfrag}$ as the probability of columns $k..j$ given
+a block $i..j$ in domain $\dom$, with column $k{-}1$ in fragment state
+$\srcfrag$.
+
+Boundary condition:
+\begin{equation}
+B_{i,j{+}1,j,\dom,\srcfrag} = \notext^{(\dom)}_\srcfrag \cdot T_{\mathrm{tkf,end}}(\dom, i, j)
+\label{eq:intra-backward-boundary}
+\end{equation}
+(Note: this depends on $\srcfrag$ through $\notext^{(\dom)}_\srcfrag$,
+the probability that fragment $\srcfrag$ terminates.)
+
+Recursion for $k \leq j$:
+\begin{equation}
+B_{i,k,j,\dom,\srcfrag} = \sum_{\destfrag=1}^{\nfrag}
+\left(
+  \delta(A(k{-}1){=}A(k))\, T_{\mathrm{ext}}(\dom, k, \srcfrag, \destfrag)
+  + T_{\mathrm{notext}}(\dom, i, k, \srcfrag, \destfrag)
+\right) \cdot E(\dom, k, \destfrag) \cdot B_{i,k{+}1,j,\dom,\destfrag}
+\label{eq:intra-backward-recurse}
+\end{equation}
+
+\subsection{Posterior Domain and Fragment State Assignment}
+\label{sec:posterior}
+
+From the inter-block forward $F$ and backward $\beta$, and the
+intra-block forward $F_{i,k,\dom,\srcfrag}$ and backward
+$B_{i,k,j,\dom,\srcfrag}$, we recover per-column posteriors.
+
+\paragraph{Posterior domain assignment.}
+Writing $Z = P(\text{MSA}\mid\text{tree},\text{model})$,
+\begin{equation}
+  P(c \text{ in block of class } \dom \mid \text{MSA}) \;=\;
+  \frac{1}{Z}\,\kappa_\main\, \domdist_\dom
+  \sum_{k=0}^{c-1} \sum_{l=c}^{L} \bar F(k)\, G(k{+}1, l, \dom)\, \bar\beta(l).
+  \label{eq:post-col}
+\end{equation}
+
+\paragraph{Posterior fragment state.}
+The posterior probability that column $k$ is in fragment state $\srcfrag$,
+given a block $i..j$ of domain $\dom$, is:
+\begin{equation}
+P(\text{col } k \text{ is frag } \srcfrag \mid \text{block } i..j, \dom)
+= \frac{F_{i,k,\dom,\srcfrag} \cdot B_{i,k{+}1,j,\dom,\srcfrag}}{G(i, j, \dom)}
+\label{eq:post-frag}
+\end{equation}
+where $B_{i,k{+}1,j,\dom,\srcfrag}$ uses $k{+}1$ because $B$ gives the
+probability of the \emph{remaining} columns $k{+}1..j$ given fragment state
+$\srcfrag$ at column $k$.
+
+\paragraph{Full unconditional fragment state posterior.}
+The full posterior for fragment state at column $c$, marginalised over
+all block placements, is
+\begin{equation}
+  P(\text{col } c \text{ is fragtype } \srcfrag \mid \text{MSA})
+  = \sum_{\dom}\sum_{i \leq c}\sum_{j \geq c}
+    P(\text{block } i..j,\, \dom \mid \text{MSA})\;
+    \frac{F_{i,c,\dom,\srcfrag}\, B_{i,c{+}1,j,\dom,\srcfrag}}{G(i,j,\dom)},
+  \label{eq:post-frag-full}
+\end{equation}
+where the block--domain posterior is
+\begin{equation}
+  P(\text{block } i..j,\, \dom \mid \text{MSA})
+  \;\propto\; \bar F(i{-}1)\;\kappa_\main\;\domdist_\dom\; G(i,j,\dom)\;\bar\beta(j).
+  \label{eq:post-block}
+\end{equation}
+
+\paragraph{Posterior site class.}
+The posterior probability of site class $\class$ at column $k$ is
+obtained by mixing over the fragment state posterior:
+\begin{equation}
+P(\text{class } \class \text{ at col } k \mid \text{block } i..j, \dom)
+= \sum_{\srcfrag} P(\text{col } k \text{ is frag } \srcfrag \mid \text{block } i..j, \dom)
+\cdot \frac{\classdist_{\dom\srcfrag\class}\, U(k, \class)}
+           {\sum_{\class'} \classdist_{\dom\srcfrag\class'}\, U(k, \class')}
+\label{eq:post-class}
+\end{equation}
+The full (unconditional) posterior over site class at column $k$ is
+obtained by further marginalizing over blocks and domain types using the
+inter-block posterior~\eqref{eq:post-col}.
+
+\subsection{Root Residue Reconstruction}
+\label{sec:root-residue}
+
+Given the posterior in~\eqref{eq:post-col} and~\eqref{eq:post-class},
+we obtain a posterior over root residues at column $c$ by mixing over
+the class assignment and re-using the Felsenstein pruning posterior
+under each class:
+\begin{equation}
+  P(\text{root}_c = a \mid \text{MSA}) =
+  \sum_{\dom} P(c \in \dom \mid \text{MSA}) \cdot
+  \sum_{\class} P(\text{class } \class \text{ at } c \mid \dom) \cdot
+  P(\text{root}_c = a \mid \text{MSA}, c \in \class),
+  \label{eq:root-post}
+\end{equation}
+where the per-class conditional on the right uses Felsenstein pruning
+at column $c$ with the substitution model $(\exch^{(\class)}, \eqm^{(\class)})$.
+The MAP root sequence is obtained by taking $\mbox{argmax}_a$ of this
+posterior column-by-column; gaps at the root are determined by the
+presence annotation obtained from Fitch parsimony.
+
+\subsection{Why the Trick Fails with Top-Level Indels}
+
+If we retained nonzero top-level insertion and deletion rates we would
+also need to decide on which branch each top-level domain was born or
+died. Given only the presence pattern at each column, a block whose
+residues appear on only a single clade is consistent with both (i)~an
+ancestrally present domain that was deleted on every other branch and
+(ii)~a recent insertion. Conditioning on the partition no longer
+factorises the likelihood across blocks because the per-branch
+top-level state sequence is correlated across blocks. The
+algorithm above relies crucially on the absence of
+top-level births and deaths so that every block is a fully independent
+problem with a fresh $\sta$ at every branch.
+
+\begin{remark}[Relaxing the top-level constraint]
+\label{rem:relaxing-top-level}
+The zero top-level indel-rate limit ($n_{\mathrm{top,indel}} = 0$) can be
+partially relaxed by conditioning on domain presence/absence profiles.
+At $n_{\mathrm{top,indel}} = 1$, we allow a single top-level domain
+insertion or deletion event on the tree, yielding $O(R)$ possible
+domain subtrees (where $R$ is the number of tree rows/edges).
+At $n_{\mathrm{top,indel}} = 2$, there are $O(R^2)$ configurations, and
+so on. The probability of each truncation level is roughly exponential
+in $n_{\mathrm{top,indel}}$ (controlled by $\insrate_\main + \delrate_\main$),
+so this provides a systematic expansion controlling the state space
+explosion. The leading term ($n_{\mathrm{top,indel}} = 0$) is the algorithm
+presented here.
+\end{remark}
+
+\subsection{Complexity}
+\label{sec:partition-complexity}
+
+Let $\ndom$ be the number of top-level domain classes, $\nfrag$ the
+number of fragment types per domain, $\nclasses$ the number of site
+classes, $T$ the number of tree nodes, and $L$ the number of MSA columns.
+\begin{itemize}
+  \item Computing all $G(k+1,l,\dom)$ by incremental forward updates
+    requires, for each starting column $k+1$, a left-to-right pass over
+    $l = k+1, \dots, L$. Each column update involves $O(\nfrag^2)$ work
+    for the fragment Markov chain transitions and $O(\nfrag \cdot \nclasses)$
+    for the emission weights, plus $O(T)$ for the TKF transition products.
+    Total: $O(L^2\,(\nfrag^2 + \nfrag \cdot \nclasses + T)\,\ndom)$.
+  \item Computing $F$ and $\beta$ given $G$ takes $O(L^2\,\ndom)$.
+  \item Computing the per-column posteriors including fragment state
+    requires the intra-block backward, making the total
+    $O(L^3\,\nfrag^2\,\ndom)$ in the worst case (since $B_{i,k,j}$
+    depends on both $i$ and $j$ for each $k$).
+  \item Each column likelihood $U(j, \class)$ is computed once and cached
+    as an $O(L \cdot \nclasses \cdot T \cdot |\alphabet|)$ precomputation.
+\end{itemize}
+Total for the $G$ pass and inter-block DP: $O(L^2\,(\nfrag^2 + T)\,\ndom)$.
+The intra-block backward for posteriors adds $O(L^3\,\nfrag^2\,\ndom)$
+due to the dependence of $B_{i,k,j,\dom,\srcfrag}$ on both $i$ (block start)
+and $j$ (block end) for each interior column $k$.
+
+The algorithm is naturally vectorisable: all $G$ updates for a fixed
+starting column can be computed in parallel across $\ndom$ domain
+classes and across tree branches.
+
+\subsection{Simulation from MixDom}
+\label{sec:mixdom-simulation}
+
+To generate data from the MixDom model on a phylogenetic tree:
+
+\begin{enumerate}
+\item \textbf{Sample domain sequence.}
+  Draw the number of top-level domains $\ndom_* \sim \geomdist(\kappa_\main)$.
+  For each domain, draw its type $\dom_i \sim \catdist(\domdist_1, \ldots, \domdist_\ndom)$.
+
+\item \textbf{Sample fragment trajectory.}
+  For each domain of type $\dom$, sample a fragment trajectory through the
+  $\nfrag$-state Markov chain. The initial fragment state is
+  $\frag_1 \sim \catdist(\fragdist_{\dom 1}, \ldots, \fragdist_{\dom\nfrag})$.
+  At each step, transition to fragment state $\frag_{k+1}$ with probability
+  $\ext^{(\dom)}_{\frag_k, \frag_{k+1}}$, or terminate the domain with probability
+  $\notext^{(\dom)}_{\frag_k} = 1 - \sum_{\destfrag} \ext^{(\dom)}_{\frag_k, \destfrag}$.
+
+\item \textbf{Sample site class and root residue.}
+  For each emitted site from fragment state $\frag$, draw site class
+  $\class \sim \catdist(\classdist_{\dom\frag 1}, \ldots, \classdist_{\dom\frag\nclasses})$.
+  Draw the root residue $a \sim \eqm^{(\class)}$.
+
+\item \textbf{Evolve down the tree.}
+  For each site, evolve the root residue down the phylogenetic tree using the
+  substitution model $(\exch^{(\class)}, \eqm^{(\class)})$ at evolutionary time
+  $\evoltime_r$ on each branch $r$:
+  $b \sim P^{(\class)}(\evoltime_r) \cdot e_a$,
+  where $P^{(\class)}(\evoltime_r) = \exp(\revsub^{(\class)} \evoltime_r)$.
+  Apply the per-branch TKF91 indel process (with domain-specific parameters
+  $\insrate_\dom, \delrate_\dom$) to create insertions and deletions.
+\end{enumerate}

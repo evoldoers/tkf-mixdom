@@ -1,0 +1,64 @@
+% irreversible.tex — Irreversible substitution models and κ > 1 regime
+% To be \input from lhopital-limits.tex
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{\texorpdfstring{Irreversible Models and the $\insrate > \delrate$ Regime}{Irreversible Models and the lambda > mu Regime}}
+\label{sec:irreversible}
+
+\paragraph{The $\kappa > 1$ regime.}
+When $\insrate > \delrate$, the ratio $\kappa = \insrate/\delrate > 1$
+and the geometric$(\kappa)$ prior on ancestor length is not
+normalizable: $\sum_{i=0}^\infty \kappa^i(1-\kappa)$ diverges.
+Therefore the joint likelihood $P(x,y)$ does not exist.
+However, the ancestor length-conditioned likelihood
+$P_{\mathrm{cond}}(x,y \mid |x|)$
+is well-defined for all $\kappa > 0$.
+The transition parameters $\alpha$, $\beta$, $\gamma$ are
+continuous functions of $(\insrate,\delrate,\evoltime)$
+with no singularity at $\insrate = \delrate$ or $\insrate > \delrate$.
+The BDI sufficient statistics $\mathbb{E}[B]$, $\mathbb{E}[D]$,
+$\mathbb{E}[S]$ remain well-defined, and the conditioned
+M-step~\eqref{eq:mstep-cond} applies unchanged:
+it is unconstrained in $\insrate$ and $\delrate$ and permits
+$\hat\insrate > \hat\delrate$ if the data support it.
+
+\paragraph{Irreversible substitution models.}
+For completeness, our implementations support dropping the
+reversibility assumption for the substitution CTMC.
+The integrals described in Section~\ref{sec:bridge-expectations} and in~\cite{HolmesRubin2002}
+exploit the symmetric factorization of $\revsub$
+using $\eqm$-weighted similarity, which yields real eigenvalues.
+In the irreversible case, $\revsub$ is a general rate matrix
+with no detailed-balance constraint.
+The eigendecomposition $\revsub = V\,\operatorname{diag}(d)\,V^{-1}$
+may have complex eigenvalues.
+Assuming $\revsub$ is diagonalizable, the spectral formulae for the integrals of Section~\ref{sec:bridge-expectations} carry over,
+with $V^{-1}$ replacing $V^\top$ and complex arithmetic throughout:
+\[
+I^{ab}_{ij}(\evoltime) =
+\sum_{k,l} V_{ak}\,V^{-1}_{ki}\,
+\frac{e^{d_k\evoltime} - e^{d_l\evoltime}}{d_k - d_l}\,
+V_{jl}\,V^{-1}_{lb}
+\]
+with the convention $(e^{d_k\evoltime} - e^{d_l\evoltime})/(d_k - d_l) = \evoltime\,e^{d_k\evoltime}$
+when $d_k = d_l$.
+The result is real (complex eigenvalues come in conjugate pairs).
+
+\paragraph{Fixed-point iteration for $\eqm$.}
+In the reversible case, the equilibrium distribution $\eqm$ is
+constrained to be the stationary distribution of $\revsub$ by
+by detailed balance, and may either be fixed a priori or updated jointly with the reversible rate parameters during the M-step.
+In the irreversible case, $\eqm$ must be recomputed as the
+left eigenvector of $\revsub$ (with eigenvalue~0) after each
+M-step update of $\revsub$ from the bridge-expectation sufficient statistics.
+This gives an ECM (Expectation-Conditional-Maximization)
+scheme~\cite{MengRubin1993}:
+the E-step uses the current $(\revsub, \eqm)$;
+the M-step updates $\revsub$, then $\eqm$ is recomputed from
+the updated $\revsub$.
+Standard monotonicity results apply providing each conditional maximization step is well-defined.
+
+\paragraph{Differentiability.}
+
+Standard autograd libraries provide general eigendecomposition and matrix-exponential primitives (with Fréchet derivatives).
+The eigendecomposition route is convenient for EM-style closed-form updates, while gradient-based optimization is often more naturally based on the matrix exponential. We do not rely on differentiating through eigenvectors here.

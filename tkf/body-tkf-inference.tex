@@ -1,0 +1,391 @@
+\section{Selected Inference Algorithms for TKF92}
+\label{sec:tkf-inference}
+
+This section describes four inference algorithms that operate on
+TKF91 / TKF92 models and on phylogenetic trees:
+the \emph{Fast Statistical Alignment} (FSA) framework with a
+Newton-step time-optimization on the per-cherry expected
+log-likelihood (Section~\ref{sec:fsa});
+the \emph{Beam Search Ancestral Reconstruction} (BeamASR) algorithm
+(Section~\ref{sec:beam-ancestor});
+the \emph{Variational Ancestral Reconstruction} (VarAnc) algorithm
+that operates on a fixed MSA with known gap structure
+(Section~\ref{sec:varanc});
+and its stochastic-variational training extension
+\emph{svi-VarAnc} (Section~\ref{sec:svi-varanc}).
+
+\subsection{Fast Statistical Alignment (FSA)}
+\label{sec:fsa}
+
+Given a set of sequences and a phylogenetic tree with branch-specific
+TKF91 or TKF92 pair HMMs, we construct a multiple sequence alignment
+using the \emph{sequence annealing} approach of \cite{BradleyEtAl2009},
+to which we refer the reader for a full description of the algorithm.
+
+Briefly, the method proceeds as follows.
+For each pair of sequences $(x,y)$ in a selected subset
+(either all $\binom{N}{2}$ pairs or an $O(N \log N)$ Erd\H{o}s--R\'enyi sample),
+we compute pairwise residue alignment posteriors $P(x_i \sim y_j)$
+by running the Forward-Backward algorithm on the pair HMM at an
+optimized evolutionary time $\hat{\tau}$.
+
+\paragraph{Per-pair time optimization (NR step).}
+The time $\hat{\tau}$ is found by Newton--Raphson optimization
+of the expected log-likelihood (the ``NR step''):
+\begin{align}
+\hat{\tau} &= \operatorname*{argmax}_\tau \;
+   \mathbb{E}_{P(\pi | x,y,\tau_0)} \bigl[ \log P(x,y,\pi \mid \tau) \bigr]
+\label{eq:fsa-nr}
+\end{align}
+where $\pi$ ranges over alignment paths and $\tau_0$ is an initial
+estimate.  This expectation is computed from Forward--Backward expected
+counts at $\tau_0$, and---because the TKF92 expected log-likelihood is
+quadratic-like in $\tau$ in a neighbourhood of the maximum, with
+analytic derivatives via the BDI score identities of
+Section~\ref{sec:bdi}---the Newton iteration typically converges in
+3--5 steps.
+This time-maximisation differs from the original FSA approach of
+\cite{BradleyEtAl2009}, which attempts to optimize all model parameters
+via unregularized EM for every pair, and consequently must terminate
+the EM recursion early to avoid instability.  Restricting the optimization
+to the per-pair time $\tau$, while keeping the model parameters fixed
+at the population estimate, is both cheaper and more stable.
+
+\paragraph{Sequence annealing.}
+The pairwise posteriors are then assembled into a multiple alignment
+by the greedy sequence annealing procedure of \cite{BradleyEtAl2009},
+which iteratively merges alignment columns to maximize a sum-of-pairs
+posterior objective.
+
+\subsection{Beam Search Ancestral Sequence Reconstruction (BeamASR)}
+\label{sec:beam-ancestor}
+
+We now describe an alternative progressive reconstruction method
+that finds the maximum-likelihood ancestral sequence at each internal node
+by beam search, without materializing the full composite automaton.
+
+At each internal node $v$ with children $l,r$ and observed descendant sequences
+$c_l, c_r$, we seek
+\begin{align}
+\hat{a}_v &= \operatorname*{argmax}_{a} \bigl[ \log P(a, c_l \mid B_l) + \log P(a, c_r \mid B_r) - \log P(a \mid R) \bigr]
+\label{eq:beam-ancestor}
+\end{align}
+where $P(a, c_k \mid B_k)$ is the pair HMM forward probability on branch $k$
+and $P(a \mid R)$ is the singlet probability under the root generator,
+subtracted to avoid double-counting the prior on~$a$.
+
+\subsubsection{Incremental forward profiles}
+
+Since the branches are conditionally independent given the ancestor,
+we can evaluate~(\ref{eq:beam-ancestor}) by maintaining
+\emph{incremental forward profiles}: for each branch $k$, a 1D forward table
+$F_k[i, q]$ giving the log-probability that descendant positions $1,\ldots,i$
+have been emitted and the branch machine is in state $q$,
+given ancestor positions $1,\ldots,j$ processed so far.
+
+Each ancestor character extends both profiles independently in $O(L_k)$ time
+per branch, where $L_k = |c_k|$.
+
+\subsubsection{Beam search}
+
+The ancestor sequence $\hat{a}_v$ is built left-to-right by beam search.
+At each position $j$, the beam maintains $B$ candidate partial ancestors.
+For each candidate and each alphabet character $\sigma$:
+\begin{enumerate}
+\item Extend both branch profiles by one ancestor character $\sigma$,
+  comprising a \emph{match/delete phase} (the ancestor emits $\sigma$,
+  descendant positions advance via M or D transitions)
+  and an \emph{insertion phase} (descendant-only insertions following the
+  ancestor emission).
+\item Update the singlet forward score for $\sigma$.
+\item Score the extension:
+  $\Delta(j, \sigma) = \Delta F_{l} + \Delta F_{r} - \Delta_{\mathrm{singlet}}$.
+\end{enumerate}
+The top $B$ extensions (by cumulative score) are retained.
+Total cost per node is $O(K \cdot B \cdot A \cdot (L_l + L_r))$
+where $K = |\hat{a}_v|$ and $A$ is the alphabet size.
+
+\subsubsection{Insertion phase via associative scan}
+
+The insertion recurrence within each branch profile has the form
+\begin{align}
+x_{i+1} &= \operatorname{logsumexp}\bigl(A_{II} \, x_i,\; b_i\bigr) + e_i
+\label{eq:insert-recurrence}
+\end{align}
+where $A_{II}$ is the I-to-I log-transition submatrix, $b_i$ collects
+transitions into insertion states from M and D, and $e_i$ is the emission score.
+This is a log-semiring affine recurrence, parallelizable via
+an associative scan with operator
+\[
+(A_1, b_1) \oplus (A_2, b_2) = (A_2 \otimes A_1,\; \operatorname{logsumexp}(A_2 \, b_1,\; b_2))
+\]
+where $\otimes$ denotes log-semiring matrix multiplication.
+This reduces the insertion phase from $O(L)$ sequential depth to $O(\log L)$.
+
+\subsubsection{Supported model types}
+
+The beam search interface is generic over the pair HMM used on each branch.
+For the present (TKF) paper we specialize to:
+\begin{enumerate}
+\item \textbf{TKF91} --- order-0, 5-state pair HMM.
+\item \textbf{TKF92} --- order-0, 5-state pair HMM with fragment self-loops
+  (the standard model of Section~\ref{sec:tkf92-machines}).
+\end{enumerate}
+The same beam-search framework extends without algorithmic change to
+hierarchical TKF extensions in which each branch carries a
+larger latent-state pair HMM \cite{LargeHolmes2026}; we
+do not pursue that direction here.
+
+
+\subsection{Variational Ancestral Reconstruction (VarAnc)}
+\label{sec:varanc}
+
+Given an MSA with known gap structure---i.e., for each internal node
+$v$ and MSA column $c$, we know whether $v$ is present (ungapped) or
+absent (gapped)---but unknown ancestral residue identities, we
+optimize a variational lower bound (ELBO) on the marginal likelihood.
+Our approach is a ``product of trees'' structured variational
+approximation~\cite{JojicEtAl2004}.
+
+\subsubsection{Model structure}
+
+The joint distribution over observed leaf sequences $\mathbf{y}$
+and ancestral sequences $\mathbf{a}$ factorises over tree edges.
+With the alignment structure fixed, the log-likelihood decomposes into
+contributions from consecutive alignment-column pairs along each edge $e = (u,v)$:
+\begin{align}
+\log P(\mathbf{y}, \mathbf{a})
+ &= \sum_{e \in \mathrm{edges}} \sum_{k=1}^{K_e}
+    \log w_e\!\bigl(\mathrm{type}_{k-1},\, \mathrm{type}_k,\, \mathrm{ctx}_{k-1},\, \mathrm{ctx}_k\bigr)
+\label{eq:lik-edges-tkf}
+\end{align}
+where $w_e$ is the TKF92 pair-HMM transition weight on edge $e$
+(depending on the previous and current column types and context characters,
+plus the branch length).
+The first and last columns contribute start ($\sta$) and end ($\fin$) transition factors.
+
+The key computational challenge is that even the order-0 TKF92 transitions
+couple adjacent alignment columns through the fragment-extension
+self-loops: the pair-HMM weight at column $c$ depends on the
+ancestral and descendant characters at both column $c$ and its predecessor.
+This makes the full graphical model a tree (phylogeny) $\times$ chain (sequence)
+grid with undirected cycles, and exact inference is intractable.
+
+\subsubsection{Product-of-trees variational distribution}
+
+Following~\cite{JojicEtAl2004}, we factorize the variational posterior
+over MSA columns while retaining the full tree joint at each column:
+\begin{align}
+q(\mathbf{a}) &= \prod_{c=1}^{L} q_c\!\bigl(\mathbf{h}_c\bigr)
+\label{eq:var-q-pot-tkf}
+\end{align}
+where $\mathbf{h}_c = \{a_{v,c} : v \in \mathrm{ungapped}(c)\}$ denotes the set of
+all ancestral characters at MSA column $c$,
+and each $q_c$ is a tree-structured distribution over the characters at the
+internal nodes that are ungapped at column $c$.
+Leaf characters are observed (clamped).
+
+This approximation decouples columns in $q$ but preserves the
+full parent-child correlation structure within each column.
+In particular, the pairwise joint marginal
+$q_c^{(u,v)}(a_u, a_v)$ on each tree edge is available exactly from
+the Felsenstein peeling/unpeeling pass used to represent $q_c$
+(Section~\ref{sec:felsenstein-update-tkf}).
+
+\subsubsection{Free energy and ELBO}
+
+The evidence lower bound is
+\begin{align}
+\mathcal{L}(q) &= \mathbb{E}_q\bigl[\log P(\mathbf{y}, \mathbf{a})\bigr] + H(q)
+  \;\geq\; \log P(\mathbf{y})
+\label{eq:elbo-tkf}
+\end{align}
+where $H(q) = -\sum_c \sum_{\mathbf{h}_c} q_c(\mathbf{h}_c) \log q_c(\mathbf{h}_c)$
+is the entropy of the product-of-trees distribution.
+Since each $q_c$ is tree-structured, its entropy decomposes as
+\begin{align}
+H(q_c) &= \sum_{v \in \mathrm{ungapped}(c)} H\!\bigl(q_c^{(v)}\bigr)
+  - \sum_{e = (u,v)} \mathrm{MI}_c(u, v)
+\label{eq:tree-entropy-tkf}
+\end{align}
+where $H(q_c^{(v)})$ is the marginal entropy at node $v$ and
+$\mathrm{MI}_c(u,v)$ is the mutual information between parent $u$ and child $v$
+at column $c$, both computable from the Felsenstein marginals.
+
+\subsubsection{Potentials from neighboring columns}
+
+The inter-column coupling enters through the TKF92 pair-HMM transitions.
+For each edge $e = (u,v)$ and MSA column $c$ where $e$ has an event of type $\tau_c$,
+let $c^-$ denote the predecessor column (the previous column where $e$ had an event)
+and $c^+$ the successor column.
+The \emph{potential} at column $c$ for edge $e$ receives two contributions:
+
+\paragraph{As-child term (from $c^-$).}
+The transition from column $c^-$ to $c$ on edge $e$ depends on the
+characters at both columns. Using the pairwise marginal from $q_{c^-}$:
+\begin{align}
+\log \phi_e^{\mathrm{child}}(a_{u,c}, a_{v,c})
+ &= \sum_{a', b'} q_{c^-}^{(u,v)}(a', b')\;
+    \log w_e(\tau_{c^-\!}, \tau_c, a', b', a_{u,c}, a_{v,c})
+\label{eq:pot-child-tkf}
+\end{align}
+where the sum over $(a', b')$ uses the \emph{joint} pairwise marginal
+$q_{c^-}^{(u,v)}(a', b')$---not the product of independent marginals.
+This is the key advantage over mean-field:
+the within-tree parent-child correlation at the predecessor column is
+preserved exactly.
+
+\paragraph{As-parent term (from $c^+$).}
+Symmetrically, column $c$ acts as the predecessor for column $c^+$:
+\begin{align}
+\log \phi_e^{\mathrm{parent}}(a_{u,c}, a_{v,c})
+ &= \sum_{a'', b''} q_{c^+}^{(u,v)}(a'', b'')\;
+    \log w_e(\tau_c, \tau_{c^+\!}, a_{u,c}, a_{v,c}, a'', b'')
+\label{eq:pot-parent-tkf}
+\end{align}
+
+For insert transitions (only the descendant is present at $c$),
+the potential reduces to a per-node function $\psi_v(a_{v,c})$.
+For delete transitions (only the ancestor is present), it becomes $\psi_u(a_{u,c})$.
+For match transitions, it contributes a per-edge potential $\phi_e(a_{u,c}, a_{v,c})$.
+The start and end transitions contribute analogous per-node or per-edge terms.
+
+\subsubsection{Felsenstein coordinate ascent}
+\label{sec:felsenstein-update-tkf}
+
+Each coordinate ascent step updates $q_c$ for a single MSA column $c$,
+holding all other columns fixed.
+We accumulate, for each edge $e$ and node $v$ in the tree at column $c$:
+\begin{itemize}
+\item Per-edge log-potentials
+  $\log \phi_e(a_u, a_v) = \log \phi_e^{\mathrm{child}} + \log \phi_e^{\mathrm{parent}}$
+  (for match transitions where both endpoints are present).
+\item Per-node log-potentials
+  $\log \psi_v(a_v)$ (from insert/delete transitions on incident edges,
+  plus the root prior $\log \pi(a)$ at the root node).
+\end{itemize}
+
+The optimal $q_c$, given the potentials, is the Gibbs distribution on the
+tree at column $c$:
+\begin{align}
+q_c(\mathbf{h}_c) &\propto \prod_v \psi_v(a_v) \prod_{e=(u,v)} \phi_e(a_u, a_v)
+  \prod_{\ell \in \mathrm{leaves}} \delta(a_\ell = y_\ell)
+\label{eq:q-gibbs-tkf}
+\end{align}
+
+Since this is a tree-structured MRF, the normalising constant and all
+node and edge marginals can be computed \emph{exactly} by Felsenstein
+peeling (postorder) and unpeeling (preorder) in $O(|E| \cdot |\alphabet|^2)$ time.
+
+\paragraph{Peeling (postorder).}
+For each node $v$ in postorder, compute the conditional likelihood:
+\begin{align}
+\mathrm{CL}_v(a) &= \psi_v(a) \prod_{\mathrm{children}\; c}
+  \Bigl[\sum_{a_c} \phi_{(v,c)}(a, a_c)\; \mathrm{CL}_c(a_c)\Bigr]
+\label{eq:peel-tkf}
+\end{align}
+with $\mathrm{CL}_\ell(a) = \delta(a = y_\ell)$ for observed leaves.
+The log-partition function is $\log Z_c = \log \sum_a \pi(a)\, \mathrm{CL}_{\mathrm{root}}(a)$.
+
+\paragraph{Unpeeling (preorder).}
+Propagate top-down to obtain the posterior marginal at each node:
+\begin{align}
+q_c^{(v)}(a) &\propto \mathrm{CL}_v(a) \cdot \mathrm{msg}_{\mathrm{parent} \to v}(a)
+\label{eq:unpeel-marginal-tkf}
+\end{align}
+and the pairwise marginal on each edge:
+\begin{align}
+q_c^{(u,v)}(a_u, a_v)
+ &\propto \mathrm{msg}_{\mathrm{above}\,u}(a_u) \cdot \phi_{(u,v)}(a_u, a_v) \cdot \mathrm{CL}_v(a_v)
+\label{eq:unpeel-pair-tkf}
+\end{align}
+where the ``message from above $u$'' combines the top-down message to $u$
+with $u$'s conditional likelihood excluding child $v$.
+
+\paragraph{Sweep.}
+One iteration sweeps through all MSA columns $c = 1, \ldots, L$:
+for each column, recompute the potentials from the current neighbor marginals,
+run peeling/unpeeling, and store the updated node and edge marginals.
+
+\subsubsection{Properties}
+
+The product-of-trees approximation enjoys the same monotonic convergence
+guarantee as mean-field coordinate ascent (each column update minimises
+the free energy in its coordinate), with the additional guarantee that
+the ELBO is at least as tight as the fully-factored mean-field bound.
+This follows because the product-of-trees family \emph{contains} the
+mean-field family as a special case (where each $q_c$ is itself fully factored).
+
+\paragraph{Computational cost.}
+The dominant cost per sweep is the potential computation:
+$O(|E| \cdot L \cdot |\alphabet|^4)$ for Match$\to$Match transitions
+(contracting the $(|\alphabet|, |\alphabet|)$ pairwise marginal against the
+$(|\alphabet|, |\alphabet|, |\alphabet|, |\alphabet|)$ pair-HMM tensor).
+The Felsenstein passes add $O(|E| \cdot L \cdot |\alphabet|^2)$, which is subdominant.
+
+
+\subsection{Stochastic Variational VarAnc (svi-VarAnc)}
+\label{sec:svi-varanc}
+
+The VarAnc algorithm of Section~\ref{sec:varanc} computes a variational
+posterior over ancestral residues for a \emph{fixed} TKF92 model
+$\theta$ on a \emph{single} fixed-MSA family.  We now extend it to a
+training algorithm that updates $\theta$ on a corpus of tree-structured
+MSAs.  The construction parallels SVI-BW
+(Section~\ref{sec:svi-bw}) but uses an MSA-conditioned VarAnc E-step
+in place of the per-pair Pair-HMM Forward--Backward.
+
+\paragraph{Outer EM.}
+The outer iteration is a stochastic-EM loop over MSAs.  At each
+iteration:
+\begin{enumerate}[nosep]
+\item Sample a minibatch of MSAs (with their phylogenetic trees,
+  obtained e.g.\ by FastTree).
+\item For each MSA, run a few sweeps of the VarAnc coordinate-ascent
+  algorithm of Section~\ref{sec:felsenstein-update-tkf} to refine
+  $q$.  This is the \emph{family-level E-step}.
+\item Read out, from the converged $q$ and the pairwise edge
+  marginals $q_c^{(u,v)}$, the expected sufficient statistics
+  $(B,D,L,M,S,T,F,E,W,U,V)$ for the TKF92 model:
+  \begin{itemize}[nosep]
+  \item Indel/fragment statistics $(B,D,L,M,S,T,F,E)$ are read
+    column-by-column from the per-edge expected event types
+    (match/insert/delete) implied by the gap structure, weighted
+    by the pairwise edge marginals.  These are the same TKF92
+    sufficient statistics defined in Section~\ref{sec:bw-tkf92}.
+  \item Substitution statistics $(W,U,V)$ are accumulated by
+    contracting the pairwise edge marginal $q_c^{(u,v)}(a_u,a_v)$
+    against the bridge expectations
+    $\emcount^W_i(a_u,a_v,t_e)$ and $\emcount^U_{ij}(a_u,a_v,t_e)$ at
+    each match column.
+  \end{itemize}
+\item Apply the SVI exponential moving average update
+  (equation~(\ref{eq:svi-update})) to the running sufficient
+  statistics, mixing the minibatch contribution with the prior
+  pseudocounts and the previous EMA estimate.
+\item Apply the closed-form M-steps of Section~\ref{sec:bw-tkf92}
+  (quadratic for $\insrate,\delrate$, ratio for $\ext$, GTR coordinate
+  ascent for $\exch,\eqm$).
+\end{enumerate}
+
+\paragraph{Comparison to SVI-BW.}
+The two algorithms differ in their E-step and converge to different
+fixed points:
+\begin{itemize}[nosep]
+\item SVI-BW (Section~\ref{sec:svi-bw}) treats each pair as
+  conditionally independent given the population indel/substitution
+  parameters, and sums over alignments with a 2D Pair-HMM
+  Forward--Backward.  It uses no tree information.
+\item svi-VarAnc takes a tree-structured MSA as input
+  (alignment fixed, gap structure fixed, ancestral residues
+  marginalised) and shares information across all branches in the
+  tree at each MSA column.
+\end{itemize}
+For pairwise data (a tree of two leaves), the two algorithms coincide.
+For deep trees with many siblings, svi-VarAnc tightens the indel-rate
+posterior considerably by coupling sibling pairs through the tree.
+ELBO monitoring, mini-batch construction, and warm-start
+initialisation from cherry-trained TKF92 parameters follow the SVI-BW
+recipe of Section~\ref{sec:svi-bw} verbatim, replacing the
+Pair-HMM Forward--Backward E-step with the family-level VarAnc
+sweep of Section~\ref{sec:felsenstein-update-tkf}.

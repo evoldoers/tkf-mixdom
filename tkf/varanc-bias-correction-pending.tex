@@ -1,0 +1,364 @@
+% !TEX root = tkf.tex
+% PARKING FILE — NOT \input from any paper driver.
+%
+% This file collects (a) the moment-mismatch summary subsection
+% originally drafted for frontmatter-tkf.tex sec:moment-mismatch,
+% and (b) the partial analytical derivation of the variational
+% bias factor beta. Both are parked here while we decide whether
+% to (i) push the analytical derivation, (ii) replace it with an
+% empirical bias-calibration table, or (iii) abandon the bias
+% correction for the paper.
+%
+% Empirical finding from diag_adam_convergence_vs_bias.py: the
+% variational bias plateaus at ~4% L1 (I->I 47x over-counted) by
+% Adam n_iter=300 and does NOT shrink with more iters. So Adam is
+% converging to a q that is not the TKF91 prior conditional, even
+% though the prior is in the parameterisable space — consistent
+% with the ELBO entropy term preferring a slightly more diffuse q
+% than the prior.
+%
+% TODO: diagnose whether the cumulant trick itself has a structural
+% bias even at q = exact truth posterior.
+
+\section{(Parked) Variational bias correction for svi-VarAnc on TKF91}
+\label{app:varanc-bias-correction-pending}
+
+\subsection{Moment mismatch: why a near-exact ELBO produces biased
+event counts}
+\label{sec:moment-mismatch-pending}
+
+A surprising empirical finding (Section~\ref{sec:results-svi-varanc})
+deserves theoretical attention: the variational ELBO can be within
+$\sim 0.04$ nats per column of the exact marginal $\log p(\text{MSA}
+\mid \text{params}, \text{tree})$, yet the same variational fit
+produces parameter-recovery bias of $+150\%$ to $+200\%$ on
+simulated TKF91 data.  We localise the discrepancy to a structural
+\emph{moment mismatch} between the column-factorised $q$ and the
+true posterior, then quantify it empirically and propose a
+correction recipe.
+
+\paragraph{Why ELBO matching does not imply count matching.}
+ELBO matching is a \emph{first-moment} property of $q$: $\elbo
+\approx \log p_{\text{marginal}}$ when $q_n[s] \approx
+P(z_n = s \mid \text{data})$ for each column.  But the M-step
+ingests the BP-cumulant tensor
+$W_q[s, s'] = \sum_{n_1 < n_2} q_{n_1}[s]\,e^{C_{n_2 - 1} - C_{n_1}}\,
+q_{n_2}[s']$, which depends on column-pair joint expectations, a
+\emph{second-moment} property of $q$.  Under the factorised $q$, the
+joint
+$\expect_q[\indicator{z_{n_1} = s, z_{n_2} = s'}] = q_{n_1}[s]\,
+q_{n_2}[s']$ is the product of marginals; under the truth, it is a
+correlated joint $P(z_{n_1} = s, z_{n_2} = s' \mid \text{data})$.
+The bias on $W$ is exactly the negative of the column-pair
+posterior covariance summed across pairs:
+\begin{equation}
+\label{eq:cumulant-bias-pending}
+W_q[s, s'] - W_p[s, s']
+= -\sum_{n_1 < n_2} \cov_p\!\bigl(\indicator{z_{n_1} = s},
+   \indicator{z_{n_2} = s'} \bigm| \text{data}\bigr) \cdot
+   e^{C_{n_2 - 1} - C_{n_1}}.
+\end{equation}
+For TKF91 with no chain extension, the truth's per-column latents
+are conditionally independent given the alignment, so the
+covariance term vanishes \emph{in principle}.  In practice it does
+not, because $q$'s marginals carry small errors $\delta_n[s] =
+q_n[s] - P(z_n = s \mid \text{data})$ that compound across pairs,
+producing a residual $O(L^2 \cdot \delta^2)$ bias.
+
+\paragraph{Empirical bias structure (TKF91 simulation).}
+Table~\ref{tab:moment-mismatch-bias-pending} compares oracle event counts
+(from the simulator's labelled chain) to BP-cumulant counts at
+truth parameters, summed across $n_{\text{fams}} = 30$ TKF91
+families on a 6-leaf caterpillar tree at root length $L = 240$.
+The total absolute bias $\sum |W_q - W_p|_1 = 2{,}943$ events out
+of $72{,}685$ truth events ($\approx 4\%$ relative).  Common
+transitions ($M \to M$, $S \to M$) match within $1.5\%$.  Bias is
+concentrated on rare WFST entries:
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+WFST transition & Oracle & BP cumulant & Inflation \\
+\midrule
+$M \to M$ (common) & 67{,}789 & 66{,}828 & $-1.4\%$ \\
+$M \to I$          & 1{,}044  & 1{,}376  & $+32\%$ \\
+$M \to D$          & 1{,}078  & 1{,}130  & $+5\%$ \\
+$I \to I$ (rare)   & 14       & 544      & $\mathbf{+3800\%}$ \\
+$D \to D$ (rare)   & 22       & 403      & $\mathbf{+1700\%}$ \\
+$I \to D$          & 18       & 104      & $+478\%$ \\
+$D \to E$          & 4        & 114      & $+2700\%$ \\
+\bottomrule
+\end{tabular}
+\caption{BP-cumulant vs oracle WFST transition counts on
+TKF91-simulated data ($\lambda = 0.04, \mu = 0.05, \ext = 0$,
+$L = 240$, $n_{\text{fams}} = 30$).  Common
+transitions match truth; rare transitions involving consecutive
+indels or boundary $E$ are inflated by factors of $5\times$ to
+$38\times$.  These spurious counts feed the M-step as if real,
+biasing the rate estimate upward and the chain-extension estimate
+away from zero.}
+\label{tab:moment-mismatch-bias-pending}
+\end{table}
+
+\paragraph{Predicting convergence vs divergence.}
+The EM map $f(\theta) = \text{MLE-from-counts}(W_q(\theta))$ has a
+biased fixed point $\theta_\infty$ whenever the spurious-count
+inflation saturates with rate.  Empirically the EM trajectory from
+the truth-init on the same TKF91 simulation shows:
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{rccc}
+\toprule
+Iter & $\lambda$ & $\mu$ & $\ext$ \\
+\midrule
+0 (truth init) & $0.040$ & $0.050$ & $0.000$ \\
+1               & $0.114$ & $0.116$ & $0.0001$ \\
+5               & $0.116$ & $0.118$ & $0.0004$ \\
+10              & $0.116$ & $0.117$ & $0.002$ \\
+20              & $0.112$ & $0.113$ & $0.015$ \\
+30              & $0.107$ & $0.108$ & $0.054$ \\
+\bottomrule
+\end{tabular}
+\caption{Tree-VBEM rate trajectory from truth init on TKF91
+simulation.  EM converges to a biased fixed point $\theta_\infty$
+within one EM iteration: $\lambda$ jumps from $0.040$ to
+$0.114$ ($\approx 2.85\times$), $\mu$ from $0.050$ to $0.116$
+($\approx 2.3\times$).  Late iterations show coupled drift: rates
+slowly decline while $\ext$ rises (the spurious $I\to I$, $D\to D$
+counts are absorbed by reinterpreting them as chain-extension
+events).  EM does \emph{not} diverge.}
+\label{tab:em-convergence-from-truth-pending}
+\end{table}
+
+The biased fixed-point bias factor is $\beta_\lambda \approx 2.85$,
+$\beta_\mu \approx 2.32$ — large but bounded.  This is consistent
+with the saturating-EM hypothesis: at high enough $\lambda, \mu$,
+the spurious counts no longer increase proportionally with the rate
+update, and EM finds a self-consistent biased point.
+
+\paragraph{A bias-correction recipe (sketch).}
+Given the empirical regularity of the bias factor $\beta$, we
+propose a two-step \emph{post-hoc rate-rescaling correction}:
+\begin{enumerate}[nosep]
+\item Run tree-VBEM to convergence at biased fixed point
+  $(\lambda_\infty, \mu_\infty, \ext_\infty)$.
+\item Apply correction $\hat\lambda = \lambda_\infty / \beta_\lambda$,
+  $\hat\mu = \mu_\infty / \beta_\mu$, $\hat\ext = \ext_\infty -
+  \Delta_\ext$, with $(\beta_\lambda, \beta_\mu, \Delta_\ext)$
+  estimated from a calibration simulation at parameter regimes
+  bracketing $\theta_\infty$.
+\end{enumerate}
+Equation~\eqref{eq:cumulant-bias-pending} suggests the analytical form for
+$\beta$: the bias factor depends on the column-pair posterior
+covariance structure under truth, which depends on the rates,
+branch lengths, tree topology, and the data's information content
+per column.  Closed-form $\beta(\theta, \tree, \text{data})$ is
+left to future work; the calibration approach in step~2 is
+sufficient for practical correction in the meantime.
+
+\subsection{Analytical bias factor for svi-VarAnc on TKF91 (partial)}
+\label{app:varanc-bias-derivation}
+
+This appendix derives, for TKF91 with extension $\ext = 0$, an
+analytical prediction of the bias factor $\beta = \theta_\infty /
+\theta_{\text{truth}}$ exhibited empirically in
+Table~\ref{tab:em-convergence-from-truth-pending}.  The derivation
+proceeds in five steps: (A) setup and notation, (B) per-pair
+cumulant bias formula in terms of the variational marginal
+residuals $\delta_n[e]$, (C) closed form for $\delta$ at ELBO
+stationarity under tied edge logits, (D) fixed-point equation for
+$\beta$ via the M-step Jacobian, (E) numerical check against the
+empirical 2.85 / 2.32 finding.  Sections C, D, E are not yet
+written; see top-of-file note for current status.
+
+\subsection{Setup and notation}
+\label{app:varanc-bias-setup}
+
+\paragraph{Tree, columns, latents.}
+Fix a binary tree $\tree$ with $E$ edges and $L$ MSA columns.
+Each column $n \in \{1, \dots, L\}$ has, at every edge $e$,
+a latent presence/absence variable $z_n^e \in \{0, 1\}$
+indicating whether the column is materialised at the parent node
+of edge $e$ (treating insertion of "not yet inserted", NYI, the
+same as absence at edge $e$ for the purposes of presence
+labelling; deletion-vs-NYI is then disambiguated by Felsenstein
+on the up-pass).  Write $\pres_n^e = z_n^e$ for brevity.  Leaves
+have $\pres_n^\ell$ clamped to the observed presence/absence
+$y_n^\ell \in \{0, 1\}$ in column $n$.
+
+\paragraph{Per-branch WFST states.}
+For each branch $e$, define the $5$-state WFST alphabet
+$\{S, M, I, D, E\}$ with semantics on the column at branch $e$:
+\begin{itemize}[nosep]
+\item $S$ (start, deterministic at column $0$);
+\item $M$: parent present, child present;
+\item $I$ (insertion): parent NYI / absent, child present;
+\item $D$ (deletion): parent present, child absent;
+\item $E$ (end, deterministic at column $L+1$).
+\end{itemize}
+The non-emitting "insertion-gap" state, denoted $\Ig$, captures
+columns where parent and child are both NYI or both deleted (i.e.\
+neither parent nor child contributes to the branch likelihood at
+this column).  The branch's WFST conditional log-transition
+matrix, $\log T_e[s, s']$, is determined by the TKF91 parameters
+$(\lambda, \mu, t_e)$ via the standard formulas.
+
+\paragraph{Variational $q$.}
+The variational distribution factorises across columns,
+$q(z_{1:L}) = \prod_n q_n(z_n)$, and within each column $q_n$ is
+a tree-structured posterior that uses per-edge logits
+$\eta_e \in \realset$ (\emph{tied} variant — independent of $n$)
+and clamps each leaf to its observed $y_n^\ell$.  The
+edge-marginal $q_n(z_n^e = 1) = \sigma(\eta_e)$ for internal
+edges; the joint $q_n$ is then determined by Belief Propagation
+on the tree with leaf clamps.  We write $\mathbf{q}_n[e][s] =
+q_n(\text{branch state at } e \text{ is } s)$ for the per-branch,
+per-column WFST-state probability under $q$, computed by
+combining the parent-marginal $q_n(z^{e,\text{par}})$ and
+child-marginal $q_n(z^{e,\text{ch}})$:
+\begin{equation}
+\mathbf{q}_n[e][M] = q_n(z^{e,\text{par}} = 1, z^{e,\text{ch}} = 1),
+\quad
+\mathbf{q}_n[e][I] = q_n(z^{e,\text{par}} = 0, z^{e,\text{ch}} = 1),
+\end{equation}
+\begin{equation}
+\mathbf{q}_n[e][D] = q_n(z^{e,\text{par}} = 1, z^{e,\text{ch}} = 0),
+\quad
+\mathbf{q}_n[e][\Ig] = q_n(z^{e,\text{par}} = 0, z^{e,\text{ch}} = 0).
+\end{equation}
+The truth posterior $\mathbf{p}^*_n[e][s]$ is defined identically
+but with respect to $P_{\text{truth}}(z_n^e \mid \text{data}_n)$
+instead of $q_n$; it is computable column-by-column by exact
+Felsenstein (since under TKF91 with $\ext = 0$ columns are
+conditionally independent given the leaf data).
+
+\paragraph{BP cumulant tensor.}
+For a single branch $e$, the variational expected-log-likelihood
+contribution is $\sum_{s, s'} \log T_e[s, s'] \cdot W_e^{(q)}[s, s']$
+where the cumulant tensor $W_e^{(q)} \in \realset^{5\times 5}$ is
+computed (see implementation in
+\texttt{varanc\_presence.py:expected\_branch\_LL}) as
+\begin{equation}
+\label{eq:W-cumulant}
+W_e^{(q)}[s, s']
+= \sum_{1 \leq M < N \leq L+1} \mathbf{q}_M[e][s] \cdot
+   \mathbf{q}_N[e][s'] \cdot G_q^{e}(M, N),
+\end{equation}
+with the "intervening-Ig" weight
+\begin{equation}
+G_q^{e}(M, N) = \prod_{k = M+1}^{N-1} \mathbf{q}_k[e][\Ig].
+\end{equation}
+The boundaries $\mathbf{q}_0[e][S] = \mathbf{q}_{L+1}[e][E] = 1$ are
+deterministic.  Equation~\eqref{eq:W-cumulant} aggregates over all
+column-pairs $(M, N)$ that could be \emph{adjacent} WFST events
+on branch $e$, with the $G$-factor accounting for intervening
+non-emitting columns.
+
+The same formula with $\mathbf{p}^*$ in place of $\mathbf{q}$ defines
+the truth-marginal cumulant $W_e^{*}[s, s']$.  Under truth, with
+$\ext = 0$ and column-conditional independence, $W_e^*[s, s']$
+equals the exact branch-$e$ expected count of $s \to s'$
+transitions given the leaf data.
+
+\paragraph{M-step.}
+The TKF91 M-step takes branch counts $W_e^{(q)}$ across all
+branches $e$ and produces an MLE $(\hat\lambda, \hat\mu)$.  Define
+the aggregated count tensor $\bar W^{(q)}[s, s'] = \sum_e
+W_e^{(q)}[s, s']$ (with appropriate per-branch time-weighting; see
+Section~\ref{sec:m-step-aggregation}).  The TKF91 MLE has the
+explicit form
+\begin{equation}
+\label{eq:tkf91-mle}
+\hat\lambda = \frac{\bar W[I,*] + \bar W[*,I]}{T_{\text{eff}}},
+\quad
+\hat\mu = \frac{\bar W[D,*] + \bar W[*,D]}{T_{\text{eff}}},
+\end{equation}
+where $\bar W[s, *] = \sum_{s'} \bar W[s, s']$ and $T_{\text{eff}}
+= \sum_e t_e \cdot N_e^{\text{cols}}$ is the total
+column-time-weighted branch length.  (The exact M-step uses
+expected fragment lengths, not just counts; we work with the
+simplified count form here for clarity, and note where the
+generalisation matters.)
+
+\subsection{Per-pair cumulant bias formula}
+\label{app:varanc-bias-formula}
+
+Define the per-column residuals
+\begin{equation}
+\delta_n[e][s] = \mathbf{q}_n[e][s] - \mathbf{p}^*_n[e][s],
+\quad
+s \in \{M, I, D, \Ig\}.
+\end{equation}
+Substitute $\mathbf{q} = \mathbf{p}^* + \delta$ into
+\eqref{eq:W-cumulant} and expand:
+\begin{equation}
+\mathbf{q}_M[e][s] \mathbf{q}_N[e][s'] G_q^e(M, N)
+= (\mathbf{p}^*_M[e][s] + \delta_M[e][s])
+   (\mathbf{p}^*_N[e][s'] + \delta_N[e][s'])
+   \prod_{k=M+1}^{N-1} (\mathbf{p}^*_k[e][\Ig] + \delta_k[e][\Ig]).
+\end{equation}
+Linearise the product:
+\begin{equation}
+\prod_k (\mathbf{p}^*_k[e][\Ig] + \delta_k[e][\Ig])
+= G_*^e(M, N) \prod_k \!\left(1 + \frac{\delta_k[e][\Ig]}
+                                       {\mathbf{p}^*_k[e][\Ig]}\right)
+\approx G_*^e(M, N) \!\left(1 + \sum_{k=M+1}^{N-1}
+                              \frac{\delta_k[e][\Ig]}
+                                   {\mathbf{p}^*_k[e][\Ig]}\right),
+\end{equation}
+valid to first order in $\delta$.  Substituting and dropping
+$O(\delta^2)$ terms gives the leading-order bias
+\begin{equation}
+\label{eq:bias-leading}
+\boxed{
+B_e[s, s'] = W_e^{(q)}[s, s'] - W_e^{*}[s, s']
+\;\approx\;
+B_e^{\text{a}}[s, s'] + B_e^{\text{b}}[s, s'] +
+B_e^{\text{Ig}}[s, s'],
+}
+\end{equation}
+with the three contributions
+\begin{align}
+B_e^{\text{a}}[s, s'] &=
+\sum_{M < N} \delta_M[e][s] \cdot \mathbf{p}^*_N[e][s'] \cdot G_*^e(M, N),
+\\
+B_e^{\text{b}}[s, s'] &=
+\sum_{M < N} \mathbf{p}^*_M[e][s] \cdot \delta_N[e][s'] \cdot G_*^e(M, N),
+\\
+B_e^{\text{Ig}}[s, s'] &=
+\sum_{M < N} \mathbf{p}^*_M[e][s] \mathbf{p}^*_N[e][s']
+\sum_{k=M+1}^{N-1}
+\frac{\delta_k[e][\Ig]}{\mathbf{p}^*_k[e][\Ig]} G_*^e(M, N).
+\end{align}
+
+\paragraph{Interpretation.}
+The first two terms, $B^{\text{a}}$ and $B^{\text{b}}$, are
+\emph{endpoint biases} — the residual $\delta$ at the start or
+end of a transition pair gets weighted by the corresponding
+truth-side endpoint marginal and propagated through the
+intervening-Ig truth-side product.  The third term,
+$B^{\text{Ig}}$, is an \emph{interior bias} from $\delta$ on the
+intervening non-emitting columns.
+
+\paragraph{Symmetry observation.}
+If the residuals $\delta_n$ have zero mean across columns (a
+property we verify in Appendix~\ref{app:varanc-bias-residual} for
+the tied-logit q at ELBO stationarity), then the endpoint biases
+$B^{\text{a}}$ and $B^{\text{b}}$ vanish to leading order
+\emph{when summed over all column pairs} (the inner sum becomes
+a product of $\sum_M \delta_M[e][s]$ and a $p^*$ term, both with
+zero mean).  However, the interior term $B^{\text{Ig}}$ does
+\emph{not} vanish: even if $\sum_n \delta_n = 0$, the interior
+sum $\sum_{k=M+1}^{N-1} \delta_k$ is not zero except in
+expectation; its variance accumulates over column pairs.
+
+\paragraph{Summed bias structure.}
+Summing $B_e[s, s']$ over all branches gives the aggregated
+count bias $\bar B[s, s'] = \sum_e B_e[s, s']$.  This in turn
+propagates through the M-step Jacobian to bias
+$(\hat\lambda - \lambda_*, \hat\mu - \mu_*)$.  We complete this
+chain in Section~\ref{app:varanc-bias-fixed-point}.
+
+% Sections C, D, E to be written next.

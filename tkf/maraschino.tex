@@ -1,0 +1,587 @@
+\section{Maraschino Cherries: Distilled Pairwise Alignments}
+\label{sec:maraschino}
+
+``Cherries'' are pairwise training examples chosen, in place of full phylogenetically-annotated multiple sequence alignments,
+as a composite likelihood approximation to the full phylogenetic likelihood \cite{Prillo2022CherryML}.
+
+``Maraschino Cherries'' are order-1 counts tensors that summarize the adjacency statistics of such pairwise alignments.
+MixDom's Maraschino Cherries generalize CherryML to include context-dependent substitution and indel patterns \cite{Prillo2022CherryML}.
+
+The Maraschino pipeline has two phases.
+First (Section~\ref{sec:maraschino-counts}), pairwise alignments are reduced to fixed-shape \emph{cherry-count} tensors that aggregate adjacency statistics binned by divergence time.
+Second (Section~\ref{sec:maraschino-fit}), the parameters of the MixDom Pair HMM (Section~\ref{sec:nestpairhmm}) are estimated by maximizing the cherry-count log-likelihood: a composite likelihood that scores each adjacency in each time bin under the latent-marginalized collapsed Pair HMM transition matrix $\transnest(\theta,\evoltime)$ derived in Section~\ref{sec:nestpairhmm}.
+After fitting, the MixDom model is then distilled to compact order-1 machines (an HMM and a WFST) suitable for use in tree algorithms (Sections~\ref{sec:order1hmm} and \ref{sec:order1trans}).
+
+\subsection{Cherry-count summary statistics}
+\label{sec:maraschino-counts}
+
+The input to the Maraschino fitter is a precomputed tensor of pairwise
+adjacency counts. For each multiple sequence alignment, sibling pairs are
+extracted, gapped columns dropped, and the resulting pairwise alignment
+classified into \emph{adjacency contexts}: for every pair of consecutive
+non-empty alignment columns, we record the source column type
+($\sta$, $\mat$, $\ins$, $\del$), the destination column type
+($\mat$, $\ins$, $\del$, $\fin$), and the ancestor/descendant
+characters in each.
+
+The pairwise $p$-distance of each cherry is converted to an estimated
+divergence time $\evoltime$, and $\evoltime$ is discretized into
+$n_\tau$ geometric bins $\{\evoltime_1,\ldots,\evoltime_{n_\tau}\}$ with
+representative bin centres $\bar\evoltime_b$.
+Counts are accumulated per bin into the following tensors over the
+amino-acid alphabet $\alphabet$ ($|\alphabet|=20$), with extended
+vocabulary $\alphabet \cup \{\sta, \fin\}$ for boundary positions:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\textbf{Tensor} & \textbf{Shape} & \textbf{Meaning} \\
+\hline
+$B$ & $n_\tau \times (|\alphabet|+2)^2$
+& Singlet bigrams (incl.\ $\sta$/$\fin$) \\
+$C^{\mat\mat}$ & $n_\tau \times |\alphabet|^4$
+& Match$\to$Match: $(\anctok,\destok,\anctok',\destok')$ \\
+$C^{\mat\ins}$ & $n_\tau \times |\alphabet|^3$
+& Match$\to$Insert: $(\anctok,\destok,\destok')$ \\
+$C^{\mat\del}$ & $n_\tau \times |\alphabet|^3$
+& Match$\to$Delete: $(\anctok,\destok,\anctok')$ \\
+$C^{\ins\mat}$ & $n_\tau \times |\alphabet|^3$
+& Insert$\to$Match: $(\destok,\anctok',\destok')$ \\
+$C^{\ins\ins}$ & $n_\tau \times |\alphabet|^2$
+& Insert$\to$Insert: $(\destok,\destok')$ \\
+$C^{\ins\del}$ & $n_\tau \times |\alphabet|^2$
+& Insert$\to$Delete: $(\destok,\anctok')$ \\
+$C^{\del\mat}$ & $n_\tau \times |\alphabet|^3$
+& Delete$\to$Match: $(\anctok,\anctok',\destok')$ \\
+$C^{\del\del}$ & $n_\tau \times |\alphabet|^2$
+& Delete$\to$Delete: $(\anctok,\anctok')$ \\
+$C^{\del\ins}$ & $n_\tau \times |\alphabet|^2$
+& Delete$\to$Insert: $(\anctok,\destok')$ \\
+$C^{\sta\mat}$ & $n_\tau \times |\alphabet|^2$
+& Start$\to$Match: $(\anctok',\destok')$ \\
+$C^{\sta\ins}$ & $n_\tau \times |\alphabet|$
+& Start$\to$Insert: $(\destok')$ \\
+$C^{\sta\del}$ & $n_\tau \times |\alphabet|$
+& Start$\to$Delete: $(\anctok')$ \\
+$C^{\mat\fin}$ & $n_\tau \times |\alphabet|^2$
+& Match$\to$End: $(\anctok,\destok)$ \\
+$C^{\ins\fin}$ & $n_\tau \times |\alphabet|$
+& Insert$\to$End: $(\destok)$ \\
+$C^{\del\fin}$ & $n_\tau \times |\alphabet|$
+& Delete$\to$End: $(\anctok)$ \\
+$C^{\sta\fin}$ & $n_\tau$
+& Start$\to$End (empty alignment) \\
+\hline
+\end{tabular}
+\end{center}
+
+The post-Insert and post-Delete tensors carry only the adjacent emitted
+character ($\destok$ for inserts, $\anctok$ for deletes) as context,
+not the previous match's full $(\anctok,\destok)$ context: the model
+will marginalise its context-rich frequencies down to this reduced
+context when computing the likelihood. The Match-to-Match
+tensor $C^{\mat\mat}$ is the largest and dominates the parameter
+budget. Boundary tensors record alignments that begin or end
+in a particular adjacency type.
+
+\subsection{Cherry-count likelihood for the MixDom Pair HMM}
+\label{sec:maraschino-fit}
+
+The cherry-count tensors of Section~\ref{sec:maraschino-counts} are
+scored against the collapsed MixDom Pair HMM
+$\transnest(\theta,\evoltime)$ defined by
+equation~(\ref{eq:mixdom_transitions}) of Section~\ref{sec:nestpairhmm}.
+The free parameters are
+\[
+\theta = \big(\insrate_\main, \delrate_\main,\
+\{\insrate_\dom, \delrate_\dom\}_{\dom=1}^{\ndom},\
+\{\domdist_\dom\}_{\dom=1}^{\ndom},\
+\{\fragdist_{\dom\frag}\}_{\dom,\frag},\
+\{\ext^{(\dom)}_{\srcfrag\destfrag}\}_{\dom,\srcfrag,\destfrag},\
+\{\classdist_{\dom\frag\class}\}_{\dom,\frag,\class},\
+\{\eqm^{(\class)}, \exch^{(\class)}\}_{\class=1}^{\nclasses}\big),
+\]
+parameterised in unconstrained space (log-rates, log-Dirichlet
+weights, log-exchangeabilities) so that gradient methods are
+unconstrained. Note in particular:
+\begin{itemize}[nosep]
+\item $\fragdist_{\dom\frag}$ is the per-domain Dirichlet over fragment
+  entry types (initial state of the intra-fragment Markov chain).
+\item $\ext^{(\dom)}_{\srcfrag\destfrag}$ is a per-domain
+  $\nfrag \times \nfrag$ row-stochastic matrix (with row sums $\leq 1$)
+  giving the intra-fragment Markov transition probability from
+  fragment-type $\srcfrag$ to fragment-type $\destfrag$ within the
+  same fragment; the residual mass
+  $\notext^{(\dom)}_\srcfrag = 1 - \sum_\destfrag \ext^{(\dom)}_{\srcfrag\destfrag}$
+  is the fragment-termination probability. The TKF92 scalar
+  self-extension is the special case $\nfrag=1$, with
+  $\ext^{(\dom)}_{11}$ playing the role of the TKF92 extension
+  probability (the M-step closed forms for both reduce to a single
+  binary count split per row of $\ext^{(\dom)}$).
+\item $\classdist_{\dom\frag\class}$ is a per-(domain, fragment-type)
+  Dirichlet over $\nclasses$ \emph{static} site classes (drawn
+  independently per emitted site, with no chain-time class switching).
+\item Each site class $\class$ has its own reversible substitution
+  model $\subproc(\exch^{(\class)}, \eqm^{(\class)})$ with rate matrix
+  $\revsub^{(\class)} = \exch^{(\class)}\,\diag(\eqm^{(\class)})$.
+  All rate variation across sites is captured by these per-class GTR
+  matrices; there is no separate Yang-style discretized-gamma
+  rate-multiplier mechanism.
+\end{itemize}
+
+\paragraph{Pair adjacency frequencies.}
+For each $\evoltime$-bin centre $\bar\evoltime_b$, the collapsed
+$(5\ndom\nfrag+2)$-state Pair HMM transition matrix
+$\transnest^{(b)} \equiv \transnest(\theta,\bar\evoltime_b)$
+is constructed via the closed form of
+equation~(\ref{eq:mixdom_transitions}). The marginal stationary
+distribution $\pi^{\text{stat}}_b$ over emitting states is obtained as the
+left null vector of $I - \transnest^{(b)}_{\emit\emit}$, where
+$\emit$ denotes the set of $5\ndom\nfrag$ emitting states.
+
+For source machine state $u \in \{\sta, \mat, \ins, \del\}$,
+destination machine state $v \in \{\mat, \ins, \del, \fin\}$,
+and characters $(\anctok, \destok, \anctok', \destok')$ in their
+respective slots, the \emph{model-side adjacency frequency}
+\[
+F^{uv}_b(\anctok,\destok;\anctok',\destok')
+=
+\sum_{\substack{s \in \emit^{u} \\ s' \in \emit^{v}}}
+\big(\pi^{\text{stat}}_{b,s}\big)
+\,\emprob_s(\anctok,\destok)
+\,\transnest^{(b)}_{s s'}
+\,\emprob_{s'}(\anctok',\destok')
+\]
+sums over latent (domain, fragment-type) realisations of source
+and destination collapsed states $s,s'$, weighting by their
+stationary probability and emission probabilities.
+The emission probability of a Match state $\mat\mat_{\dom\frag}$
+emitting $(\anctok,\destok)$ marginalises the static site-class mixture:
+\begin{equation}
+\emprob_{\mat\mat_{\dom\frag}}(\anctok,\destok)
+= \sum_{\class=1}^{\nclasses}
+\classdist_{\dom\frag\class}\,
+\eqm^{(\class)}_\anctok
+\exp(\revsub^{(\class)} \evoltime)_{\anctok\destok},
+\label{eq:maraschino-match-emprob}
+\end{equation}
+and emission probabilities for $\mat\ins, \ins\ins, \mat\del, \del\del$
+analogously marginalise the same class mixture but emit only one of
+$(\anctok, \destok)$:
+\[
+\emprob_{\ins\ins_{\dom\frag}}(\destok)
+=\emprob_{\mat\ins_{\dom\frag}}(\destok)
+= \sum_\class \classdist_{\dom\frag\class}\,
+\eqm^{(\class)}_\destok,
+\quad
+\emprob_{\del\del_{\dom\frag}}(\anctok)
+=\emprob_{\mat\del_{\dom\frag}}(\anctok)
+= \sum_\class \classdist_{\dom\frag\class}\,
+\eqm^{(\class)}_\anctok.
+\]
+Boundary frequencies $F^{\sta v}_b$, $F^{u\fin}_b$,
+$F^{\sta\fin}_b$ replace the corresponding endpoint factor with the
+$\sta$ row or $\fin$ column of $\transnest^{(b)}$.
+The reduced-context frequencies needed by post-Insert and post-Delete
+counts are obtained by marginalisation:
+\[
+F^{\ins v}_b(\destok;\cdot) = \sum_{\anctok} F^{\ins v}_b(\anctok,\destok;\cdot),
+\qquad
+F^{\del v}_b(\anctok;\cdot) = \sum_{\destok} F^{\del v}_b(\anctok,\destok;\cdot).
+\]
+For each context $(u; \anctok,\destok)$ at bin $b$, the row
+normalisation constant is
+\[
+Z^{u}_b(\anctok,\destok)
+= \sum_{v} \sum_{\anctok',\destok'} F^{uv}_b(\anctok,\destok;\anctok',\destok'),
+\]
+where the inner sum runs over the characters carried by the destination
+adjacency type, and the post-Insert/post-Delete normalisations use the
+reduced-context frequencies above.
+
+\paragraph{Cherry-count log-likelihood.}
+The composite log-likelihood that the Maraschino fitter maximises is
+\begin{align}
+\mathcal{L}_{\text{cherry}}(\theta)
+&= \mathcal{L}_{\text{singlet}}(\theta) + \sum_{b=1}^{n_\tau}
+   \mathcal{L}_{\text{pair},b}(\theta), \\
+\mathcal{L}_{\text{singlet}}(\theta)
+&= \sum_{X,Y \in \alphabet \cup \{\sta,\fin\}}
+   \Big(\textstyle\sum_b B^{(b)}_{XY}\Big)\,
+   \log P^{\text{singlet}}_{XY}(\theta), \\
+\mathcal{L}_{\text{pair},b}(\theta)
+&= \sum_{u,v}\,
+   \sum_{\anctok,\destok,\anctok',\destok'}
+   C^{uv,(b)}_{\anctok\destok\,\anctok'\destok'}\,
+   \log\!\bigg(\frac{F^{uv}_b(\anctok,\destok;\anctok',\destok')}
+                       {Z^{u}_b(\anctok,\destok)}\bigg).
+\label{eq:maraschino-pair-ll}
+\end{align}
+Here $P^{\text{singlet}}$ is the order-1 transition matrix obtained
+from the MixDom Singlet HMM by row-normalising its adjacency frequencies
+(Section~\ref{sec:order1hmm}); the singlet term scores the bigram
+counts $B$ summed over time bins, since the singlet model is
+time-independent. The pair term scores each per-bin adjacency tensor
+under its own row-normalised conditional distribution.
+
+\paragraph{Optimisation.}
+$\mathcal{L}_{\text{cherry}}(\theta)$ is differentiable in
+$\theta$. The maximisation is carried out by
+gradient methods (Adam, optionally L-BFGS for refinement) on the
+unconstrained parameterisation, using the same MixDom initialiser as
+the exact Baum--Welch trainer (including the same flags for the number
+of site classes, the class-equilibrium initialisation, and the
+fragment-class assignment), so the two fitters can be started from
+identical parameters and compared directly. Because the M-step of the
+exact-EM trainer is closed-form and Maraschino's gradient optimiser
+is not, this provides a controlled comparison of cherry-count fitting
+against full Baum--Welch on the same data and architecture.
+
+The fitted MixDom parameters are written to a checkpoint with the
+same key layout as a \texttt{train\_pfam}-produced checkpoint, so that
+either trainer's output can be loaded and refined by the other and
+either can be used as input to the order-1 distillation
+(Sections~\ref{sec:order1hmm} and \ref{sec:order1trans}).
+
+\subsection{Distillation From MixDom To Order-1 Machines}
+\label{sec:distillation-levels}
+
+The MixDom HMMs defined above have large structured state spaces
+(domains $\times$ fragments).
+We now show how to distill these into compact \emph{order-1} machines---an HMM and a transducer---whose
+transition probabilities depend only on the most recently emitted characters.
+These machines are approximations of the full MixDom model.
+The MixDom model parameters are assumed to have been trained, e.g.\ via Baum-Welch or via Maraschino cherry-count fitting (Section~\ref{sec:maraschino-fit}); see also \cite{LargeHolmes2026}.
+
+The distillation operates on the alphabet $|\alphabet|$
+(with the per-(domain, fragment-type) site-class mixture marginalised
+implicitly inside the match emission tensors of
+equation~(\ref{eq:maraschino-match-emprob})).
+The Woodbury structural weights depend only on indel parameters;
+the per-(class) emission tensors
+$\eqm^{(\class)}_\anctok \exp(\revsub^{(\class)} \evoltime)_{\anctok\destok}$,
+weighted by $\classdist_{\dom\frag\class}$, are contracted with those
+weights to produce the order-1 transition probabilities.
+
+Let $|\alphabet|$ denote the alphabet size and $\circ$ denote a distinguished
+beginning-of-sequence (BOS) symbol.
+
+\subsection{Notation for path marginalizations}
+
+Both distillations require marginalizing over null (non-emitting) states
+between consecutive emissions.
+We introduce a compact notation for the expected frequency of partially observed paths.
+
+In any HMM or transducer with states partitioned into emitting states $\emit$
+and non-emitting (null) states $\silent$,
+define the \emph{null closure}
+\[
+\nullcl \equiv (I - T_{\silent\silent})^{-1}
+\]
+where $T_{\silent\silent}$ is the submatrix of transitions among null states.
+The effective transition matrix from emitting-or-start to emitting-or-end,
+marginalizing all intervening null paths, is
+\[
+\effT_{ij} = T_{ij} + \sum_{p,q \in \silent} T_{ip}\, \nullcl_{pq}\, T_{qj}
+\qquad i \in \emit \cup \{\sta\},\  j \in \emit \cup \{\fin\}
+\]
+
+For paths through the MixDom HMMs, we use the notation
+\[
+\pathE[\,\sta \to \underbrace{s_1}_{(\anctok_1,\destok_1)} \xrightarrow{\silent^\ast} \underbrace{s_2}_{(\anctok_2,\destok_2)} \to \cdots \to \fin\,]
+\]
+to denote the expected number of times the path visits the indicated sequence of emitting states
+(with indicated emissions in subscript)
+separated by zero or more null states (denoted $\silent^\ast$),
+summed over all completions of the path to the left ($\sta \to \cdots$) and right ($\cdots \to \fin$).
+Formally, if $\pi$ is the stationary distribution over states,
+\[
+\pathE[\, \underbrace{s_1}_{(\anctok_1,\destok_1)} \xrightarrow{\silent^\ast} \underbrace{s_2}_{(\anctok_2,\destok_2)} \,]
+= \sum_{s_1 \in \emit} \sum_{s_2 \in \emit}
+\left( \sum_{i} \pi_i \effT^\ast_{is_1} \right)
+\emprob_{s_1}(\anctok_1,\destok_1)\,
+\effT_{s_1 s_2}\,
+\emprob_{s_2}(\anctok_2,\destok_2)
+\left( \sum_{j} \effT^\ast_{s_2 j} \right)
+\]
+where $\emprob_s(\cdot)$ is the emission probability at state $s$
+and $\effT^\ast_{ij} = [(I - \effT_{\emit\emit})^{-1}]_{ij}$ (with $\effT_{\emit\emit}$ the submatrix of $\effT$ restricted to emitting states) sums over all paths through emitting states.
+
+
+\subsection{Distillation to Order-1 HMM}
+\label{sec:distill-hmm}
+
+\label{sec:order1hmm}
+
+The MixDom Singlet HMM generates sequences from the stationary distribution.
+We distill it into an order-1 HMM with states
+\[
+\{\sta, \fin\} \cup \{ \anctok : \anctok \in \alphabet \}
+\]
+where state $\anctok$ deterministically emits character $\anctok$.
+Define the adjacency frequency from the full MixDom Singlet HMM:
+\[
+f(\anctok,\destok) =
+\pathE[\,\underbrace{s_1}_{\anctok} \xrightarrow{\silent^\ast} \underbrace{s_2}_{\destok}\,]
+\]
+where the sum is over all emitting states $s_1,s_2$ weighted by emission probabilities
+$\emprob_{s_1}(\anctok)$ and $\emprob_{s_2}(\destok)$ as above. Each
+singlet emission probability $\emprob_{\ins_{\dom\frag}}(\anctok)
+= \sum_\class \classdist_{\dom\frag\class} \eqm^{(\class)}_\anctok$
+marginalises the per-(domain, fragment-type) class mixture.
+
+\paragraph{Parameterization.}
+The order-1 Singlet HMM transition probabilities are:
+\begin{align}
+P(\destok | \sta) &= \frac{\displaystyle\sum_{\destok'} f(\destok,\destok')}{\displaystyle\sum_{\anctok',\destok'} f(\anctok',\destok')}
+&& \mbox{(start $\to$ first emission)} \label{eq:hmm-start} \\
+P(\destok | \anctok) &= \frac{f(\anctok,\destok)}{\displaystyle\sum_{\destok'} f(\anctok,\destok')}
+&& \mbox{(emission $\to$ emission)} \label{eq:hmm-trans} \\
+P(\fin | \anctok) &= 1 - \sum_{\destok} P(\destok | \anctok)
+&& \mbox{(emission $\to$ end)} \label{eq:hmm-end}
+\end{align}
+That is: normalize each row of the adjacency matrix $f$ to obtain transition probabilities,
+allocating the residual probability mass to the end state.
+The start distribution~(\ref{eq:hmm-start}) is proportional to the column marginals of $f$.
+
+
+\subsection{Distillation to Order-1 WFST}
+
+\label{sec:order1trans}
+
+The MixDom Pair HMM describes the joint distribution over ancestor-descendant sequence pairs.
+We distill it into an order-1 transducer (a Mealy machine)
+whose state depends on the last inputted ancestor character
+and the last outputted descendant character.
+
+\paragraph{Machine states.}
+The transducer has seven machine states $\{\sta,\mat,\ins,\del,\waitm,\waitd,\fin\}$
+organized as a \emph{waiting machine}:
+\begin{itemize}
+\item \textbf{Non-waiting} (all outgoing transitions have $\varepsilon$ input):
+  $\sta$ (start), $\mat$ (just matched), $\ins$ (just inserted), $\del$ (just deleted)
+\item \textbf{Waiting} (all outgoing transitions consume input):
+  $\waitm$ (ready after $\mat$ or $\ins$), $\waitd$ (ready after $\del$)
+\item \textbf{Terminal}: $\fin$ (end)
+\end{itemize}
+
+The distinction $\waitm \neq \waitd$ is needed because outgoing transition weights differ:
+in the MixDom Pair HMM, the $\mat/\ins$ rows use $\beta$ while $\del$ rows use $\gamma$.
+
+\paragraph{Transitions.}
+For a state with last-input ancestor $X$ and last-output descendant $Y$
+(where $X,Y \in \alphabet \cup \{\circ\}$ and $\circ$ denotes BOS):
+
+\medskip
+\begin{tabular}{lllll}
+Source & Dest & Input & Output & Weight \\
+\hline
+$\sta$ & $\waitm$ & $\varepsilon$ & $\varepsilon$ & $p_{\sta\waitm}$ \\
+$\sta$ & $\ins$ & $\varepsilon$ & $\destok$ & $p_{\sta\ins}(Y,\destok)$ \\
+$\sta$ & $\fin$ & $\varepsilon$ & $\varepsilon$ & $p_{\sta\fin}$ \\
+\hline
+$\waitm$ & $\mat$ & $\anctok$ & $\destok$ & $p_{\waitm\mat}(X,Y,\anctok,\destok)$ \\
+$\waitm$ & $\del$ & $\anctok$ & $\varepsilon$ & $p_{\waitm\del}(X,Y,\anctok)$ \\
+\hline
+$\waitd$ & $\mat$ & $\anctok$ & $\destok$ & $p_{\waitd\mat}(X,Y,\anctok,\destok)$ \\
+$\waitd$ & $\del$ & $\anctok$ & $\varepsilon$ & $p_{\waitd\del}(X,Y,\anctok)$ \\
+\hline
+$\mat$ & $\waitm$ & $\varepsilon$ & $\varepsilon$ & $p_{\mat\waitm}$ \\
+$\mat$ & $\ins$ & $\varepsilon$ & $\destok$ & $p_{\mat\ins}(X,Y,\destok)$ \\
+$\mat$ & $\fin$ & $\varepsilon$ & $\varepsilon$ & $p_{\mat\fin}$ \\
+\hline
+$\ins$ & $\waitm$ & $\varepsilon$ & $\varepsilon$ & $p_{\ins\waitm}$ \\
+$\ins$ & $\ins$ & $\varepsilon$ & $\destok$ & $p_{\ins\ins}(X,Y,\destok)$ \\
+$\ins$ & $\fin$ & $\varepsilon$ & $\varepsilon$ & $p_{\ins\fin}$ \\
+\hline
+$\del$ & $\waitd$ & $\varepsilon$ & $\varepsilon$ & $p_{\del\waitd}$ \\
+$\del$ & $\ins$ & $\varepsilon$ & $\destok$ & $p_{\del\ins}(X,Y,\destok)$ \\
+$\del$ & $\fin$ & $\varepsilon$ & $\varepsilon$ & $p_{\del\fin}$
+\end{tabular}
+
+\medskip
+Note that $\waitm$ and $\waitd$ are \emph{not} associated with emissions;
+they serve only to enforce the waiting-machine property.
+Transitions from $\waitm$ and $\waitd$ always consume an ancestor input symbol;
+transitions from $\mat$, $\ins$, $\del$, and $\sta$ never do.
+
+\paragraph{Parameterization from the MixDom Pair HMM.}
+
+We need the expected frequency of transitions conditioned on
+(last ancestor input $X$, last descendant output $Y$, transition type, new symbols).
+The key subtlety: through insert states, the last ancestor symbol $X$ must be \emph{propagated}
+from the preceding match or delete, since inserts do not consume input.
+
+Using the path notation from above, we enumerate all adjacency types
+that arise in the MixDom Pair HMM.
+Write $\mat[X,Y]$ for a match state that inputs $X$ and outputs $Y$,
+$\ins[Y]$ for an insert that outputs $Y$,
+and $\del[X]$ for a delete that inputs $X$.
+The last-ancestor and last-descendant context is carried implicitly.
+
+\medskip
+\noindent
+\textbf{Adjacency frequencies.}
+The following table lists all adjacency types and their corresponding path marginalizations.
+In each case, the frequency is computed as a sum over MixDom Pair HMM states,
+with null states marginalized via $\nullcl$.
+Write $\circ$ for the boundary (start/end) context.
+
+\medskip
+\begin{tabular}{llll}
+Context & Adjacency & MixDom path & Frequency \\
+\hline
+\multicolumn{4}{l}{\emph{Start $\to$ Match:}} \\
+& $\sta \to \mat[X',Y']$ &
+$\sta \xrightarrow{\silent^\ast} \mat[X',Y']$ &
+$f^{\sta\mat}(X',Y')$ \\
+\multicolumn{4}{l}{\emph{Start $\to$ Insert:}} \\
+& $\sta \to \ins[Y']$ &
+$\sta \xrightarrow{\silent^\ast} \ins[Y']$ &
+$f^{\sta\ins}(Y')$ \\
+\multicolumn{4}{l}{\emph{Start $\to$ End (empty sequence):}} \\
+& $\sta \to \fin$ &
+$\sta \xrightarrow{\silent^\ast} \fin$ &
+$f^{\sta\fin}$ \\
+\hline
+\multicolumn{4}{l}{\emph{Match $\to$ Match (via null states only):}} \\
+& $\mat[X,Y] \to \mat[X',Y']$ &
+$\mat[X,Y] \xrightarrow{\silent^\ast} \mat[X',Y']$ &
+$f^{\mat\mat}(X,Y,X',Y')$ \\
+\multicolumn{4}{l}{\emph{Match $\to$ Insert:}} \\
+& $\mat[X,Y] \to \ins[Y']$ &
+$\mat[X,Y] \xrightarrow{\silent^\ast} \ins[Y']$ &
+$f^{\mat\ins}(X,Y,Y')$ \\
+\multicolumn{4}{l}{\emph{Match $\to$ Delete:}} \\
+& $\mat[X,Y] \to \del[X']$ &
+$\mat[X,Y] \xrightarrow{\silent^\ast} \del[X']$ &
+$f^{\mat\del}(X,Y,X')$ \\
+\multicolumn{4}{l}{\emph{Match $\to$ End:}} \\
+& $\mat[X,Y] \to \fin$ &
+$\mat[X,Y] \xrightarrow{\silent^\ast} \fin$ &
+$f^{\mat\fin}(X,Y)$ \\
+\hline
+\multicolumn{4}{l}{\emph{Insert $\to$ Insert (ancestor context $X$ propagated):}} \\
+& $\ins[Y] \to \ins[Y']$ &
+$\ins[Y] \xrightarrow{\silent^\ast} \ins[Y']$ &
+$f^{\ins\ins}(X,Y,Y')$ \\
+\multicolumn{4}{l}{\emph{Insert $\to$ Match (ancestor context $X$ propagated):}} \\
+& $\ins[Y] \to \mat[X',Y']$ &
+$\ins[Y] \xrightarrow{\silent^\ast} \mat[X',Y']$ &
+$f^{\ins\mat}(X,Y,X',Y')$ \\
+\multicolumn{4}{l}{\emph{Insert $\to$ Delete (ancestor context $X$ propagated):}} \\
+& $\ins[Y] \to \del[X']$ &
+$\ins[Y] \xrightarrow{\silent^\ast} \del[X']$ &
+$f^{\ins\del}(X,Y,X')$ \\
+\multicolumn{4}{l}{\emph{Insert $\to$ End (ancestor context $X$ propagated):}} \\
+& $\ins[Y] \to \fin$ &
+$\ins[Y] \xrightarrow{\silent^\ast} \fin$ &
+$f^{\ins\fin}(X,Y)$ \\
+\hline
+\multicolumn{4}{l}{\emph{Delete $\to$ Match (descendant context $Y$ propagated):}} \\
+& $\del[X] \to \mat[X',Y']$ &
+$\del[X] \xrightarrow{\silent^\ast} \mat[X',Y']$ &
+$f^{\del\mat}(X,Y,X',Y')$ \\
+\multicolumn{4}{l}{\emph{Delete $\to$ Delete (descendant context $Y$ propagated):}} \\
+& $\del[X] \to \del[X']$ &
+$\del[X] \xrightarrow{\silent^\ast} \del[X']$ &
+$f^{\del\del}(X,Y,X')$ \\
+\multicolumn{4}{l}{\emph{Delete $\to$ Insert (descendant context $Y$ propagated):}} \\
+& $\del[X] \to \ins[Y']$ &
+$\del[X] \xrightarrow{\silent^\ast} \ins[Y']$ &
+$f^{\del\ins}(X,Y,Y')$ \\
+\multicolumn{4}{l}{\emph{Delete $\to$ End (descendant context $Y$ propagated):}} \\
+& $\del[X] \to \fin$ &
+$\del[X] \xrightarrow{\silent^\ast} \fin$ &
+$f^{\del\fin}(X,Y)$
+\end{tabular}
+
+\medskip
+In all cases, the ancestor context $X$ is propagated through insert states
+(which do not consume input), and the descendant context $Y$ is propagated through delete states
+(which do not emit output).
+The notation $\xrightarrow{\silent^\ast}$ denotes zero or more transitions through null states,
+marginalized via the null closure $\nullcl$.
+
+\paragraph{Computing the frequencies.}
+Each frequency above is computed from the MixDom Pair HMM as follows.
+Let $\pi_s$ denote the stationary probability of state $s$
+and $\effT_{s_1 s_2}$ the null-marginalized effective transition.
+For the simplest case (direct adjacency):
+\[
+f^{\mat\del}(X,Y,X') = \sum_{s_1 \in \emit^{\mat}} \sum_{s_2 \in \emit^{\del}}
+\left(\sum_i \pi_i \effT^\ast_{i s_1}\right)
+\emprob_{s_1}(X,Y)\, \effT_{s_1 s_2}\, \emprob_{s_2}(X')
+\left(\sum_j \effT^\ast_{s_2 j}\right)
+\]
+Boundary frequencies use the start/end rows of $\effT$:
+\[
+f^{\sta\mat}(X',Y') = \sum_{s \in \emit^{\mat}}
+\effT_{\sta s}\, \emprob_s(X',Y')
+\left(\sum_j \effT^\ast_{s j}\right),
+\quad
+f^{\mat\fin}(X,Y) = \sum_{s \in \emit^{\mat}}
+\left(\sum_i \pi_i \effT^\ast_{i s}\right)
+\emprob_s(X,Y)\, \effT_{s\,\fin}
+\]
+(and analogously for $f^{\sta\ins}$, $f^{\sta\fin}$, $f^{\ins\fin}$, $f^{\del\fin}$).
+
+\paragraph{Normalization to transducer parameters.}
+Given the adjacency frequencies, the order-1 transducer weights are obtained by normalization.
+For each context $(X,Y)$ and source machine state, normalize outgoing weights to sum to 1:
+
+\medskip
+\noindent\emph{Start transitions} (context $\circ$):
+\begin{align*}
+p_{\sta\waitm} &= \frac{\sum_{X',Y'} f^{\sta\mat}(X',Y')}
+  {\sum_{X',Y'} f^{\sta\mat}(X',Y') + \sum_{Y'} f^{\sta\ins}(Y') + f^{\sta\fin}}, \quad
+p_{\sta\ins}(\destok) = \frac{f^{\sta\ins}(\destok)}
+  {\sum_{X',Y'} f^{\sta\mat}(X',Y') + \sum_{Y'} f^{\sta\ins}(Y') + f^{\sta\fin}}
+\end{align*}
+(and $p_{\sta\fin}$ uses the same denominator with numerator $f^{\sta\fin}$).
+
+\medskip
+\noindent\emph{Wait-after-match/insert transitions} (context $(X,Y)$, consuming input $\anctok$):
+\begin{align*}
+p_{\waitm\mat}(X,Y,\anctok,\destok) &= \frac{f^{\cdot\mat}(X,Y,\anctok,\destok)}
+  {\sum_{\anctok'}\left[\sum_{\destok'} f^{\cdot\mat}(X,Y,\anctok',\destok') + f^{\cdot\del}(X,Y,\anctok')\right]} \\
+p_{\waitm\del}(X,Y,\anctok) &= \frac{f^{\cdot\del}(X,Y,\anctok)}
+  {\sum_{\anctok'}\left[\sum_{\destok'} f^{\cdot\mat}(X,Y,\anctok',\destok') + f^{\cdot\del}(X,Y,\anctok')\right]}
+\end{align*}
+where $f^{\cdot\mat}(X,Y,\anctok,\destok) = f^{\mat\mat}(X,Y,\anctok,\destok) + f^{\ins\mat}(X,Y,\anctok,\destok)$
+and $f^{\cdot\del}(X,Y,\anctok) = f^{\mat\del}(X,Y,\anctok) + f^{\ins\del}(X,Y,\anctok)$,
+aggregating over both match and insert sources that share the $\waitm$ wait state.
+
+\medskip
+\noindent\emph{Wait-after-delete transitions} (context $(X,Y)$, consuming input $\anctok$):
+\begin{align*}
+p_{\waitd\mat}(X,Y,\anctok,\destok) &= \frac{f^{\del\mat}(X,Y,\anctok,\destok)}
+  {\sum_{\anctok'}\left[\sum_{\destok'} f^{\del\mat}(X,Y,\anctok',\destok') + f^{\del\del}(X,Y,\anctok')\right]} \\
+p_{\waitd\del}(X,Y,\anctok) &= \frac{f^{\del\del}(X,Y,\anctok)}
+  {\sum_{\anctok'}\left[\sum_{\destok'} f^{\del\mat}(X,Y,\anctok',\destok') + f^{\del\del}(X,Y,\anctok')\right]}
+\end{align*}
+
+\medskip
+\noindent\emph{Post-match transitions} (context $(X,Y)$, after matching with $\anctok,\destok$;
+new context becomes $(\anctok,\destok)$):
+\begin{align*}
+p_{\mat\waitm}(X,Y) &= \frac{\sum_{\anctok',\destok'} f^{\mat\mat}(X,Y,\anctok',\destok') + \sum_{\anctok'} f^{\mat\del}(X,Y,\anctok')}
+  {Z^{\mat}(X,Y)} \\
+p_{\mat\ins}(X,Y,\destok) &= \frac{f^{\mat\ins}(X,Y,\destok)}{Z^{\mat}(X,Y)}, \quad
+p_{\mat\fin}(X,Y) = \frac{f^{\mat\fin}(X,Y)}{Z^{\mat}(X,Y)}
+\end{align*}
+where $Z^{\mat}(X,Y) = \sum_{\anctok',\destok'} f^{\mat\mat}(X,Y,\anctok',\destok') + \sum_{\anctok'} f^{\mat\del}(X,Y,\anctok') + \sum_{\destok} f^{\mat\ins}(X,Y,\destok) + f^{\mat\fin}(X,Y)$.
+
+\medskip
+\noindent\emph{Post-insert transitions} are analogous, using $f^{\ins\cdot}$ frequencies with $Z^{\ins}(X,Y)$.
+
+\medskip
+\noindent\emph{Post-delete transitions} (context $(X,Y)$, after deleting $\anctok$;
+new context becomes $(\anctok,Y)$):
+\begin{align*}
+p_{\del\waitd}(X,Y) &= \frac{\sum_{\anctok'} f^{\del\del}(X,Y,\anctok') + \sum_{\anctok',\destok'} f^{\del\mat}(X,Y,\anctok',\destok')}
+  {Z^{\del}(X,Y)} \\
+p_{\del\ins}(X,Y,\destok) &= \frac{f^{\del\ins}(X,Y,\destok)}{Z^{\del}(X,Y)}, \quad
+p_{\del\fin}(X,Y) = \frac{f^{\del\fin}(X,Y)}{Z^{\del}(X,Y)}
+\end{align*}
+where $Z^{\del}(X,Y) = \sum_{\anctok'} f^{\del\del}(X,Y,\anctok') + \sum_{\anctok',\destok'} f^{\del\mat}(X,Y,\anctok',\destok') + \sum_{\destok} f^{\del\ins}(X,Y,\destok) + f^{\del\fin}(X,Y)$.

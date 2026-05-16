@@ -1,0 +1,99 @@
+
+\subsection{Progressive Viterbi reconstruction (ProgRec)}
+
+This algorithm is performed at each sibling pair to reconstruct the parent, in the usual manner of progressive alignment.
+It begins with the construction of the Triad Pair HMM giving the distribution of a node and its two children.
+
+The Pair HMM construction algorithm takes as input:
+\begin{enumerate}
+\item For each of two branches $e \in \{ 1, 2 \}$ leading to node $v$:
+  an \emph{order-1 WFST} $W_e$ specified by its transition weight tensor
+  \begin{equation}
+  w_e(s, \anctok, \destok, s', \anctok', \destok')
+  \label{eq:wfst-tensor}
+  \end{equation}
+  where $s, s' \in \smide$ are the 5-state pair HMM states,
+  $\anctok, \anctok' \in \alphabet \cup \{\epsilon\}$ are ancestor characters
+  (with $\epsilon$ denoting BOS/no-context),
+  and $\destok, \destok' \in \alphabet \cup \{\epsilon\}$ are descendant characters.
+  The tensor encodes the weight of transitioning from state $(s, \anctok, \destok)$
+  to $(s', \anctok', \destok')$.
+
+\item An \emph{order-1 singlet HMM} $R$ above the root, specified by
+  \begin{equation}
+  r(s, \anctok, s', \anctok')
+  \label{eq:singlet-tensor}
+  \end{equation}
+  where $s, s' \in \{\sta, \ins, \fin\}$ and $\anctok, \anctok' \in \alphabet \cup \{\epsilon\}$.
+\end{enumerate}
+
+The WFSTs and singlet HMM are decoupled from their construction method
+(algebraic distillation, numeric distillation, direct TKF92 parameterization, etc.).
+They may have been produced by the distillation procedures of
+Sections~\ref{sec:distill-hmm}--\ref{sec:order1trans},
+by parametric construction using a simpler model (e.g. TKF92),
+or by any other method that yields valid weight tensors.
+
+\paragraph{State semantics.}
+Each branch WFST state is a triple $(s, \anctok, \destok)$ where:
+\begin{itemize}
+\item $\mat$: consumes one ancestor character and emits one descendant character.
+  Updates both $\anctok \to \anctok'$ and $\destok \to \destok'$.
+\item $\ins$: emits one descendant character without consuming ancestor input.
+  Updates $\destok \to \destok'$; preserves $\anctok' = \anctok$.
+\item $\del$: consumes one ancestor character without emitting descendant output.
+  Updates $\anctok \to \anctok'$; preserves $\destok' = \destok$.
+\item $\sta$: start state (both contexts are $\epsilon$).
+\item $\fin$: end state.
+\end{itemize}
+The singlet HMM emits only on transitions into the $\ins$ states. As with the branch WFSTs, the emitted character is uniquely determined by the destination state.
+
+Let $I_e(s, \anctok, \destok, s', \anctok', \destok')$ be the indicator for whether the WFST transition
+$(s, \anctok, \destok) \to (s', \anctok', \destok')$ is allowed using the above state semantics.
+Let $I_s(s, \anctok, s', \anctok')$ be the corresponding indicator for whether the singlet transition
+$(s, \anctok) \to (s', \anctok')$ is allowed.
+
+\paragraph{Triad Pair HMM.}
+The Triad Pair HMM represents the composition of the singlet HMM with the intersection of the two WFSTs.
+It has states of the form $(s, \xstate_1, \xstate_2, \anctok, \destok_1, \destok_2)$
+where $s$ represents the singlet state,
+$\xstate_e$ represents the state of branch $e$'s WFST,
+$\anctok$ represents the ancestral context (the last-emitted ancestral character, or $\epsilon$ for BOS/no-context),
+$\destok_e$ represents the $e$-descendant context.
+
+Only some states are accessible:
+\begin{itemize}
+\item The allowed $(s, \xstate_1, \xstate_2)$ state combinations are $\{\sta\sta\sta, \sta\sta\ins, \sta\ins\sta, \sta\ins\ins, \ins\mat\mat, \ins\mat\ins, \ins\mat\del, \ins\del\mat, \ins\del\ins, \ins\del\del, \ins\ins\mat, \ins\ins\ins, \ins\ins\del, \fin\fin\fin\}$.
+\item The ancestral context cannot be empty ($\epsilon$) unless the branch state is one of $\sta\sta\sta$, $\sta\sta\ins$, $\sta\ins\sta$, $\sta\ins\ins$, or $\fin\fin\fin$.
+\item The 1-descendant context cannot be empty unless the branch state is one of $\sta\sta\sta$, $\sta\sta\ins$, $\ins\del\mat$, $\ins\del\del$, $\ins\del\ins$, or $\fin\fin\fin$.
+\item The 2-descendant context cannot be empty unless the branch state is one of $\sta\sta\sta$, $\sta\ins\sta$, $\ins\mat\del$, $\ins\del\del$, $\ins\ins\del$, or $\fin\fin\fin$.
+\end{itemize}
+
+\paragraph{State update ordering.}
+We impose an ordering on state updates to avoid double-counting insert paths.
+Let $\delta_e(s, \xstate_1, \xstate_2)$ be the indicator for whether a branch transducer changes state on entry into state $(s, \xstate_1, \xstate_2 \ldots)$.
+Let $\delta_0(s, \xstate_1, \xstate_2)$ be the indicator for whether the root singlet HMM changes state.
+\begin{eqnarray*}
+    \delta_0(s, \xstate_1, \xstate_2) & = & \delta(\xstate_1 \neq \ins) \delta(\xstate_2 \neq \ins) \\
+    \delta_1(s, \xstate_1, \xstate_2) & = & \delta(\xstate_2 \neq \ins) + \delta(\xstate_1 = \ins) \delta(\xstate_2 = \ins) \\
+    \delta_2(s, \xstate_1, \xstate_2) & = & \delta(\xstate_1 \neq \ins)
+\end{eqnarray*}
+
+The transition matrix of the Triad Pair HMM has the following form
+\[
+w_{12}(s, \xstate_1, \xstate_2, \anctok, \destok_1, \destok_2, s', \xstate_1', \xstate_2', \anctok', \destok_1', \destok_2')
+=
+\left( w_0(s, \anctok, s', \anctok') I_0(s, \anctok, s', \anctok') \right)^{\delta_0(s', \xstate_1', \xstate_2')}
+\delta(s = s', \anctok = \anctok')^{1 - \delta_0(s', \xstate_1', \xstate_2')}
+\prod_{e \in \{1,2\}}
+\left( w_e(\xstate_e, \anctok, \destok_e, \xstate_e', \anctok', \anctok', \destok_e') I_e(\xstate_e, \anctok, \destok_e, \xstate_e', \anctok', \anctok', \destok_e') \right)^{\delta_e(s', \xstate_1', \xstate_2')}
+\delta(\xstate_e = \xstate_e', \destok_e = \destok_e')^{1 - \delta_e(s', \xstate_1', \xstate_2')}
+\]
+
+\paragraph{Progressive reconstruction.}
+The Triad Pair HMM then can be used for Viterbi alignment of two siblings. The maximum likelihood parent sequence can be read off from the Viterbi state path.
+
+\paragraph{Profile-based reconstruction.}
+For the special case of models such as TKF91 and TKF92 where the indel and substitution processes are decoupled,
+the order-1 structure of the models reduces to a simpler product of context-independent transitions with state-associated emissions.
+In such cases we can maintain the ancestral profiles as position-specific weight matrices (PSWMs) instead of explicit sequences.

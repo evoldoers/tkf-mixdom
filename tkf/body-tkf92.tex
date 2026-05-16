@@ -1,0 +1,165 @@
+\section{The TKF92 Model}
+\label{sec:tkf92}
+
+In sequence-alignment terms, TKF92 is the classical fragment-based extension of TKF91 and induces gap behavior analogous to an affine gap penalty \cite{ThorneEtAl92}.
+Instead of each mortal link getting a single character from $\alphabet$, each link is associated with a fragment consisting of $\fraglen \geq 1$ characters from $\alphabet$, where $\fraglen \sim \geomdist(\ext)$.
+We write this as
+\[
+\seq'(\evoltime) \sim \tkffrags(\subproc(\exch,\eqm);\insrate,\delrate,\ext)
+\]
+where $\seq' \in (\alphabet^+)^\ast$ is a sequence of multi-character fragments.
+Specifically
+\[
+\tkffrags(\subproc(\exch,\eqm);\insrate,\delrate,\ext)
+\equiv
+\tkflinks(\fragproc(\subproc(\exch,\eqm);\ext);\insrate,\delrate)
+\]
+where $\fragproc(\model,\ext)$ denotes a tuple of $\fraglen$ i.i.d. random variables, each governed by $\model$,
+and $\fraglen$ is geometrically-distributed with parameter $\ext$
+\[
+\state \sim \fragproc(\model,\ext)\ \Leftrightarrow\
+\fraglen \sim \geomdist(\ext), \ \state = (x_1 \ldots x_\fraglen),\ x_\sumidx \sim\model
+\]
+The TKF92 model thus has the same BDI process as TKF91, but with a more complex substitution process that emits fragments instead of single characters.
+
+
+\subsection{Latent Information in TKF92}
+
+The mean length of an insertion in TKF92 is $1/(1-\ext)$, i.e. the expected fragment length.
+For deletions, things are slightly more complicated. Superficially,
+it looks like deletions are also fragments so they should have the same mean length.
+However, if we do not have knowledge of the fragment boundaries,
+but are conditioning just on the current sequence length,
+we have to weight this by the posterior probability that the subsequence being deleted does in fact constitute a single fragment.
+For a subsequence of length $k$, this posterior probability is proportional to
+$\left(\frac{\ext}{\ext + (1-\ext)\frac{\insrate}{\delrate}}\right)^{k-1}$
+(indels at the end of the sequence have a slightly different correction factor
+since they are more likely to constitute a fragment, but the $k$-dependence is the same).
+The rate of starting an insertion or deletion {\em at a particular site}
+is subject to a similar correction factor.
+
+This illustrates how the derivation of the WFST from the Pair HMM of such models becomes more complicated
+as the models carry greater amounts of latent information in their state space.
+%Ultimately, with models of greater complexity (such as the MixDom model of Section~\ref{sec:mixdom}),
+%it is no longer possible to do this in a simple way, and we must resort to different strategies
+%such as the systematic moment-matching approximations of Section~\ref{sec:order1hmm} and Section~\ref{sec:order1trans}.
+
+
+\subsection{Singlet HMM, Pair HMM, and WFST Representations}
+\label{sec:tkf92-machines}
+
+The TKF92 Singlet HMM, Pair HMM, and WFST have the same state spaces $\{\sta,\mat,\ins,\del,\fin\}$ as TKF91,
+but with transition probabilities modified to account for fragment extension.
+Within a link's fragment, each character beyond the first extends the fragment with probability $\ext$,
+so the fragment terminates with probability $1-\ext$.
+
+\paragraph{Singlet HMM (stationary distribution).}
+The total sequence length in TKF92 is a geometric sum of geometric fragment lengths.
+Since $N \sim \geomdist(\kappa)$ links and each fragment has length $\fraglen \sim \geomdist(\ext)$,
+the total length $L = \sum_{i=1}^N \fraglen_i$ is distributed as
+$P(L=0) = 1-\kappa$ and $P(L=\ell \mid L \geq 1) = (1-p)\,p^{\ell-1}$
+where $p = \ext + \kappa(1-\ext)$ is the effective continuation probability.
+The HMM emits no characters with probability $1-\kappa$, emits a first character with probability $\kappa$,
+and then continues with probability $p$ after each emitted character.
+This is equivalent to a zero-inflated geometric distribution with parameters $\kappa$ and $p$.
+
+\paragraph{Pair HMM (finite-time joint distribution).}
+Each emitting state has a fragment extension self-loop with probability $\ext$.
+On fragment termination (probability $1-\ext$), the TKF91 link-level transitions apply.
+The Pair HMM transition matrix is
+\[
+\tkftrans'(\insrate,\delrate,\evoltime,\ext) =
+\left(
+    \begin{array}{r|ccccc}
+    & \sta & \mat & \ins & \del & \fin \\
+    \hline
+    \sta & 0 & \tkftrans_{\sta\mat} & \tkftrans_{\sta\ins} & \tkftrans_{\sta\del} & \tkftrans_{\sta\fin} \\
+    \mat & 0 & \ext + (1-\ext)\tkftrans_{\mat\mat} & (1-\ext)\tkftrans_{\mat\ins} & (1-\ext)\tkftrans_{\mat\del} & (1-\ext)\tkftrans_{\mat\fin} \\
+    \ins & 0 & (1-\ext)\tkftrans_{\ins\mat} & \ext + (1-\ext)\tkftrans_{\ins\ins} & (1-\ext)\tkftrans_{\ins\del} & (1-\ext)\tkftrans_{\ins\fin} \\
+    \del & 0 & (1-\ext)\tkftrans_{\del\mat} & (1-\ext)\tkftrans_{\del\ins} & \ext + (1-\ext)\tkftrans_{\del\del} & (1-\ext)\tkftrans_{\del\fin} \\
+    \fin & 0 & 0 & 0 & 0 & 0
+    \end{array}
+\right)
+\]
+where $\tkftrans_{ab}(\insrate,\delrate,\evoltime)$ are the TKF91 Pair HMM transition probabilities.
+Each row sums to 1: for $a \in \{\mat,\ins,\del\}$,
+$\ext + (1-\ext)\sum_b \tkftrans_{ab} = \ext + (1-\ext) = 1$.
+
+\paragraph{WFST (finite-time conditional distribution).}
+Forming a WFST for TKF92 is complicated by the latent information associated with fragment boundaries. If those boundaries are known, one can construct a WFST that respects them exactly. If they are not known, one can still construct a plausible WFST that imputes them on the fly. This trick, however, ceases to be straightforward for more highly decorated descendants of TKF91.
+Alternatively, one can expose the fragment boundary information in the transducer alphabet, at the cost of reifying indivisibility of fragments over time.
+The choice between these approaches is non-obvious and presumably application-dependent.
+The explicit TKF92 WFST construction, obtained by dividing the Pair HMM by the Singlet HMM, is given in Appendix~\ref{sec:tkf92-wfst}.
+That construction requires a $6{\times}6$ state space ($\sta,\mat,\ins_0,\ins_1,\del,\fin$) rather than the $5{\times}5$ form one might naively borrow from TKF91, because the singlet's outgoing-emission weight differs between the start state ($\kappa$ for the first ancestor character) and any subsequent emit state ($p = \ext + (1{-}\ext)\kappa$), so the insert state must be split into a pre-immortal-link variant ($\ins_0$) and a post-immortal-link variant ($\ins_1$).
+The resulting WFST is conditionally normalised in the global sense: for any input ancestor sequence $x$, the total weight of all paths from $\sta$ to $\fin$ that read $x$ exactly equals $1$, summing over all alignments and descendant outputs.  Equivalently, $\text{Singlet}\circ\tkfwfst''=\tkftrans''$ is row-stochastic on the $6$-state space.  Local single-step row sums and per-state $\varepsilon$-closure normalisation hold for the $\sta,\mat,\ins_0,\del$ rows but not for the $\ins_1$ row, which is improper in isolation but accumulates the correct $\kappa/p$ factor whenever it is reached from a proper source state along an $\sta$-rooted path (Appendix~\ref{sec:wfst-row-sums}).
+\ifdefined\MIXDOMPAPER
+The same trade-off recurs for MixDom WFSTs in Section~\ref{sec:mixdom-wfst}, and is discussed more carefully in Appendix~\ref{sec:wfst-row-sums}.
+
+These issues are not unique to TKF92, but are a general feature of models with latent information that is not directly observable in the sequence data.
+They are dealt with at greater length in the section on MixDom WFSTs (Section~\ref{sec:mixdom-wfst}), where the same issues arise in a more complex setting.
+\else
+The same trade-off recurs for hierarchical TKF extensions whose latent state carries domain or fragment-class information \cite{LargeHolmes2026}, and is discussed more carefully in Appendix~\ref{sec:wfst-row-sums}.
+
+These issues are not unique to TKF92, but are a general feature of models with latent information that is not directly observable in the sequence data.
+\fi
+To state the general principle: as TKF91-derived models acquire additional latent decoration, that decoration must either be promoted to explicit symbols in the interface alphabet of the transducer construction, or integrated out, in which case the resulting transducer is only approximate.
+
+\subsection{Baum-Welch Algorithm for TKF92}
+\label{sec:bw-tkf92}
+
+The Baum-Welch algorithm for TKF92 is similar to that for TKF91, but we must now resolve the Pair HMM's
+self-looping transition counts onto their separate components (fragment extension vs.\ new link),
+and accumulate fragment-level sufficient statistics in addition to the substitution-level sufficient statistics.
+
+\paragraph{E-step.}
+Run Forward-Backward on the TKF92 Pair HMM.
+This yields expected transition counts $\hat{n}'_{ab}$.
+For $a \in \{\mat,\ins,\del\}$, the self-loop count $\hat{n}'_{aa}$ combines
+fragment extension (probability $\ext$) and new-link-same-state (probability $(1-\ext)\tkftrans_{aa}$).
+The expected number of fragment extensions from state $a$ is
+$\hat{n}'_{aa} \cdot \ext / (\ext + (1-\ext)\tkftrans_{aa})$
+and the expected number of new-link self-transitions is the remainder.
+Thus, we accumulate new expectations for the additional fragment-level sufficient statistics,
+$F$ the number of fragment extensions and $E$ the number of fragment ends,
+and then recover the TKF91 link-level counts by removing the fragment extensions
+\begin{eqnarray*}
+F_a & = & \frac{\hat{n}'_{aa} \cdot \ext}{\ext + (1-\ext)\tkftrans_{aa}},\ a \in \{\mat,\ins,\del\} \\
+F & = & \sum_{a \in \{\mat,\ins,\del\}} F_a \\
+E & = & \sum_{a \in \{\mat,\ins,\del\}} \sum_b \hat{n}'_{ab} - F \\
+\hat{n}_{ab} & = & \hat{n}'_{ab} - \delta_{ab} F_a
+\end{eqnarray*}
+We then proceed to accumulate $S, B, D, W, U, L, M, V$ as for TKF91.
+Note that $L$ counts \emph{links}, which are now fragments rather than simply residues:
+$L = \hat{n}_\kappa = \sum_{i} (\hat{n}_{i\mat} + \hat{n}_{i\del})$
+where $\hat{n}$ is the resolved (TKF91-level) count matrix.
+The character-level statistics $W,U,V$ are accumulated per character exactly as in TKF91, because fragment extension affects the indel process estimates but not the substitution process estimates.
+
+\paragraph{M-step.}
+This is identical to TKF91, except we also set $\ext \leftarrow F / (F + E)$.
+
+\subsection{Maraschino: Distilled Cherries}
+\label{sec:maraschino-intro}
+
+The TKF92 Baum-Welch algorithm, as with other instances of the Expectation Maximization algorithm,
+is most useful if there is hidden information that we need to marginalize during parameter estimation;
+e.g. an unknown alignment that needs to be summed over,
+\ifdefined\MIXDOMPAPER
+or (as in Section~\ref{sec:mixdom}) latent site or fragment classes that are not directly observed.
+\else
+or (as in mixture-of-TKF92 models, Section~\ref{sec:em-around-maraschino}) latent component-membership variables that are not directly observed.
+\fi
+
+For many applications, we can take the alignment data (and potentially site classes) as a given,
+and then a more efficient estimation strategy becomes available.
+This is the CherryML approach:
+a composite likelihood consisting of a product of alignments likelihoods for nearest-neighbor sibling pairs,
+a.k.a. ``cherries'' \cite{Prillo2022CherryML}.
+The CherryML developers observe that, given cherry branch lengths, the alignment substitution counts are sufficient to estimate substitution rates
+and can be performed efficiently using autograd, independently of data size except for a fast preprocessing step
+We observe that this can be generalized to TKF92 by including the alignment transition statistics
+i.e. the sixteen transition counts $n_{\xstate\to\ystate}$ where $\xstate\in\{\sta,\mat,\ins\,del\}$ and $\ystate\in\{\mat,\ins,\del,\fin\}$ states.
+The CherryML approach can then be applied: 1) discretize times, yielding a fixed-shape tensor of summary counts;
+2) write down the observed data likelihood in terms of the summary counts; 3) maximize using autograd and standard
+gradient-based optimizers.
+
+We call this algorithm {\em Maraschino}, as it involves distilling cherries to state machines.

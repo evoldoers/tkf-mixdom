@@ -1,0 +1,394 @@
+% varanc-vbem.tex — Variational EM training for the MixDom model
+% using the TreeVarAnc-MixDom (variational tuple) ELBO of appendix M
+% as the inference
+% engine for the E-step. To be \input from tkf.tex.
+
+\section{Variational EM training of MixDom from tree-structured data}
+\label{sec:varanc-vbem}
+
+The variational ELBO of Appendix~\ref{sec:varanc-presence-mixdom}
+treats the model parameters $\theta = (\insrate_\main, \delrate_\main,
+\{\insrate_\dom\}, \{\delrate_\dom\}, \domdist, \fragdist, \ext^{(\dom)},
+\classdist, \{\eqm^{(c)}\}, \{S^{(c)}_{\mathrm{exch}}\})$ as fixed inputs and optimises only the
+variational distribution $q$ over per-(node, column) latent states. In
+this appendix we extend the framework to a Variational Bayesian EM
+(VBEM) training algorithm that learns $\theta$ by alternating between
+a per-family E-step (Adam ascent on the variational $q$) and a global
+M-step (closed-form $\theta$ update from aggregated sufficient statistics).
+
+This is structurally analogous to the SVI Baum-Welch pipeline of
+Section~\ref{sec:bw-mixdom} (which trains MixDom from sequence
+\emph{pairs} via the labelled Pair HMM), but operates on whole MSAs
+with their tree topology --- each MSA family becomes a single
+training datum, with the variational distribution capturing the
+posterior over internal-node states and column-wide tuples.
+
+\subsection{Outer EM loop}
+\label{sec:vbem-outer}
+
+Given the corpus $\{\mathcal{D}_i\}_{i=1}^N$ of MSA-with-tree
+training data and an initial parameter estimate $\theta^{(0)}$, the
+outer loop is
+\begin{itemize}[nosep]
+\item \textbf{E-step} (per family $i$): fit the variational
+$q_i = (q_i^{(\tau)}, q_i^{(\pi|\tau)})$ by Adam ascent on the
+ELBO $\mathcal{L}_i(q_i; \theta^{(t)})$ at the current parameter
+estimate, returning per-family sufficient statistics
+$\Phi_i = \{W^{(v\to w)}_i, q^{(\tau)}_i, L^{(\mathrm{sub})}_{i,n,c}\}$.
+\item \textbf{M-step} (global): aggregate sufficient statistics
+across families and apply closed-form parameter updates for each
+parameter group, yielding $\theta^{(t+1)}$.
+\end{itemize}
+The corpus may be subsampled minibatch-style each iteration
+(SVI-style), in which case the M-step uses an exponential-moving-average
+of sufficient statistics across iterations
+(Section~\ref{sec:svi-bw}).
+
+\subsection{Per-family E-step}
+\label{sec:vbem-estep}
+
+For family $i$ with binary tree $\parsetree_i$, branch lengths
+$\branchlen_i$, and observed leaf data $X_i$, the E-step maximises
+\begin{equation}
+\label{eq:vbem-estep-elbo}
+\mathcal{L}_i(q_i; \theta) =
+   \sum_{(v\to w) \in \parsetree_i} \expect_{q_i}[\log P^{\mathrm{WFST}}(Z^w \mid Z^v)]
+   + \sum_n \expect_{q_i^{(f)}}[\log L^{(\mathrm{sub}),\text{tot}}_n]
+   + \log p^{\text{red}}_\text{singlet}(Z^{\text{root}})
+   + H[q_i^{(\tau)}] + H[q_i^{(\pi|\tau)}] + \log Z_q
+\end{equation}
+over the variational logits $(\text{edge\_logits}, \text{root\_logit},
+\text{tuple\_logits})$ via JIT-compiled Adam, identical to the
+inference-time ELBO of Appendix~\ref{sec:varanc-presence-mixdom} but
+treating $\theta$ as fixed input.
+
+After convergence (typically 100--300 Adam iterations with $\text{lr}
+\approx 0.05$, Fitch-seeded init), the E-step extracts the following
+sufficient statistics from $q_i$:
+
+\paragraph{Per-branch reduced expected counts.}
+For each branch $(v\to w)$, the cumulant-trick prefix sum
+(Section~\ref{sec:varanc-mixdom-elbo-indel}) yields
+\begin{equation}
+\label{eq:W-tensor}
+W^{(v\to w)}_{ss', \tau\tau'} =
+   \sum_{N=1}^{L+1} \sum_{M=0}^{N-1}
+      q^{(\tau)}_{n(M)}(\tau)\, q^{(\tau)}_{n(N)}(\tau')\,
+      P^{v\to w}_{q,M}(s)\, P^{v\to w}_{q,N}(s')
+      \prod_{K=M+1}^{N-1} P^{v\to w}_{q,K}(\mathsf{Ig}),
+\end{equation}
+a $5 \times T \times 5 \times T$ tensor that summarises the expected
+labelled WFST transitions on this branch.
+
+\paragraph{Per-column class posteriors.}
+For each column $n$ and class $c$, compute
+\begin{equation}
+\label{eq:vbem-class-posterior}
+q^{(c|f)}_n(c) = \frac{\classdist_{f, c}\, L^{(\mathrm{sub})}_n(c; \mathcal{F}_n)}
+                       {\sum_{c'} \classdist_{f, c'}\, L^{(\mathrm{sub})}_n(c'; \mathcal{F}_n)},
+\quad
+q^{(c)}_n(c) = \sum_f q^{(f)}_n(f)\, q^{(c|f)}_n(c),
+\end{equation}
+where $\mathcal{F}_n$ is the Fitch subtree of column $n$ and
+$L^{(\mathrm{sub})}_n(c)$ is the Felsenstein up-pass likelihood under
+class-$c$ rate matrix.
+
+\paragraph{Per-class substitution counts.}
+For each class $c$ and column $n$, weighted Felsenstein expected
+substitution counts on $\mathcal{F}_n$:
+\begin{equation}
+\label{eq:vbem-subst-counts}
+\hat{M}^{(c)}_{i,n}[a, b] = q^{(c)}_n(c)\,
+   \expect[N_{ab}(\text{branch}; \mathcal{F}_n) \mid \text{leaf data},
+                     c, \theta],
+\qquad
+\hat{T}^{(c)}_{i,n}[a] = q^{(c)}_n(c)\,
+   \expect[\text{dwell time in } a \mid \text{leaf data}, c, \theta].
+\end{equation}
+These are computed via the standard bridge-expectation posterior formulae
+for substitution-only CTMCs on trees, weighted by the per-class
+responsibility $q^{(c)}_n(c)$.
+
+\subsection{M-step from aggregated sufficient statistics}
+\label{sec:vbem-mstep}
+
+Let $\Phi = \{\Phi_i\}_i$ denote the per-family sufficient statistics
+aggregated across the (mini)batch. The M-step decomposes parameter
+group by parameter group, exploiting the route decomposition
+\eqref{eq:T-hat} and the responsibilities derived above.
+
+\paragraph{Route attribution.}
+For each per-character labelled WFST transition the route posterior
+\begin{equation}
+\label{eq:route-posterior}
+\rho^{(r)}_{ss', \tau\tau'}(\theta) =
+   \frac{\omega^{(r)}_{\tau\tau'}\, \tilde T^{\text{lab},(r)}_{ss'}}
+        {\hat T_{ss'}(\tau, \tau'; \theta)}
+\end{equation}
+partitions the per-branch counts $W^{(v\to w)}_{ss', \tau\tau'}$
+into route-attributable soft counts
+\begin{equation}
+\label{eq:route-soft-counts}
+\tilde W^{(r), (v\to w)}_{ss', \tau\tau'} =
+   W^{(v\to w)}_{ss', \tau\tau'} \cdot \rho^{(r)}_{ss', \tau\tau'}(\theta^{(t)}).
+\end{equation}
+Each route $r \in \{R1, R2, R3\}$ has a fixed BDI / fragment / domain
+factor signature
+(Section~\ref{sec:varanc-mixdom-reduced-wfst}):
+R1 contributes only to within-fragment extension counts; R2 contributes
+to fragment-level BDI counts in domain $d$; R3 contributes to both
+top-level BDI counts and to fragment-level BDI counts in the
+\emph{destination} domain $d'$.
+
+\paragraph{Indel rate M-step.}
+For each domain $d$, the per-route soft counts in $\tilde W^{(R2)}$
+(restricted to $d = d'$ in source/dest tuples) and $\tilde W^{(R3)}$
+(with destination domain $d'$) accumulate to a per-domain $5 \times 5$
+WFST transition count matrix $\hat n^{(d)}_{ss'}$ analogous to
+the SVI-BW pair-counts. The standard transition-count groups
+(Section~\ref{sec:bw-mixdom}, \texttt{transition\_count\_groups}) and
+quadratic-in-$\kappa$ closed form
+(\texttt{m\_step\_indel\_quadratic}) then deliver
+$(\hat\insrate_d, \hat\delrate_d)$:
+\begin{equation}
+\label{eq:vbem-indel-mstep}
+(\hat\insrate_d, \hat\delrate_d) =
+   \mathrm{m\_step\_indel\_quadratic}(\hat B_d, \hat D_d, \hat S_d, \hat L_d,
+                                       \hat M_d, \hat T_d;\, \text{prior}).
+\end{equation}
+The top-level rates $(\hat\insrate_\main, \hat\delrate_\main)$ are
+recovered analogously from $\tilde W^{(R3)}$ contributions to the
+top-level WFST transition counts (with R3 supplying both a top-level
+BDI event and a destination-domain BDI event per transition).
+
+\paragraph{Within-fragment Markov M-step.}
+For each domain $d$, the per-fragchar transition matrix
+$\ext^{(d)}_{f, f'}$ has Dirichlet-conjugate update from the R1
+soft counts:
+\begin{equation}
+\label{eq:vbem-ext-mstep}
+\hat\ext^{(d)}_{f, f'} = \frac{\hat E_{d, f, f'} + \alpha_\ext - 1}
+                              {\sum_{f''} \hat E_{d, f, f''} + \hat N_{d, f}
+                               + (N_\nfrag + 1)(\alpha_\ext - 1)},
+\quad
+\hat\notext^{(d)}_f = 1 - \sum_{f'} \hat\ext^{(d)}_{f, f'},
+\end{equation}
+where $\hat E_{d, f, f'} = \sum_{(v\to w), s, s'} \tilde
+W^{(R1), (v\to w)}_{ss', (d,f),(d,f')}$ and $\hat N_{d, f} =
+\sum_{(v\to w), s, s'} \big[\tilde W^{(R2)}_{ss', (d,f),(d,\cdot)}
++ \tilde W^{(R3)}_{ss', (d,f),(\cdot,\cdot)}\big]$ are the within-
+fragment and fragment-end soft counts respectively.
+
+\paragraph{Domain and fragment weight M-step.}
+The tuple priors update via Dirichlet-conjugate from per-route
+soft-counts:
+\begin{equation}
+\label{eq:vbem-domw-mstep}
+\hat\domdist_{d'} \propto
+   \sum_{(v\to w)} \sum_{(d, f, f'), s, s'}
+      \tilde W^{(R3), (v\to w)}_{ss', (d,f),(d',f')} + \alpha_\dom - 1,
+\end{equation}
+\begin{equation}
+\label{eq:vbem-fragw-mstep}
+\hat\fragdist_{d', f'} \propto
+   \sum_{(v\to w)} \sum_{(d, f), s, s'}\Big[
+      \delta_{d, d'} \tilde W^{(R2)}_{ss', (d,f),(d',f')}
+      + \tilde W^{(R3)}_{ss', (d,f),(d',f')}
+   \Big] + \alpha_\fragdist - 1,
+\end{equation}
+both normalised over the appropriate index.
+
+\paragraph{Substitution M-step.}
+Per-class rate-matrix and stationary updates use the standard
+class-weighted bridge-expectation closed forms
+(Section~\ref{sec:mstep-rescaling-pi} and the
+\texttt{substitution-mstep.tex} appendix), with per-class soft-counts
+$\hat M^{(c)} = \sum_i \sum_n \hat M^{(c)}_{i, n}$ and $\hat T^{(c)} =
+\sum_i \sum_n \hat T^{(c)}_{i, n}$. The class distribution itself
+updates via Dirichlet-conjugate:
+\begin{equation}
+\label{eq:vbem-classdist-mstep}
+\hat\classdist_{d, f, c} \propto
+   \sum_i \sum_n q^{(\tau)}_{i, n}(d, f) \cdot q^{(c|f)}_{i, n}(c)
+   + \alpha_\classdist - 1.
+\end{equation}
+
+\subsection{Stochastic VBEM (SVI-VBEM)}
+\label{sec:vbem-svi}
+
+For corpora with $N \gg 100$ families a full-batch outer iteration
+is infeasible (\cref{sec:vbem-scaling}). We adopt the SVI-BW
+machinery of \cref{sec:pseudocount-view} verbatim, with one
+substitution: the per-batch sufficient-statistic vector
+$s_{\text{batch}_k}$ in~\eqref{eq:ema-pseudocount} is now the
+per-family Tree-VBEM aggregate
+\begin{equation}
+\label{eq:svi-vbem-batch-suff}
+s_{\text{batch}_k} \;=\;
+\sum_{i \in \mathcal{B}_k}
+\Big\{
+   \tilde{W}^{(R1)}_i,\;
+   \tilde{W}^{(R2)}_i,\;
+   \tilde{W}^{(R3)}_i,\;
+   q^{(\tau)}_i,\;
+   \hat M^{(c)}_i,\;
+   \hat T^{(c)}_i
+\Big\},
+\end{equation}
+each component being aggregated linearly over the families
+$i \in \mathcal{B}_k$ in minibatch $k$. (The route-attributed soft
+counts $\tilde{W}^{(r)}_i$ are themselves linear in the per-branch
+$W_i^{(v\to w)}$ tensors of~\eqref{eq:W-tensor} and the route
+posteriors~\eqref{eq:route-posterior}, so the per-family contributions
+sum directly without bias.) The pseudocount EMA carries one such state
+$\tilde{\alpha}^{(g)}_k$ per parameter group $g$ and is updated each
+iteration as
+\begin{equation}\label{eq:svi-vbem-update}
+   \tilde{\alpha}^{(g)}_k
+   \;=\; (1 - \eta_k)\,\tilde{\alpha}^{(g)}_{k-1}
+   \;+\; \eta_k\bigl(\alpha^{(g)} + (N/|\mathcal{B}_k|)\, s^{(g)}_{\text{batch}_k}\bigr),
+\end{equation}
+with the closed-form M-step applied on demand to derive
+$\theta^{(t+1)}_g = f^{(g)}(\tilde{\alpha}^{(g)}_k)$ for each group:
+the BDI rates per domain via~\eqref{eq:vbem-indel-mstep}; the
+Dirichlet groups $\domdist$, $\fragdist$, $\classdist$, $\ext^{(d)}_{f, \cdot}$
+direct from~\eqref{eq:vbem-ext-mstep}--\eqref{eq:vbem-fragw-mstep}
+and~\eqref{eq:vbem-classdist-mstep}; and the per-class GTR substitution
+parameters via the closed forms of \cref{sec:mstep-rescaling-pi}.
+
+The Polyak--Ruppert / ESS / Fisher analyses
+of~\cref{sec:pseudocount-view} (eqs.~\eqref{eq:delta-pseudocount}
+onward) carry over verbatim, with $s_{\text{batch}_k}$ replaced by
+the family-aggregate~\eqref{eq:svi-vbem-batch-suff}.
+
+\paragraph{Step-size schedule.}
+The standard Robbins--Monro choice
+$\eta_k = (k + \tau)^{-\kappa}$ with $\tau \in [10, 100]$,
+$\kappa \in [0.5, 1]$ guarantees almost-sure convergence as in
+SVI-BW. For tree-VBEM we suggest defaults
+$\tau = 10$, $\kappa = 0.7$.
+
+\paragraph{Breadth-first minibatch sampling.}
+I.i.d.\ uniform minibatch sampling concentrates updates on the
+$\sim |\mathcal{B}|/N$ most-recently-visited families and
+under-represents the long tail; per-group ESS for a parameter that
+is informative in only a fraction $\varepsilon$ of families
+collapses to $\varepsilon\,\mathrm{ESS}_K$ (the ``rare-parameter
+bottleneck'' of \cref{sec:pseudocount-view}). We instead maintain a
+per-family visit count $c_i^{(0)} = 0$ and select each minibatch
+$\mathcal{B}_k$ as the $|\mathcal{B}|$ families with the smallest
+$c_i^{(k-1)}$, breaking ties at random; visit counts then update
+$c_i^{(k)} = c_i^{(k-1)} + 1$ for $i \in \mathcal{B}_k$. This
+deterministic round-robin guarantees every family is visited at
+least once every $\lceil N/|\mathcal{B}|\rceil$ iterations
+(``one epoch''), so the per-family contribution arrives in
+$\Theta(K|\mathcal{B}|/N)$ of the first $K$ batches with no
+starvation.
+
+\paragraph{Convergence diagnostics.}
+Per outer iteration $k$, log:
+\begin{itemize}[nosep]
+\item Per-batch ELBO sum, scaled by $N/|\mathcal{B}_k|$ for
+   cross-iteration comparison.
+\item Per-group $\tilde{\alpha}^{(g)}_k$ effective sample size,
+   $\mathrm{ESS}_k = (\sum_j w_{j,k})^2 / \sum_j w_{j,k}^2$ with
+   $w_{j,k} = \eta_j \prod_{i>j}^k (1-\eta_i)$, to monitor warm-up.
+\item Visit-count distribution $\min_i c_i^{(k)}$, $\max_i c_i^{(k)}$,
+   to confirm the breadth schedule is achieving uniform coverage.
+\end{itemize}
+Validation ELBO on a held-out family subset is computed once per
+``epoch'' (every $\lceil N/|\mathcal{B}|\rceil$ iterations).
+
+\subsection{Convergence and ELBO monitoring}
+\label{sec:vbem-convergence}
+
+Each E-step monotonically increases the per-family ELBO at fixed
+$\theta$; each M-step monotonically increases the corpus-aggregate
+ELBO at the new q (this is the standard EM monotonicity result, modulo
+the variational E-step's sub-optimality).
+
+For monitoring purposes, log:
+\begin{itemize}[nosep]
+\item Per-iteration corpus ELBO (sum across families).
+\item Per-domain BDI sufficient statistics aggregates.
+\item Per-class soft-count totals and effective sample size.
+\item Validation-set ELBO on a held-out family subset (for early stopping
+   and overfitting monitoring; same role as val LL/pair in SVI-BW).
+\end{itemize}
+Convergence in practice: corpus ELBO increase plateaus below a
+relative threshold ($\sim 10^{-4}$ per outer iteration), or
+validation ELBO begins to decrease.
+
+\subsection{Initialisation and warm-start}
+\label{sec:vbem-init}
+
+For warm-start from an existing SVI-BW checkpoint:
+$\theta^{(0)}$ is loaded directly from the checkpoint
+(the variational EM operates on the same parameter space as SVI-BW
+provided the checkpoint includes \texttt{class\_pis} and
+\texttt{class\_S\_exch}; checkpoints without a class layer are
+auto-promoted to a 1-class-per-domain structure).
+
+For the variational $q^{(0)}$: per-family Fitch-seeded init for
+the inner 3-state q (as in the inference-only benchmark of
+Appendix~\ref{sec:varanc-presence-mixdom}); per-family tuple init
+biased toward the substitution-likelihood-maximising fragchar (via
+\texttt{class\_marginalised\_sub\_LL\_per\_column} applied to the
+initial $\theta$).
+
+The first outer iteration will see a large ELBO improvement as the
+variational distributions are fit to the warm-start parameters. Subsequent
+iterations refine $\theta$ toward the tree-aggregated likelihood
+maximum, which differs in general from the pair-aggregated SVI-BW
+maximum.
+
+\subsection{Computational scaling and minibatching}
+\label{sec:vbem-scaling}
+
+Per-family E-step cost is dominated by Adam-ELBO evaluation:
+$O(|\mathcal{E}| \cdot L \cdot T^2)$ per Adam step where $T = N_\dom
+N_\nfrag$ is the reduced tuple count, plus $O(L \cdot N_{\mathrm{cl}} \cdot
+\text{Felsenstein cost})$ for the substitution likelihoods (computed
+once per family at the start of the E-step). Typical numbers for
+unified-short ($T = 6$, $N_{\mathrm{cl}} = 3$, $|\mathcal{E}| \approx 40$,
+$L \approx 100$, 100 Adam iters) give $\sim 30$~s/family on a single
+GPU.
+
+For the full Pfam corpus ($\sim 17{,}000$ families) a full E-step pass
+is $\sim 140$ GPU-hours. Stochastic VBEM
+(\cref{sec:vbem-svi}) replaces the full pass with a breadth-first
+minibatch of $\sim 10$--$200$ families per outer iteration and an EMA
+accumulation of sufficient statistics across iterations,
+reducing per-iteration cost to a few GPU-minutes with convergence in
+$\sim 10\,N/|\mathcal{B}|$ outer iterations (i.e.\ $\sim 10$ epochs).
+
+\subsection{Comparison to SVI-BW}
+\label{sec:vbem-vs-svibw}
+
+The SVI-BW pipeline trains $\theta$ from sequence pairs sampled from
+the corpus, using the labelled Pair HMM forward-backward as its
+inference primitive. Tree-VBEM trains from whole MSAs with their tree
+topology, using the variational TreeVarAnc-MixDom inference of
+Appendix~\ref{sec:varanc-presence-mixdom}.
+
+Differences:
+\begin{itemize}[nosep]
+\item \textbf{Information per training datum.} A pair contributes
+two-leaf data; a family contributes $|\text{leaves}|$-leaf joint data
+with phylogenetic structure. Tree-VBEM extracts more information per
+datum but requires more compute per datum.
+\item \textbf{Bias.} SVI-BW assumes pairs are i.i.d. samples from the
+model; real pairs share evolutionary history (within-family pairs are
+not independent under the tree). Tree-VBEM correctly handles this
+correlation. The cost: SVI-BW's pair-likelihood is the exact data
+likelihood under its assumption; tree-VBEM's ELBO is a lower bound on
+the family likelihood (with a non-trivial variational gap).
+\item \textbf{Application alignment.} Parameters trained by tree-VBEM
+are likely better-suited to tree-based downstream tasks (ancestral
+reconstruction, progressive alignment) since the training objective
+matches the inference task. Parameters trained by SVI-BW may be better
+for pairwise tasks (pairwise alignment scoring).
+\end{itemize}
+Empirically, the two regimes can be combined: SVI-BW for fast warm-up
+followed by tree-VBEM for task-specific fine-tuning, exploiting both
+algorithms' strengths.

@@ -1,0 +1,1664 @@
+% mixdom-wfst.tex — Labeled-MixDom Singlet HMM and WFST
+% To be \input from tkf.tex (uses macros defined there)
+
+\section{Labeled-MixDom Singlet HMM and WFST}
+\label{sec:labeled-mixdom}
+
+In this section we define state machines for the MixDom model that
+foreground all latent state in the input/output alphabet, so they can
+be used directly in beam-search MSA, progressive reconstruction, and
+the variational ancestral-state framework of
+Section~\ref{sec:varanc-presence-mixdom} without algebraic
+distillation.
+We call these the \emph{Labeled-MixDom Singlet HMM} and the
+\emph{Labeled-MixDom WFST}, to distinguish them from the
+Maraschino-distilled order-1 HMMs and WFSTs.
+
+\begin{remark}[Within-fragment fragchar dynamics]
+\label{rem:mixdom-fragchars}
+Each fragment in MixDom carries an intra-fragment Markov chain on
+fragchars: from a character with fragchar $\srcfrag$ in a fragment of
+domain $\dom$, the next character (still in the same fragment) has
+fragchar $\destfrag$ with probability $\ext^{(\dom)}_{\srcfrag\destfrag}$,
+and the fragment terminates at the current character with probability
+$\notext^{(\dom)}_\srcfrag = 1 - \sum_\destfrag \ext^{(\dom)}_{\srcfrag\destfrag}$.
+This is consistent with the exploded-MixDom spec
+(\S\ref{sec:mixdom-frag-trans} of exploded-mixdom.tex), where
+$\ext^{(k)}_{fg}$ is the intra-fragment fragchar transition kernel.
+The TKF92 \emph{fragment} concept is preserved ($g=1$ marks the last
+character of a fragment).
+
+\begin{itemize}[nosep]
+\item \textbf{Within a fragment ($g=0$).} The next character is in
+the same fragment with fragchar $\destfrag$ chosen via
+$\ext^{(\dom)}_{\srcfrag\destfrag}$; the destination $\destfrag$ may
+or may not equal the source $\srcfrag$ (intra-fragment Markov, not
+self-loop only).
+
+\item \textbf{Fragment boundary ($g=1$).} The current character is the
+last in its fragment; this happens with the fragment-termination
+weight $\notext^{(\dom)}_\srcfrag$. After fragment termination, the
+TKF92 outer dynamics decide what happens next: with probability
+$\kappa_\dom$ another fragment in the same domain begins (its first
+character drawn from $\fragdist_{\dom, \cdot}$); with probability
+$1-\kappa_\dom$ the domain ends ($e=1$).
+
+\item \textbf{Domain termination ($e=1$).} The TKF91 outer dynamics
+on domains (with parameter $\kappa_{\main}$) decide whether another
+domain begins or the sequence ends.
+
+\item \textbf{$\nfrag = 1$ special case.} Setting $N_\nfrag = 1$
+(single fragchar) collapses $\ext^{(\dom)}$ to a scalar self-loop;
+the resulting expressions reduce to a TKF92-extension scalar form
+that admits a more compact algebra (used in the simpler closed forms
+elsewhere in this paper).
+\end{itemize}
+\end{remark}
+
+\subsection{Labeled Alphabet}
+
+Each alphabet symbol $\anctok \in \alphabet$ is decorated with a label
+tuple $(\class, \frag, g, \dom, e)$ consisting of the following latent
+variables:
+\begin{itemize}
+\item $\class \in \nclass = \{1,\ldots,|\nclass|\}$: substitution site
+class.
+\item $\frag \in \nfrag = \{1,\ldots,|\nfrag|\}$: fragchar of the
+current character (the per-character class label whose Markov chain
+within a fragment is $\ext^{(\dom)}$).
+\item $g \in \{0,1\}$: fragment-end indicator ($g=1$ if this is the
+last character of the current fragment; $g=0$ otherwise).
+\item $\dom \in \ndom = \{1,\ldots,|\ndom|\}$: domain type.
+\item $e \in \{0,1\}$: domain-end indicator ($e=1$ if this is the
+last fragment of the current domain).
+\end{itemize}
+We write $\anctok_{\class\frag g\dom e}$ for a labeled symbol and
+define
+$\mathcal{L} = \nclass \times \nfrag \times \{0,1\} \times \ndom \times \{0,1\}$,
+so $|\mathcal{L}| = 4 |\nclass| |\nfrag| |\ndom|$. The labeled
+alphabet has $|\alphabet| \cdot |\mathcal{L}|$ symbols.
+
+For context tracking in order-1 machines we need only the
+\emph{structural label} $\ell = (\frag, g, \dom, e)$, since the site
+class $\class$ does not affect transition structure. The number of
+distinct structural labels is $L = 4 |\nfrag| |\ndom|$.
+
+
+\subsection{Labeled-MixDom Singlet HMM}
+\label{sec:labeled-singlet}
+
+The Labeled-MixDom Singlet HMM generates sequences from the MixDom stationary distribution
+with all latent variables made explicit.
+It is an order-1 HMM whose state records the structural label $\ell = (\frag, g, \dom, e)$
+of the most recently emitted character.
+
+\paragraph{States.}
+The state space is $\{\sta\} \cup \{(\frag, g, \dom, e) : \frag \in \nfrag,\, g \in \{0,1\},\, \dom \in \ndom,\, e \in \{0,1\}\} \cup \{\fin\}$,
+giving $L + 2$ states.
+
+\paragraph{Emissions.}
+In state $(\frag, g, \dom, e)$, the HMM emits symbol $\anctok_{\class\frag g\dom e}$
+(with the $\frag, g, \dom, e$ components matching the state) with probability
+\begin{equation}
+\label{eq:singlet-emit}
+\emprob(\anctok_{\class\frag g\dom e} \mid \frag, g, \dom, e)
+= \classdist_{\frag\class}\, \eqm_{\class\anctok}
+\end{equation}
+summing to 1 over $(\class, \anctok)$.
+
+\paragraph{Transitions.}
+From the start state $\sta$:
+\begin{equation}
+\label{eq:singlet-start}
+P(\sta \to (\frag, g, \dom, e)) = \domdist_\dom\, \kappa_\dom\, \fragdist_{\dom\frag}\,
+\begin{cases}
+1 - \notext^{(\dom)}_\frag & \text{if } g = 0 \\
+\notext^{(\dom)}_\frag\, \kappa_\dom\, \fragdist_{\dom\frag'} & \text{if } g = 1,\, e = 0 \\
+& \quad\text{(to state $(\frag', g', \dom, e')$; see below)} \\
+\notext^{(\dom)}_\frag\,(1-\kappa_\dom)\, \kappa_\main\, \domdist_{\dom'}\, \kappa_{\dom'}\, \fragdist_{\dom'\frag'} & \text{if } g = 1,\, e = 1 \\
+& \quad\text{(to state $(\frag', g', \dom', e')$; see below)}
+\end{cases}
+\end{equation}
+However, since the singlet HMM is order-1 and we only track the \emph{destination} state,
+it is cleaner to express the transitions directly.
+
+The stationary distribution for the MixDom singlet process factors as
+follows. At the domain level, a TKF91 process with parameters
+$(\insrate_\main, \delrate_\main)$ generates
+$N_{\rm dom} \sim \mathrm{Geom}(\kappa_\main)$ domains, each of type
+$\dom \sim \catdist(\domdist_1,\ldots,\domdist_\ndom)$. Within domain
+$\dom$, an irreducible Markov chain over fragchars with transition
+matrix $\ext^{(\dom)} \in [0, 1]^{\nfrag \times \nfrag}$ and
+termination weights
+$\notext^{(\dom)}_\srcfrag = 1 - \sum_\destfrag \ext^{(\dom)}_{\srcfrag\destfrag}$
+generates the sequence of per-character fragchars; the first character
+in the domain is drawn from the chain's initial distribution
+$\fragdist_{\dom\srcfrag}$. Within each character's fragchar
+$\srcfrag$, the site class is $\class \sim \classdist_{\srcfrag\class}$
+and the residue is $\anctok \sim \eqm_\class$.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Source $\ell$ & Dest $\ell'$ & Transition weight \\
+\hline
+$\sta$ & $(\frag', 0, \dom', e')$ &
+  $\kappa_\main\, \domdist_{\dom'}\, \fragdist_{\dom'\frag'}$ \\
+$\sta$ & $(\frag', 1, \dom', e')$ &
+  $\kappa_\main\, \domdist_{\dom'}\, \fragdist_{\dom'\frag'}$ \\
+$\sta$ & $\fin$ & $1 - \kappa_\main$ \\
+\hline
+\multicolumn{3}{l}{\emph{Mid-domain continuations:}} \\
+$(\frag, 0, \dom, e)$ & $(\frag', g', \dom, e)$ &
+  $\ext^{(\dom)}_{\frag\frag'}$ \\
+$(\frag, 1, \dom, 0)$ & $(\frag', g', \dom, e')$ &
+  $\notext^{(\dom)}_\frag \cdot \kappa_\dom \cdot \fragdist_{\dom\frag'}$ \\
+$(\frag, 1, \dom, 1)$ & $(\frag', g', \dom', e')$ &
+  $\notext^{(\dom)}_\frag \cdot (1-\kappa_\dom) \cdot \kappa_\main \cdot \domdist_{\dom'} \cdot \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}\,/\,(1-\zeta)$ \\
+\hline
+\multicolumn{3}{l}{\emph{Termination:}} \\
+$(\frag, 0, \dom, e)$ & $\fin$ & $0$ \quad (cannot end mid-fragment) \\
+$(\frag, 1, \dom, 0)$ & $\fin$ &
+  $\notext^{(\dom)}_\frag \cdot (1-\kappa_\dom) \cdot (1-\kappa_\main)\,/\,(1-\zeta)$ \\
+$(\frag, 1, \dom, 1)$ & $\fin$ &
+  $\notext^{(\dom)}_\frag \cdot (1-\kappa_\dom) \cdot (1-\kappa_\main)\,/\,(1-\zeta)$ \\
+\hline
+\end{tabular}
+\end{center}
+The $g'$ and $e'$ in the destination labels range over all values
+($g' \in \{0,1\}$, $e' \in \{0,1\}$); the destination's $g'$ is set by
+the prior $P(g' = 1 | \frag', \dom') = \notext^{(\dom')}_{\frag'}$
+(per-character fragment-termination probability under the
+intra-fragment Markov), and likewise $e'$ by the per-fragment
+domain-termination probability $1-\kappa_{\dom'}$. The weights above
+are the joint contributions; conditional probabilities of next-state
+indicators are recovered by multiplying by the appropriate prior
+factor for $(g', e')$.
+
+The $\zeta$ correction $\zeta = \kappa_\main \cdot
+\emptyseg_0^{(\rm sing)}$ accounts for skipping over geometrically-many
+empty domains before the next emitting character or sequence
+termination, where $\emptyseg_0^{(\rm sing)} = \sum_\dom \domdist_\dom
+(1-\kappa_\dom)$ is the singlet-process probability of an empty
+domain (under per-domain TKF92 with parameter $\kappa_\dom$).
+Verification of the marginalised $(\dom, \frag)$-only kernel
+(Section~\ref{sec:varanc-presence-mixdom}, equation~\eqref{eq:omega})
+against the existing MixDom Pair HMM implementation
+\texttt{build\_nested\_trans} at $t=0$ confirms these weights to 5+
+decimal places on a (n\_dom=2, n\_fr=2) test instance.
+
+More precisely, the probability of ending the sequence from a domain boundary state
+involves summing over all possible runs of empty domains before termination.
+Let $\zeta = \kappa_\main \cdot \emptyseg_0^{(\rm sing)}$ be the probability of generating
+an empty domain and continuing.
+Then from state $(\frag, 1, \dom, 1)$ (domain boundary):
+\begin{equation}
+\label{eq:singlet-end-domain}
+P(\text{to } \fin) = \frac{1 - \kappa_\main}{1 - \zeta}
+\end{equation}
+and from state $(\frag, 1, \dom, 0)$ (fragment boundary, mid-domain):
+\begin{equation}
+\label{eq:singlet-end-frag}
+P(\text{to } \fin) = (1 - \kappa_\dom) \cdot \frac{1 - \kappa_\main}{1 - \zeta}
+\end{equation}
+
+Similarly, the transition from a fragment boundary to a new character must account for
+possibly skipping empty domains. From $(\frag, 1, \dom, 1)$:
+\begin{equation}
+\label{eq:singlet-newdom}
+P((\frag, 1, \dom, 1) \to (\frag', g', \dom', e'))
+= \frac{\kappa_\main \cdot \domdist_{\dom'} \cdot \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}}{1 - \zeta}
+\end{equation}
+accounting for the possibility that some intermediate domains were empty
+(the nonempty domain $\dom'$ is reached after a geometric number of empty-domain trials).
+
+\paragraph{Normalization check.}
+From state $(\frag, 1, \dom, 1)$, summing over all destinations including $\fin$:
+\[
+\sum_{\frag',g',\dom',e'} \frac{\kappa_\main \domdist_{\dom'} \kappa_{\dom'} \fragdist_{\dom'\frag'}}{1-\zeta}
++ \frac{1-\kappa_\main}{1-\zeta}
+= \frac{\kappa_\main(1 - \emptyseg_0^{(\rm sing)}) + 1 - \kappa_\main}{1 - \zeta}
+= \frac{1 - \zeta}{1 - \zeta} = 1.
+\]
+where we used $\sum_{\dom'} \domdist_{\dom'} \kappa_{\dom'} = 1 - \emptyseg_0^{(\rm sing)}$
+and $\zeta = \kappa_\main \emptyseg_0^{(\rm sing)}$.
+The sum over $g'$ and $e'$ is implicit in the fragment/domain generation that follows.
+
+
+\subsection{Labeled-MixDom WFST}
+\label{sec:labeled-wfst}
+
+\begin{remark}[WFST tables use the matrix-kernel notation]
+\label{rem:wfst-notation}
+The transition tables below use the intra-fragment Markov kernel
+$\ext^{(\dom)}_{\srcfrag\destfrag}$ (matrix indexed by source and
+destination fragchar) and its per-row termination
+$\notext^{(\dom)}_\frag = 1 - \sum_{\frag'} \ext^{(\dom)}_{\frag\frag'}$.
+Where a within-fragment self-loop appears, the relevant entry is the
+diagonal $\ext^{(\dom)}_{\frag\frag}$; where a new-fragchar-same-domain
+move appears, it is an off-diagonal $\ext^{(\dom)}_{\frag\frag'}$ for
+$\frag' \neq \frag$; the fragment-end weight is $\notext^{(\dom)}_\frag$.
+\end{remark}
+
+The Labeled-MixDom WFST represents the conditional distribution of a descendant
+labeled sequence given an ancestral labeled sequence, separated by evolutionary time $\evoltime$.
+When composed with the Labeled-MixDom Singlet HMM (Section~\ref{sec:labeled-singlet}),
+it must reproduce the MixDom Pair HMM (Section~\ref{sec:nestpairhmm}).
+
+\begin{remark}[Reduced kernel for variational inference]
+\label{rem:reduced-wfst-pointer}
+The full $(c, f, g, d, e)$ alphabet is what makes this WFST self-contained
+(no algebraic distillation, exact for beam search and progressive reconstruction).
+For the variational ancestral-state framework
+(Appendix~\ref{sec:varanc-presence-mixdom}) the labelled WFST is marginalised
+analytically over $(c, c', g, e, g', e')$ to a reduced per-character kernel
+$\hat{T}_{ss'}((d,f),(d',f'); \branchlen, \theta)$ over just $(d, f)$, with
+$3 N_\text{dom} N_\text{fr} + 2$ states. The marginalisation does \emph{not}
+collapse to a single labelled-WFST entry: the per-character
+labelled transition $(d, f) \to (d', f')$ admits up to three latent routes
+(intra-fragment fragchar transition; new fragment, same domain; new domain
+that may equal $d$), and the source's $(g, e)$ has a non-trivial posterior
+over routes whenever $d' = d$. The reduced kernel is therefore a route-sum
+$\hat{T}_{ss'} = \sum_r \omega^{(r)} \tilde{T}^{\text{lab},(r)}_{ss'}$
+(eq.~\eqref{eq:T-hat}), which collapses to the cleaner form
+$\omega \cdot \tilde{T}^{\text{lab}}$ only when the per-route labelled WFST
+entries coincide --- a degenerate special case of the trivial
+$\nfrag = 1, \ndom = 1$ instance.
+Class marginalisation is trivial at the indel level since
+the WFST indel block is class-independent. So the labelled WFST defined
+here and the reduced kernel used in the variational appendix are the same
+object viewed through different state-space lenses, with the variational
+appendix providing the explicit route-decomposition.
+\end{remark}
+
+\paragraph{Design principles.}
+The WFST has two kinds of states:
+\begin{itemize}
+\item \textbf{Emitting states} (``unready''): $\mat$, $\mathrm{I_F}$, $\mathrm{I_D}$, $\mathrm{D_F}$, $\mathrm{D_D}$.
+  These consume an input character, produce an output character, or both, then make a mandatory
+  null transition to a Wait state.
+\item \textbf{Wait states} (``ready''): $\mathrm{W_M}$, $\mathrm{W_{D_F}}$, $\mathrm{W_{D_D}}$.
+  These inspect the boundary indicators $(g, e)$ of the current context and choose the next
+  emitting state based on the hierarchical boundary structure.
+  Wait states also handle end-of-sequence.
+\end{itemize}
+In addition there are the non-emitting $\sta$ and $\fin$ states.
+
+\paragraph{States.}
+Each emitting or wait state carries a structural label context $\ell = (\frag, g, \dom, e)$.
+The full state space is:
+\[
+\{\sta\} \;\cup\;
+\{(X, \frag, g, \dom, e) : X \in \{\mat, \mathrm{I_F}, \mathrm{I_D}, \mathrm{D_F}, \mathrm{D_D},
+  \mathrm{W_M}, \mathrm{W_{D_F}}, \mathrm{W_{D_D}}\}\}
+\;\cup\; \{\fin\}
+\]
+Not all combinations occur (see constraints below), but the upper bound is $8L + 2$ states.
+
+\paragraph{Context semantics.}
+The context $\ell = (\frag, g, \dom, e)$ on each state records:
+\begin{itemize}
+\item In $\mat$ and $\mathrm{W_M}$: the label of the most recent matched character
+  (which is the same for both input and output, since match preserves labels).
+\item In $\mathrm{I_F}$, $\mathrm{I_D}$: the label of the most recent \emph{output} character.
+\item In $\mathrm{D_F}$, $\mathrm{D_D}$, $\mathrm{W_{D_F}}$, $\mathrm{W_{D_D}}$: the label of the most recent \emph{input} character.
+\end{itemize}
+Thus only one context tuple is needed per state.
+
+
+\subsubsection{\texorpdfstring{Emitting-State Transitions (Unready $\to$ Wait)}{Emitting-State Transitions (Unready -> Wait)}}
+\label{sec:emit-to-wait}
+
+Every emitting state makes a mandatory null transition (no input, no output) to its
+corresponding wait state. These transitions carry the boundary-survival weights from the
+nested TKF92/TKF91 structure.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{lllll}
+\hline
+Source & Dest & Weight & Input & Output \\
+\hline
+$(\mat, \frag, g, \dom, e)$ & $(\mathrm{W_M}, \frag, g, \dom, e)$ &
+  $w_{\mat}(g, e)$ & $\varepsilon$ & $\varepsilon$ \\
+$(\mathrm{D_F}, \frag, g, \dom, e)$ & $(\mathrm{W_{D_F}}, \frag, g, \dom, e)$ &
+  $w_{\mathrm{D_F}}(g, e)$ & $\varepsilon$ & $\varepsilon$ \\
+$(\mathrm{D_D}, \frag, g, \dom, e)$ & $(\mathrm{W_{D_D}}, \frag, g, \dom, e)$ &
+  $w_{\mathrm{D_D}}(g, e)$ & $\varepsilon$ & $\varepsilon$ \\
+\hline
+$(\mathrm{I_F}, \frag, g, \dom, e)$ & $(\mathrm{W_M}, \frag, g, \dom, e)$ &
+  $w_{\mathrm{I_F}}(g, e)$ & $\varepsilon$ & $\varepsilon$ \\
+$(\mathrm{I_D}, \frag, g, \dom, e)$ & $(\mathrm{W_M}, \frag, g, \dom, e)$ &
+  $w_{\mathrm{I_D}}(g, e)$ & $\varepsilon$ & $\varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+
+Wait: the insert states need more careful treatment.
+An inserted fragment or domain is a complete sub-sequence generated by the descendant.
+The insert states $\mathrm{I_F}$ and $\mathrm{I_D}$ handle character-level emissions
+\emph{within} an inserted fragment, and upon fragment/domain completion, control returns
+to the wait state that initiated the insertion.
+We therefore need to track whether we are inserting at the fragment level or domain level.
+
+Let us reconsider the state structure more carefully.
+
+\subsubsection{Revised State Structure}
+\label{sec:revised-states}
+
+In the MixDom Pair HMM, the five state types $\mat\mat$, $\mat\ins$, $\mat\del$, $\ins\ins$, $\del\del$
+at each $(\dom, \frag)$ position represent:
+\begin{itemize}
+\item $\mat\mat_{\dom\frag}$: ancestral and descendant both have a character (match/substitution)
+\item $\mat\ins_{\dom\frag}$: descendant insertion within domain $\dom$, fragment $\frag$
+\item $\mat\del_{\dom\frag}$: ancestral deletion within domain $\dom$, fragment $\frag$
+\item $\ins\ins_{\dom\frag}$: insertion of an entire domain (both ancestor and descendant insert)
+\item $\del\del_{\dom\frag}$: deletion of an entire domain (both ancestor and descendant delete)
+\end{itemize}
+
+The top-level states $\mat, \ins, \del$ refer to the \emph{domain-level} TKF91 process,
+while the nested states $\mat, \ins, \del$ refer to the \emph{fragment-level} TKF92 process
+within a domain.
+
+For the WFST, we separate the domain-level and fragment-level indel processes:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\hline
+WFST State Type & Input & Output \\
+\hline
+$\mat$ (Match) & $\anctok_{\class\frag g\dom e}$ & $\destok_{\class\frag g\dom e}$ \\
+$\mathrm{I_F}$ (Insert Fragment char) & $\varepsilon$ & $\destok_{\class\frag g\dom e}$ \\
+$\mathrm{I_D}$ (Insert Domain char) & $\varepsilon$ & $\destok_{\class\frag g\dom e}$ \\
+$\mathrm{D_F}$ (Delete Fragment char) & $\anctok_{\class\frag g\dom e}$ & $\varepsilon$ \\
+$\mathrm{D_D}$ (Delete Domain char) & $\anctok_{\class\frag g\dom e}$ & $\varepsilon$ \\
+$\mathrm{W_M}$ (Wait after Match) & $\varepsilon$ & $\varepsilon$ \\
+$\mathrm{W_{D_F}}$ (Wait after Delete-Fragment) & $\varepsilon$ & $\varepsilon$ \\
+$\mathrm{W_{D_D}}$ (Wait after Delete-Domain) & $\varepsilon$ & $\varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{Key constraint: label preservation.}
+In a Match state, the WFST does not change the structural label: the input and output
+labels $(\frag, g, \dom, e)$ must be identical (though $\class$ is also preserved and
+the character $\anctok \to \destok$ may change via substitution).
+Insertions create \emph{new} characters with new labels; deletions consume characters
+without producing output.
+
+
+\subsubsection{Emitting to Wait Transitions}
+\label{sec:emit-wait-transitions}
+
+After emitting (or consuming), each emitting state transitions to its wait state.
+These null transitions carry weights that account for the fragment-extension
+and domain-continuation structure.
+
+In the MixDom model, within a domain of type $\dom$, each fragment evolves
+under the intra-fragment Markov kernel $\ext^{(\dom)}_{\srcfrag\destfrag}$.
+Within the fragment ($g=0$), the character simply continues.
+At a fragment boundary ($g=1$), the TKF92 process within the domain decides
+whether to start a new fragment or end the domain.
+At a domain boundary ($g=1, e=1$), the TKF91 domain-level process decides
+whether to start a new domain or end the sequence.
+
+The weights on emitting $\to$ wait transitions are:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{lll}
+\hline
+Transition & Condition & Weight \\
+\hline
+$\mat \to \mathrm{W_M}$ & $g=0$ & $1$ \\
+$\mat \to \mathrm{W_M}$ & $g=1, e=0$ &
+  $(1-\beta_\dom)$ \\
+$\mat \to \mathrm{W_M}$ & $g=1, e=1$ &
+  $(1-\beta_\dom)(1-\beta_\main)$ \\[4pt]
+$\mathrm{D_F} \to \mathrm{W_{D_F}}$ & $g=0$ & $1$ \\
+$\mathrm{D_F} \to \mathrm{W_{D_F}}$ & $g=1, e=0$ &
+  $(1-\gamma_\dom)$ \\
+$\mathrm{D_F} \to \mathrm{W_{D_F}}$ & $g=1, e=1$ &
+  $(1-\gamma_\dom)(1-\beta_\main)$ \\[4pt]
+$\mathrm{D_D} \to \mathrm{W_{D_D}}$ & $g=0$ & $1$ \\
+$\mathrm{D_D} \to \mathrm{W_{D_D}}$ & $g=1, e=0$ & $1$ \\
+$\mathrm{D_D} \to \mathrm{W_{D_D}}$ & $g=1, e=1$ &
+  $(1-\gamma_\main)$ \\
+\hline
+\end{tabular}
+\end{center}
+where $\beta_\dom = \beta(\insrate_\dom, \delrate_\dom, \evoltime)$,
+$\gamma_\dom = \gamma(\insrate_\dom, \delrate_\dom, \evoltime)$,
+$\beta_\main = \beta(\insrate_\main, \delrate_\main, \evoltime)$,
+$\gamma_\main = \gamma(\insrate_\main, \delrate_\main, \evoltime)$.
+
+The rationale: at $g=0$ we are mid-fragment, so no boundary weight is needed.
+At $g=1$ (fragment boundary), the TKF92 boundary weight $(1-\beta)$ or $(1-\gamma)$ applies.
+At $g=1, e=1$ (domain boundary), both the fragment boundary and the domain boundary
+weights apply.
+For $\mathrm{D_D}$, the domain is being deleted as a unit; within the deleted domain,
+fragment structure is irrelevant (all fragments are consumed), so the fragment-level
+weights are unity and only the domain-level weight $(1-\gamma_\main)$ applies at domain end.
+
+\paragraph{Insert states.}
+Insert states ($\mathrm{I_F}$, $\mathrm{I_D}$) represent characters being inserted
+in the descendant.  An inserted fragment is a self-contained TKF92 fragment;
+an inserted domain is a self-contained TKF91 domain.
+
+After emitting an inserted character, the insert state loops back to itself
+(fragment extension) or transitions to a wait state (fragment/domain termination).
+The fragment extension self-loop:
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Transition & Weight & Input & Output \\
+\hline
+$(\mathrm{I_F}, \srcfrag, g, \dom, e) \to (\mathrm{I_F}, \destfrag, g', \dom, e)$ &
+  $\ext^{(\dom)}_{\srcfrag\destfrag}$ & $\varepsilon$ & $\destok_{\class\destfrag g'\dom e}$ \\
+$(\mathrm{I_D}, \srcfrag, g, \dom, e) \to (\mathrm{I_D}, \destfrag, g', \dom, e)$ &
+  $\ext^{(\dom)}_{\srcfrag\destfrag}$ & $\varepsilon$ & $\destok_{\class\destfrag g'\dom e}$ \\
+\hline
+\end{tabular}
+\end{center}
+
+On fragment termination within an inserted domain ($\mathrm{I_D}$), a new fragment
+may begin (with TKF92 parameters for the inserted domain):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Transition & Weight & Condition & I/O \\
+\hline
+$(\mathrm{I_D}, \frag, 1, \dom, 0) \to (\mathrm{I_D}, \frag', g', \dom, e')$ &
+  $\notext^{(\dom)}_\frag \cdot \kappa_\dom \cdot \fragdist_{\dom\frag'}$ &
+  new frag in inserted domain &
+  $\varepsilon / \destok$ \\
+$(\mathrm{I_D}, \frag, 1, \dom, e) \to (\mathrm{W_M}, \ldots)$ &
+  $\notext^{(\dom)}_\frag(1-\kappa_\dom)$ &
+  $e$ set appropriately &
+  $\varepsilon / \varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+
+For $\mathrm{I_F}$ (inserted fragment within an existing domain), fragment termination
+returns control to $\mathrm{W_M}$:
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\hline
+Transition & Weight & Condition \\
+\hline
+$(\mathrm{I_F}, \frag, 1, \dom, e) \to (\mathrm{W_M}, \frag, 1, \dom, e)$ &
+  $\notext^{(\dom)}_\frag$ & fragment ends \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsubsection{\texorpdfstring{Wait-State Transitions (Ready $\to$ Emitting)}{Wait-State Transitions (Ready -> Emitting)}}
+\label{sec:wait-transitions}
+
+Wait states inspect the boundary indicators and decide the next action.
+The transitions depend on whether we are mid-fragment ($g=0$),
+at a fragment boundary ($g=1, e=0$), or at a domain boundary ($g=1, e=1$).
+
+\paragraph{Case 1: Mid-fragment ($g = 0$).}
+Within a fragment, only continuation of the current fragment is possible.
+No new fragments or domains can start.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{lllll}
+\hline
+Source & Dest & Weight & Input & Output \\
+\hline
+$(\mathrm{W_M}, \frag, 0, \dom, e)$ &
+  $(\mat, \frag, g', \dom, e)$ &
+  $\alpha_\dom$ &
+  $\anctok_{\class\frag g'\dom e}$ &
+  $\destok_{\class\frag g'\dom e}$ \\
+$(\mathrm{W_M}, \frag, 0, \dom, e)$ &
+  $(\mathrm{D_F}, \frag, g', \dom, e)$ &
+  $(1-\alpha_\dom)$ &
+  $\anctok_{\class\frag g'\dom e}$ &
+  $\varepsilon$ \\
+\hline
+$(\mathrm{W_{D_F}}, \frag, 0, \dom, e)$ &
+  $(\mathrm{D_F}, \frag, g', \dom, e)$ &
+  $1$ &
+  $\anctok_{\class\frag g'\dom e}$ &
+  $\varepsilon$ \\
+\hline
+$(\mathrm{W_{D_D}}, \frag, 0, \dom, e)$ &
+  $(\mathrm{D_D}, \frag, g', \dom, e)$ &
+  $1$ &
+  $\anctok_{\class\frag g'\dom e}$ &
+  $\varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+Here $g'$ can be 0 or 1 (determined by the input character's label),
+$\alpha_\dom = \alpha(\insrate_\dom, \delrate_\dom, \evoltime)$,
+and the fragment type $\frag$ and domain indicators $(\dom, e)$ are unchanged.
+The emission weight for $\mat$ is $\exp(\revsub_\class \evoltime)_{\anctok\destok}$;
+the emission weight for $\mathrm{D_F}$ is 1 (input consumed, no output).
+
+\paragraph{Case 2: Fragment boundary, mid-domain ($g = 1, e = 0$).}
+At a fragment boundary within a domain, the TKF92 process within the domain
+decides: start a new fragment (match or delete), or insert a new fragment.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{lllll}
+\hline
+Source & Dest & Weight & Input & Output \\
+\hline
+$(\mathrm{W_M}, \frag, 1, \dom, 0)$ &
+  $(\mat, \frag', g', \dom, e')$ &
+  $\alpha_\dom \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom e'}$ &
+  $\destok_{\class'\frag' g'\dom e'}$ \\
+$(\mathrm{W_M}, \frag, 1, \dom, 0)$ &
+  $(\mathrm{D_F}, \frag', g', \dom, e')$ &
+  $(1-\alpha_\dom) \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom e'}$ &
+  $\varepsilon$ \\
+$(\mathrm{W_M}, \frag, 1, \dom, 0)$ &
+  $(\mathrm{I_F}, \frag', g', \dom, 0)$ &
+  $\beta_\dom \cdot \fragdist_{\dom\frag'}$ &
+  $\varepsilon$ &
+  $\destok_{\class'\frag' g'\dom 0}$ \\
+$(\mathrm{W_M}, \frag, 1, \dom, 0)$ &
+  $\fin$ &
+  $(1-\kappa_\dom) \cdot (1-\kappa_\main)$ &
+  $\varepsilon$ &
+  $\varepsilon$ \\
+\hline
+$(\mathrm{W_{D_F}}, \frag, 1, \dom, 0)$ &
+  $(\mat, \frag', g', \dom, e')$ &
+  $\alpha_\dom \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom e'}$ &
+  $\destok_{\class'\frag' g'\dom e'}$ \\
+$(\mathrm{W_{D_F}}, \frag, 1, \dom, 0)$ &
+  $(\mathrm{D_F}, \frag', g', \dom, e')$ &
+  $(1-\alpha_\dom) \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom e'}$ &
+  $\varepsilon$ \\
+\hline
+$(\mathrm{W_{D_D}}, \frag, 1, \dom, 0)$ &
+  $(\mathrm{D_D}, \frag', g', \dom, e')$ &
+  $\fragdist_{\dom\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom e'}$ &
+  $\varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+
+Note: in this case, a new fragment type $\frag'$ is drawn from $\fragdist_{\dom\frag'}$,
+and $e'$ is determined by the input character's label.
+The domain type $\dom$ is unchanged.
+
+\paragraph{Normalization of $\mathrm{W_M}$ at fragment boundary ($g=1, e=0$).}
+The outgoing weights from $(\mathrm{W_M}, \frag, 1, \dom, 0)$ must sum to 1 when
+we include all possible input/output characters:
+\begin{itemize}
+\item With an input character present (ancestral fragment continues):
+  $\alpha_\dom + (1 - \alpha_\dom) = 1$, weighted by $\fragdist_{\dom\frag'}$.
+  But the input character determines $\frag'$, so the $\fragdist$ weight is a prior
+  for the singlet composition, not a transition weight in the WFST.
+\item With no input character:
+  insertion weight $\beta_\dom$ or end weight.
+\end{itemize}
+
+Actually, for a WFST, the normalization is more subtle: the transducer weights need not
+sum to 1 at every state, because the transducer represents a conditional distribution.
+However, when composed with the singlet HMM, the resulting Pair HMM transitions must
+be properly normalized.
+
+\paragraph{Global vs.\ local normalization.}
+The Labeled-MixDom WFST is constructed by dividing the row-stochastic Pair HMM
+$\transnest$ (Section~\ref{sec:nestpairhmm})
+by the row-stochastic Singlet HMM (Section~\ref{sec:labeled-singlet}).
+By construction, $\text{Singlet} \circ \text{WFST} = \text{Pair HMM}$, so the
+WFST is conditionally normalized in the global sense:
+$\sum_{\text{output sequences } y} P(y \mid x, \theta, \evoltime) = 1$
+for any ancestor sequence $x$.
+However, the per-state outgoing weights from $\mat,\mathrm{I_F},\mathrm{I_D},
+\mathrm{D_F},\mathrm{D_D}$ do \emph{not} sum to~1 over a fixed input symbol, even
+when the Singlet emission factor for the destination label is included.
+This is the same state-folding artifact discussed for the TKF92 WFST in
+Appendix~\ref{sec:wfst-row-sums}: the Bernoulli-$\ext$ extension-vs-exit decision
+(here, the $\ext^{(\dom)}_{\srcfrag\destfrag}$ vs.\ $\notext^{(\dom)}_\srcfrag$
+event), and the $\kappa_\dom$ vs.\ $1{-}\kappa_\dom$ domain-continuation event,
+have been compiled into the same $\mat\to\cdot$ and $\mathrm{I_\cdot}\to\cdot$
+edges that already carry the destination-singlet factors.
+Splitting each emitting state into a ``just-arrived'' and a ``decision'' state
+would restore local stochasticity at the cost of doubling (or tripling) the state
+graph. The compact form here trades local stochasticity for a smaller machine,
+exactly as in TKF92.
+
+Let us instead directly specify the transition weights that, when composed with the
+Singlet HMM, reproduce the Pair HMM transition matrix $\transnest$ from
+Section~\ref{sec:nestpairhmm}.
+
+\subsubsection{Complete WFST Transition Table}
+\label{sec:wfst-complete}
+
+We now give the complete transition table.
+For readability, we abbreviate the state labels and split by source wait-state type and
+boundary case.
+
+Let the following shorthand apply throughout:
+\begin{align*}
+\alpha_\dom &= \alpha(\insrate_\dom, \delrate_\dom, \evoltime), &
+\beta_\dom &= \beta(\insrate_\dom, \delrate_\dom, \evoltime), &
+\gamma_\dom &= \gamma(\insrate_\dom, \delrate_\dom, \evoltime) \\
+\alpha_\main &= \alpha(\insrate_\main, \delrate_\main, \evoltime), &
+\beta_\main &= \beta(\insrate_\main, \delrate_\main, \evoltime), &
+\gamma_\main &= \gamma(\insrate_\main, \delrate_\main, \evoltime) \\
+\kappa_\dom &= \insrate_\dom / \delrate_\dom, &
+\kappa_\main &= \insrate_\main / \delrate_\main
+\end{align*}
+and recall $\nonemptytrans$ is the effective $5 \times 5$ domain-level transition matrix
+with null states eliminated (Section~\ref{sec:nestpairhmm}).
+
+\paragraph{Start transitions.}
+From $\sta$, the WFST enters its first emitting state.
+The weights mirror the first row of $\transnest$:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & Input & Output \\
+\hline
+$(\mat, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\sta\mat} \cdot \domdist_{\dom'} \cdot \tkftrans^{(\dom')}_{\sta\ystate} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom' e'}$ &
+  $\destok_{\class'\frag' g'\dom' e'}$ \\
+$(\mathrm{I_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\sta\ins} \cdot \domdist_{\dom'} \cdot \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\varepsilon$ &
+  $\destok_{\class'\frag' g'\dom' e'}$ \\
+$(\mathrm{D_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\sta\del} \cdot \domdist_{\dom'} \cdot \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok_{\class'\frag' g'\dom' e'}$ &
+  $\varepsilon$ \\
+$\fin$ &
+  $\nonemptytrans_{\sta\fin}$ &
+  $\varepsilon$ & $\varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+where $\ystate$ is determined by the nested state type of the destination
+($\mat$ for Match, $\ins$ for Insert-Fragment, $\del$ for Delete-Fragment within the domain).
+For Match destinations that enter at the first character of a domain,
+$\tkftrans^{(\dom')}_{\sta\ystate}$ is the TKF92 Pair HMM transition from $\sta$
+into the appropriate nested state.
+
+\paragraph{Emitting to Wait transitions.}
+After each emitting state, a null transition to the corresponding wait state occurs.
+The weight depends on the boundary indicators:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Transition & Condition on $(g, e)$ & Weight \\
+\hline
+\multirow{3}{*}{$(\mat, \ell) \to (\mathrm{W_M}, \ell)$}
+  & $g=0$ & $1$ \\
+  & $g=1,\, e=0$ & $\notext^{(\dom)}_\frag \cdot 1$ \\
+  & $g=1,\, e=1$ & $\notext^{(\dom)}_\frag \cdot 1$ \\[2pt]
+\multirow{3}{*}{$(\mathrm{D_F}, \ell) \to (\mathrm{W_{D_F}}, \ell)$}
+  & $g=0$ & $1$ \\
+  & $g=1,\, e=0$ & $\notext^{(\dom)}_\frag$ \\
+  & $g=1,\, e=1$ & $\notext^{(\dom)}_\frag$ \\[2pt]
+\multirow{3}{*}{$(\mathrm{D_D}, \ell) \to (\mathrm{W_{D_D}}, \ell)$}
+  & $g=0$ & $1$ \\
+  & $g=1,\, e=0$ & $\notext^{(\dom)}_\frag$ \\
+  & $g=1,\, e=1$ & $\notext^{(\dom)}_\frag$ \\
+\hline
+\end{tabular}
+\end{center}
+
+Wait---the fragment extension must also be handled.
+At $g=0$, the character is mid-fragment; the next character in the same
+fragment follows with certainty (the matrix entry $\ext^{(\dom)}_{\srcfrag\destfrag}$
+is already accounted for in the singlet HMM emission of the next labelled
+character).
+At $g=1$, the fragment has ended, so the per-source termination weight
+$\notext^{(\dom)}_\frag$ has already been ``spent'' by the fact that $g=1$
+was observed.
+Since the boundary indicators are part of the \emph{label on the character},
+which is determined by the input (for ancestral) or output (for descendant),
+the fragment extension probability is absorbed into the singlet HMM, not the WFST.
+
+Therefore all emitting-to-wait transitions have \textbf{unit weight}:
+\begin{equation}
+\label{eq:emit-to-wait}
+w(X \to W_X) = 1 \quad \text{for all } X \in \{\mat, \mathrm{D_F}, \mathrm{D_D}\}
+\end{equation}
+The fragment and domain boundary structure is encoded in the
+\emph{wait-state outgoing transitions}, which condition on $(g, e)$.
+
+
+\subsubsection{Wait-State Outgoing Transitions}
+\label{sec:wait-outgoing}
+
+The wait states make all structural decisions.
+We organize by source state type and boundary case.
+
+\paragraph{$\mathrm{W_M}$ (Wait after Match).}
+
+\bigskip
+\noindent\textbf{Case $g=0$ (mid-fragment):}
+Continue the current fragment. The next input character must have the same $(\frag, \dom, e)$.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lllll}
+\hline
+Dest & Weight & Input & Output & Notes \\
+\hline
+$(\mat, \frag, g', \dom, e)$ &
+  $\alpha_\dom$ &
+  $\anctok_{\class'\frag g'\dom e}$ &
+  $\destok_{\class'\frag g'\dom e}$ &
+  match continues \\
+$(\mathrm{D_F}, \frag, g', \dom, e)$ &
+  $(1-\alpha_\dom)$ &
+  $\anctok_{\class'\frag g'\dom e}$ &
+  $\varepsilon$ &
+  fragment-level deletion \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Case $g=1, e=0$ (fragment boundary, mid-domain):}
+Fragment ended, new fragment within same domain, or insert/delete fragment,
+or end domain and transition at domain level.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lllll}
+\hline
+Dest & Weight & I & O & Notes \\
+\hline
+$(\mat, \frag', g', \dom, e')$ &
+  $\tkftrans^{(\dom)}_{\mat\mat} \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok_{\ldots}$ &
+  $\destok_{\ldots}$ &
+  new frag, match \\
+$(\mathrm{D_F}, \frag', g', \dom, e')$ &
+  $\tkftrans^{(\dom)}_{\mat\del} \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok_{\ldots}$ &
+  $\varepsilon$ &
+  new frag, delete \\
+$(\mathrm{I_F}, \frag', g', \dom, 0)$ &
+  $\tkftrans^{(\dom)}_{\mat\ins} \cdot \fragdist_{\dom\frag'}$ &
+  $\varepsilon$ &
+  $\destok_{\ldots}$ &
+  insert frag \\
+$\fin_{\rm domain}$ &
+  $\tkftrans^{(\dom)}_{\mat\fin}$ &
+  &
+  &
+  domain ends (see below) \\
+\hline
+\end{tabular}
+\end{center}
+
+When the domain ends, $\tkftrans^{(\dom)}_{\mat\fin} = (1-\beta_\dom)(1-\kappa_\dom)$, the
+domain-level process takes over.
+This is where the $\nonemptytrans$ matrix from the null-eliminated domain-level
+Pair HMM applies.
+
+Rather than introducing an intermediate ``domain end'' state, we can fold the
+domain-level transition into the fragment-boundary transitions.
+From $(\mathrm{W_M}, \frag, 1, \dom, 0)$, with the domain ending:
+the TKF92 weight is $\tkftrans^{(\dom)}_{\mat\fin}$, and then the domain-level
+$\nonemptytrans_{\mat\cdot}$ applies to reach the next domain.
+
+However, this conflates two levels of the hierarchy.
+To keep the WFST clean and composable, we should handle this through the
+domain-end indicator $e$: when $e=0$, we are mid-domain and only fragment-level
+transitions apply.  The domain-end case $e=1$ is reached when the last fragment
+of a domain has ended.
+
+Actually, let us reconsider.
+The labels $(g, e)$ on the input/output characters tell us the hierarchical position.
+The \emph{singlet HMM} generates these labels according to the MixDom stationary process.
+The WFST must respect them: it cannot change $(g, e)$ on matched characters.
+
+So the WFST sees:
+\begin{itemize}
+\item Characters labeled $g=0$: mid-fragment
+\item Characters labeled $g=1, e=0$: end of fragment, not end of domain
+\item Characters labeled $g=1, e=1$: end of fragment and end of domain
+\end{itemize}
+
+At a fragment boundary in the ancestor ($g=1$), the WFST knows the ancestral fragment
+has ended. The next ancestral character (if any) will start a new fragment or domain.
+Between the end of one fragment and the start of the next, the WFST may insert
+new fragments (for $\mathrm{I_F}$) or entire domains (for $\mathrm{I_D}$).
+
+This gives us the complete transition logic from each wait state.
+
+\bigskip
+\noindent\textbf{Revised: $\mathrm{W_M}$ at $g=1, e=0$ (fragment boundary, mid-domain):}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mat, \frag', g', \dom, e')$ &
+  $\alpha_\dom \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok / \destok$ &
+  new fragment, match \\
+$(\mathrm{D_F}, \frag', g', \dom, e')$ &
+  $(1-\alpha_\dom) \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok / \varepsilon$ &
+  new fragment, delete \\
+$(\mathrm{I_F}, \frag', g', \dom, 0)$ &
+  $\beta_\dom \cdot \fragdist_{\dom\frag'}$ &
+  $\varepsilon / \destok$ &
+  insert fragment \\
+\hline
+\end{tabular}
+\end{center}
+
+Normalization: with an input character, the weight is
+$\alpha_\dom + (1-\alpha_\dom) = 1$ (times $\fragdist$).
+Without an input character (insertion), $\beta_\dom$ (times $\fragdist$).
+These don't need to sum to 1 together because input-present and input-absent
+are exclusive events in the WFST.
+
+\bigskip
+\noindent\textbf{$\mathrm{W_M}$ at $g=1, e=1$ (domain boundary):}
+
+Here both the fragment and domain have ended.
+The domain-level TKF91 process decides what happens next.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mat, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\mat} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \destok$ &
+  new domain, match \\
+$(\mathrm{D_F}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\del} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  new domain, del-frag \\
+$(\mathrm{D_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  delete domain \\
+$(\mathrm{I_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\ins} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\varepsilon / \destok$ &
+  insert domain \\
+$\fin$ &
+  $\nonemptytrans_{\mat\fin}$ &
+  $\varepsilon / \varepsilon$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+Here $\nonemptytrans_{\mat\cdot}$ are the null-eliminated domain-level transitions.
+The $\tkftrans^{(\dom')}_{\sta\mat}$ and $\tkftrans^{(\dom')}_{\sta\del}$ factors
+are the TKF92 entry transitions into the new domain $\dom'$.
+
+\bigskip
+\noindent\textbf{$\mathrm{W_{D_F}}$ (Wait after Delete-Fragment).}
+
+$\mathrm{W_{D_F}}$ tracks the deletion of individual fragments within a domain
+(the domain itself is matched/surviving; only some fragments are deleted).
+
+\medskip
+\noindent Case $g=0$ (mid-fragment):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mathrm{D_F}, \frag, g', \dom, e)$ &
+  $1$ &
+  $\anctok / \varepsilon$ &
+  continue deleting fragment \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent Case $g=1, e=0$ (fragment boundary, mid-domain):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mat, \frag', g', \dom, e')$ &
+  $\alpha_\dom \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok / \destok$ &
+  new frag, match \\
+$(\mathrm{D_F}, \frag', g', \dom, e')$ &
+  $(1-\alpha_\dom) \cdot \fragdist_{\dom\frag'}$ &
+  $\anctok / \varepsilon$ &
+  new frag, delete \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent Case $g=1, e=1$ (domain boundary):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mat, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\mat} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \destok$ &
+  new domain, match \\
+$(\mathrm{D_F}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\del} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  new domain, del-frag \\
+$(\mathrm{D_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  delete domain \\
+$(\mathrm{I_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\mat\ins} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\varepsilon / \destok$ &
+  insert domain \\
+$\fin$ &
+  $\nonemptytrans_{\mat\fin}$ &
+  $\varepsilon / \varepsilon$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+Note: $\mathrm{W_{D_F}}$ at domain boundaries uses the \emph{same} $\nonemptytrans_{\mat\cdot}$
+row as $\mathrm{W_M}$, because fragment-level deletion within a domain does not affect
+the domain-level state (the domain was matched, i.e.\ the top-level state was $\mat$).
+
+\bigskip
+\noindent\textbf{$\mathrm{W_{D_D}}$ (Wait after Delete-Domain).}
+
+$\mathrm{W_{D_D}}$ handles the deletion of entire domains.
+Within a deleted domain, all fragments are consumed without output.
+
+\medskip
+\noindent Case $g=0$ (mid-fragment):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mathrm{D_D}, \frag, g', \dom, e)$ &
+  $1$ &
+  $\anctok / \varepsilon$ &
+  continue consuming domain \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent Case $g=1, e=0$ (fragment boundary, mid-domain):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mathrm{D_D}, \frag', g', \dom, e')$ &
+  $\fragdist_{\dom\frag'}$ &
+  $\anctok / \varepsilon$ &
+  next fragment in deleted domain \\
+\hline
+\end{tabular}
+\end{center}
+
+Note: within a deleted domain, the entire domain is being consumed,
+so the fragment distribution weight $\fragdist_{\dom\frag'}$ is needed to
+match the singlet prior.
+
+\noindent Case $g=1, e=1$ (domain boundary):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mat, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\del\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\mat} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \destok$ &
+  new domain, match \\
+$(\mathrm{D_F}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\del\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\del} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  new domain, del-frag \\
+$(\mathrm{D_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\del\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  delete another domain \\
+$(\mathrm{I_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\del\ins} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\varepsilon / \destok$ &
+  insert domain \\
+$\fin$ &
+  $\nonemptytrans_{\del\fin}$ &
+  $\varepsilon / \varepsilon$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+Here $\nonemptytrans_{\del\cdot}$ is used because the domain-level state was $\del$.
+
+\bigskip
+\noindent\textbf{Insert states ($\mathrm{I_F}$, $\mathrm{I_D}$).}
+
+Insert states handle character-level emissions for inserted fragments/domains.
+They self-loop for fragment extension and terminate back to wait states.
+
+\medskip
+\noindent $\mathrm{I_F}$ (inserted fragment within an existing domain):
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Source & Dest & Weight & I/O \\
+\hline
+$(\mathrm{I_F}, \srcfrag, 0, \dom, e)$ &
+  $(\mathrm{I_F}, \destfrag, g', \dom, e)$ &
+  $\ext^{(\dom)}_{\srcfrag\destfrag}$ (emit next char) &
+  $\varepsilon / \destok$ \\
+$(\mathrm{I_F}, \frag, 1, \dom, e)$ &
+  $(\mathrm{W_M}, \frag, 1, \dom, e)$ &
+  $1$ (fragment ended) &
+  $\varepsilon / \varepsilon$ \\
+\hline
+\end{tabular}
+\end{center}
+
+Since the label $g$ on the output character indicates whether the fragment continues ($g=0$)
+or ends ($g=1$), the fragment-extension matrix $\ext^{(\dom)}$ is again handled by
+the singlet HMM generating the output labels.
+In the WFST, $\mathrm{I_F}$ at $g=0$ continues emitting; at $g=1$ the fragment ends
+and control returns to $\mathrm{W_M}$ to decide on the next fragment-level action.
+
+Actually, for insert states, the output character labels are generated by the WFST itself
+(there is no ancestral character to copy from).
+The WFST must therefore assign the correct probabilities to the output labels.
+The emission weight at $(\mathrm{I_F}, \frag, g, \dom, e)$ for output character
+$\destok_{\class'\frag' g'\dom' e'}$ is:
+\begin{equation}
+\label{eq:if-emit}
+\delta_{\dom\dom'} \delta_{ee'} \cdot
+\classdist_{\frag'\class'} \eqm_{\class'\destok} \cdot
+\begin{cases}
+\ext^{(\dom)}_{\frag\frag'} & \text{if } g' = 0 \\
+\notext^{(\dom)}_\frag\,\delta_{\frag\frag'} & \text{if } g' = 1
+\end{cases}
+\end{equation}
+followed by a transition: if $g'=0$, loop to $(\mathrm{I_F}, \frag, 0, \dom, e)$;
+if $g'=1$, go to the appropriate wait state.
+
+\medskip
+\noindent $\mathrm{I_D}$ (inserted domain): similar to $\mathrm{I_F}$, but the entire
+domain is new. Within the inserted domain, the fragment-level TKF92 structure applies:
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\hline
+Source condition & Dest & Notes \\
+\hline
+$(\mathrm{I_D}, \frag, 0, \dom, e)$ &
+  $(\mathrm{I_D}, \frag, g', \dom, e)$, emit $\destok$ &
+  mid-fragment, continue \\
+$(\mathrm{I_D}, \frag, 1, \dom, 0)$ &
+  $(\mathrm{I_D}, \frag', g', \dom, e')$, emit $\destok$ &
+  new fragment in inserted domain \\
+  & weight: $\kappa_\dom \cdot \fragdist_{\dom\frag'}$ & \\
+$(\mathrm{I_D}, \frag, 1, \dom, 0)$ &
+  domain ends within inserted domain &
+  weight: $(1-\kappa_\dom)$ \\
+  & $\to$ next domain-level action & \\
+$(\mathrm{I_D}, \frag, 1, \dom, 1)$ &
+  inserted domain complete &
+  returns to domain-level wait \\
+\hline
+\end{tabular}
+\end{center}
+
+When $\mathrm{I_D}$ completes (the inserted domain ends), control goes back to a
+domain-level wait state.
+Since the domain was inserted (top-level state $\ins$), the next domain-level transition
+uses $\nonemptytrans_{\ins\cdot}$:
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\hline
+Dest & Weight & I/O & Notes \\
+\hline
+$(\mat, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\ins\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\mat} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \destok$ &
+  match next domain \\
+$(\mathrm{D_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\ins\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\anctok / \varepsilon$ &
+  delete next domain \\
+$(\mathrm{I_D}, \frag', g', \dom', e')$ &
+  $\nonemptytrans_{\ins\ins} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}$ &
+  $\varepsilon / \destok$ &
+  insert another domain \\
+$\fin$ &
+  $\nonemptytrans_{\ins\fin}$ &
+  $\varepsilon / \varepsilon$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsection{Emission Weights}
+\label{sec:wfst-emissions}
+
+The emission weights for each emitting state type are:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+State & Emission & Weight \\
+\hline
+$\mat$ & input $\anctok_{\class\frag g\dom e}$, output $\destok_{\class\frag g\dom e}$ &
+  $\exp(\revsub_\class \evoltime)_{\anctok\destok}$ \\
+$\mathrm{I_F}$ & output $\destok_{\class\frag g\dom e}$ &
+  $\classdist_{\frag\class}\, \eqm_{\class\destok} \cdot p_g(\ext^{(\dom)}_{\frag\cdot})$ \\
+$\mathrm{I_D}$ & output $\destok_{\class\frag g\dom e}$ &
+  $\classdist_{\frag\class}\, \eqm_{\class\destok} \cdot p_g(\ext^{(\dom)}_{\frag\cdot})$ \\
+$\mathrm{D_F}$ & input $\anctok_{\class\frag g\dom e}$ &
+  $1$ \\
+$\mathrm{D_D}$ & input $\anctok_{\class\frag g\dom e}$ &
+  $1$ \\
+\hline
+\end{tabular}
+\end{center}
+where $p_g(\ext^{(\dom)}_{\frag\cdot})$ stands for $\ext^{(\dom)}_{\frag\frag'}$
+if $g=0$ (fragment continues with destination fragchar $\frag'$) and
+$\notext^{(\dom)}_\frag$ if $g=1$
+(fragment ends), and the substitution matrix $\revsub_\class$ is the rate matrix for site class $\class$.
+
+For the WFST (conditional on ancestor), the delete emission weight is 1 because the
+ancestral emission probability is divided out (it was generated by the singlet HMM).
+The match emission divides out the ancestral $\eqm_{\class\anctok}$ from the pair emission
+$\eqm_{\class\anctok} \exp(\revsub_\class \evoltime)_{\anctok\destok}$,
+yielding just the substitution matrix entry.
+
+For insert states, the emission includes the full descendant character probability
+because there is no ancestral character to condition on.
+
+
+\subsection{Verification: Composition Reproduces the Pair HMM}
+\label{sec:verification}
+
+\paragraph{Claim.}
+The Labeled-MixDom Singlet HMM composed with the Labeled-MixDom WFST
+is equivalent to the MixDom Pair HMM defined in Section~\ref{sec:nestpairhmm}.
+
+\paragraph{Sketch of proof.}
+The composition proceeds as follows:
+\begin{enumerate}
+\item The Singlet HMM generates the ancestral labeled sequence, with transitions
+  governed by the MixDom stationary distribution.
+\item The WFST reads the ancestral labeled sequence as input and produces
+  the descendant labeled sequence as output.
+\item The composed machine has states that are pairs (singlet state, WFST state).
+  Since both are order-1 machines tracking structural labels, the composed state
+  is a pair of structural labels.
+\end{enumerate}
+
+We verify that the composed transition weights match $\transnest$ for each case:
+
+\paragraph{Match-to-Match within a fragment ($g=0$).}
+The singlet emits character $\anctok_{\class\frag 0\dom e}$ with weight
+$\classdist_{\frag\class} \eqm_{\class\anctok}$,
+and transitions to state $(\frag', g', \dom, e)$ with weight $\ext^{(\dom)}_{\frag\frag'}$ (if $g'=0$)
+or $\notext^{(\dom)}_\frag \cdot \ldots$ (if $g'=1$).
+The WFST in state $(\mathrm{W_M}, \srcfrag, 0, \dom, e)$ reads this input and
+transitions to $(\mat, \destfrag, g', \dom, e)$ with weight $\alpha_\dom$,
+emitting $\destok$ with substitution weight $\exp(\revsub_\class \evoltime)_{\anctok\destok}$.
+The composed emission weight is
+$\classdist_{\destfrag\class} \eqm_{\class\anctok} \exp(\revsub_\class \evoltime)_{\anctok\destok}$,
+summing over $\class$ gives
+$\sum_\class \classdist_{\destfrag\class} \eqm_{\class\anctok} \exp(\revsub_\class \evoltime)_{\anctok\destok}$,
+which matches the Pair HMM emission for $\mat\mat_{\dom\destfrag}$.
+The transition weight within the fragment is $\ext^{(\dom)}_{\srcfrag\destfrag}
+\cdot \alpha_\dom$, which corresponds to the $\samedom \ext^{(\dom)}_{\srcfrag\destfrag}$
+term in $\transnest$ (for the intra-fragment Markov contribution to
+$\mat\mat_{\srcdom\srcfrag} \to \mat\mat_{\srcdom\destfrag}$).
+
+\paragraph{Match-to-Match across fragment boundary ($g=1, e=0$).}
+Singlet: fragment ends, transitions to new fragment $\frag'$ within same domain
+with weight $\kappa_\dom \cdot \fragdist_{\dom\frag'}$.
+WFST: $(\mathrm{W_M}, \frag, 1, \dom, 0)$ transitions to $(\mat, \frag', g', \dom, e')$
+with weight $\alpha_\dom \cdot \fragdist_{\dom\frag'}$.
+Combined: $\kappa_\dom \cdot \fragdist_{\dom\frag'} \cdot \alpha_\dom \cdot \fragdist_{\dom\frag'}$.
+
+Wait---the $\fragdist$ appears twice, which is wrong.
+This reveals that the WFST transition weight should \emph{not} include $\fragdist_{\dom\frag'}$
+when the input character determines $\frag'$.
+The fragment type of the next input character is determined by the singlet HMM,
+and the WFST simply reads whatever fragment type appears.
+
+Let us correct: at fragment boundaries, when the next action involves reading an input
+character, the WFST does \emph{not} weight by $\fragdist_{\dom\frag'}$.
+The $\fragdist$ is part of the singlet distribution, not the conditional (WFST) distribution.
+
+\paragraph{Corrected Wait-State Transitions.}
+The WFST represents the \emph{conditional} distribution $P(\text{descendant} \mid \text{ancestor})$.
+Therefore:
+\begin{itemize}
+\item Transitions that consume an input character should \emph{not} include the prior
+  probability of that input character's labels (such as $\fragdist$, $\domdist$).
+\item Transitions that produce an output character (insertions) \emph{do} include
+  the full probability of the output labels (since the WFST generates them).
+\item Transitions involving the $\nonemptytrans$ matrix at domain boundaries must be
+  adjusted: $\nonemptytrans$ was derived for the Pair HMM (joint distribution),
+  so the WFST version divides out the ancestral prior factors.
+\end{itemize}
+
+Concretely, the $\transnest$ entry for
+$\mat\xstate_{\srcdom\srcfrag} \to \mat\ystate_{\destdom\destfrag}$ with $\srcdom = \destdom$
+(same domain, new fragment) is:
+\[
+\notext^{(\dom)}_\srcfrag \cdot \tkftrans^{(\dom)}_{\xstate\ystate} \cdot \fragdist_{\dom\destfrag}
+\]
+This is the \emph{joint} weight.
+In the composed (singlet $\circ$ WFST) machine:
+\begin{itemize}
+\item Singlet provides: $\notext^{(\dom)}_\srcfrag \cdot \kappa_\dom \cdot \fragdist_{\dom\destfrag}$
+  (end fragment, continue domain, choose new fragment type)
+\item WFST provides: $\frac{\tkftrans^{(\dom)}_{\xstate\ystate}}{\kappa_\dom}$
+  (the conditional transition, dividing out the $\kappa_\dom$ from the joint)
+\end{itemize}
+Product: $\notext^{(\dom)}_\srcfrag \cdot \kappa_\dom \cdot \fragdist_{\dom\destfrag}
+\cdot \tkftrans^{(\dom)}_{\xstate\ystate} / \kappa_\dom
+= \notext^{(\dom)}_\srcfrag \cdot \tkftrans^{(\dom)}_{\xstate\ystate} \cdot \fragdist_{\dom\destfrag}$.
+This matches the Pair HMM. \checkmark
+
+Similarly, for the domain-boundary case with $\srcdom \neq \destdom$:
+\begin{itemize}
+\item Singlet provides: $\notext^{(\srcdom)}_\srcfrag (1-\kappa_{\srcdom}) \cdot
+  \frac{\kappa_\main \domdist_{\destdom} \kappa_{\destdom} \fragdist_{\destdom\destfrag}}{1-\zeta}$
+\item WFST provides: the conditional weight that, when multiplied by the singlet weight,
+  gives $\transnest_{\mat\xstate_{\srcdom\srcfrag} \to \mat\ystate_{\destdom\destfrag}}$
+\end{itemize}
+
+The required WFST transition weights therefore depend on the singlet transition structure.
+Rather than writing out all the corrected weights with singlet factors divided out,
+we express the key principle:
+
+\begin{quote}
+\textbf{WFST weight principle:}
+For any transition that consumes an input character with label $\ell'$,
+the WFST weight is the Pair HMM transition weight divided by the singlet
+transition weight for generating a character with label $\ell'$ from the current
+singlet state.
+For transitions that produce an output character (insertions), the WFST
+carries the full conditional weight.
+For null transitions (emitting-to-wait), the weight is 1.
+\end{quote}
+
+Specifically, let $P_{\rm pair}(i \to j)$ be the Pair HMM transition from state $i$ to $j$,
+and let $P_{\rm sing}(\ell \to \ell')$ be the singlet transition.
+Then:
+\begin{equation}
+\label{eq:wfst-weight-principle}
+w_{\rm WFST}(s, \ell_{\rm in}, \ell_{\rm out} \to s', \ell') =
+\frac{P_{\rm pair}(i(s,\ell) \to j(s',\ell'))}{P_{\rm sing}(\ell \to \ell')}
+\end{equation}
+where $i(s,\ell)$ and $j(s',\ell')$ are the corresponding Pair HMM states,
+and $\ell_{\rm in}$ is present when $s'$ consumes input.
+
+\paragraph{Explicit corrected weights.}
+
+We now tabulate the corrected WFST transition weights organized by source wait state,
+boundary case, and whether input is consumed.
+
+In all cases below, the WFST context $\ell = (\frag, g, \dom, e)$ is the structural label
+of the last processed character. The singlet HMM is in the corresponding state.
+The factor $P_{\rm sing}(\ell \to \ell')$ is the singlet transition weight from the
+current label to the next label.
+
+\bigskip
+\noindent\textbf{$\mathrm{W_M}$, $g=0$ (mid-fragment, input consumed):}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$\mat$ & $\alpha_\dom$ & match \\
+$\mathrm{D_F}$ & $(1-\alpha_\dom)$ & frag-level delete \\
+\hline
+\end{tabular}
+\end{center}
+No singlet factor to divide out: at $g=0$ the singlet continues the fragment
+with weight $\ext^{(\dom)}_{\srcfrag\destfrag}$ (producing the next character
+with destination fragchar $\destfrag$ in the same domain), and the WFST
+weight is purely the TKF92 match/delete split, independent of $\fragdist$.
+
+\bigskip
+\noindent\textbf{$\mathrm{W_M}$, $g=1, e=0$ (fragment boundary, mid-domain):}
+
+With input (start new ancestral fragment):
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$\mat$ & $\alpha_\dom$ & match new fragment \\
+$\mathrm{D_F}$ & $(1-\alpha_\dom)$ & delete new fragment \\
+\hline
+\end{tabular}
+\end{center}
+The $\fragdist_{\dom\frag'}$ is supplied by the singlet; the WFST contributes
+only the match/delete split.
+
+Without input (descendant insertion):
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$(\mathrm{I_F}, \frag', g', \dom, 0)$ &
+  $\beta_\dom \cdot \fragdist_{\dom\frag'} \cdot \classdist_{\frag'\class'} \eqm_{\class'\destok} \cdot p_{g'}(\ext_{\frag'})$ &
+  insert fragment \\
+\hline
+\end{tabular}
+\end{center}
+Here the WFST generates the full output character probability since
+there is no input to condition on.
+
+\bigskip
+\noindent\textbf{$\mathrm{W_M}$, $g=1, e=1$ (domain boundary):}
+
+With input (start new ancestral domain):
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$\mat$ &
+  $\dfrac{\nonemptytrans_{\mat\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\ystate} \cdot \fragdist_{\dom'\frag'}}
+  {P_{\rm sing}(\ell \to \ell')}$ &
+  new domain, match \\[8pt]
+$\mathrm{D_F}$ &
+  $\dfrac{\nonemptytrans_{\mat\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\del} \cdot \fragdist_{\dom'\frag'}}
+  {P_{\rm sing}(\ell \to \ell')}$ &
+  new domain, del-frag \\[8pt]
+$\mathrm{D_D}$ &
+  $\dfrac{\nonemptytrans_{\mat\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}}
+  {P_{\rm sing}(\ell \to \ell')}$ &
+  delete domain \\
+\hline
+\end{tabular}
+\end{center}
+
+Without input:
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$\mathrm{I_D}$ &
+  $\nonemptytrans_{\mat\ins} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'} \cdot
+   \classdist_{\frag'\class'} \eqm_{\class'\destok} \cdot p_{g'}(\ext_{\frag'})$ &
+  insert domain \\
+$\fin$ & $\nonemptytrans_{\mat\fin} / P_{\rm sing}(\ell \to \fin)$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+where $P_{\rm sing}(\ell \to \ell') = \frac{\kappa_\main \domdist_{\dom'} \kappa_{\dom'} \fragdist_{\dom'\frag'}}{1-\zeta}$
+is the singlet transition from a domain boundary to the next character label $\ell'$
+(Equation~\ref{eq:singlet-newdom}).
+
+\bigskip
+The $\mathrm{W_{D_F}}$ and $\mathrm{W_{D_D}}$ tables follow the same pattern,
+using $\nonemptytrans_{\mat\cdot}$ for $\mathrm{W_{D_F}}$ (since fragment deletion
+is within a matched domain) and $\nonemptytrans_{\del\cdot}$ for $\mathrm{W_{D_D}}$
+(since the domain is being deleted).
+
+\paragraph{$\mathrm{W_{D_F}}$ at $g=0$:}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\hline
+Dest & WFST weight \\
+\hline
+$\mathrm{D_F}$ & $1$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{$\mathrm{W_{D_F}}$ at $g=1, e=0$:}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\hline
+Dest & WFST weight \\
+\hline
+$\mat$ & $\alpha_\dom$ \\
+$\mathrm{D_F}$ & $(1-\alpha_\dom)$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{$\mathrm{W_{D_F}}$ at $g=1, e=1$:}
+Same structure as $\mathrm{W_M}$ at $g=1, e=1$, using $\nonemptytrans_{\mat\cdot}$.
+
+\paragraph{$\mathrm{W_{D_D}}$ at $g=0$:}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\hline
+Dest & WFST weight \\
+\hline
+$\mathrm{D_D}$ & $1$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{$\mathrm{W_{D_D}}$ at $g=1, e=0$:}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\hline
+Dest & WFST weight \\
+\hline
+$\mathrm{D_D}$ & $1$ \\
+\hline
+\end{tabular}
+\end{center}
+(Within a deleted domain, all fragments are consumed; fragment type is irrelevant.)
+
+\paragraph{$\mathrm{W_{D_D}}$ at $g=1, e=1$:}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$\mat$ &
+  $\nonemptytrans_{\del\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\ystate} \cdot \fragdist_{\dom'\frag'}
+   / P_{\rm sing}(\ell \to \ell')$ &
+  new domain, match \\
+$\mathrm{D_F}$ &
+  $\nonemptytrans_{\del\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\del} \cdot \fragdist_{\dom'\frag'}
+   / P_{\rm sing}(\ell \to \ell')$ &
+  new domain, del-frag \\
+$\mathrm{D_D}$ &
+  $\nonemptytrans_{\del\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}
+   / P_{\rm sing}(\ell \to \ell')$ &
+  delete domain \\
+$\mathrm{I_D}$ &
+  $\nonemptytrans_{\del\ins} \cdot (\text{full output prob})$ &
+  insert domain \\
+$\fin$ & $\nonemptytrans_{\del\fin} / P_{\rm sing}(\ell \to \fin)$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{$\mathrm{I_D}$ completion at $g=1, e=1$:}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\hline
+Dest & WFST weight & Notes \\
+\hline
+$\mat$ &
+  $\nonemptytrans_{\ins\mat} \cdot \domdist_{\dom'} \cdot
+   \tkftrans^{(\dom')}_{\sta\ystate} \cdot \fragdist_{\dom'\frag'}
+   / P_{\rm sing}(\ell \to \ell')$ &
+  match next domain \\
+$\mathrm{D_D}$ &
+  $\nonemptytrans_{\ins\del} \cdot \domdist_{\dom'} \cdot
+   \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}
+   / P_{\rm sing}(\ell \to \ell')$ &
+  delete next domain \\
+$\mathrm{I_D}$ &
+  $\nonemptytrans_{\ins\ins} \cdot (\text{full output prob})$ &
+  insert another domain \\
+$\fin$ & $\nonemptytrans_{\ins\fin} / P_{\rm sing}(\ell \to \fin)$ &
+  end \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsection{Simplification of Domain-Boundary WFST Weights}
+\label{sec:wfst-simplify}
+\label{sec:simplification}
+
+The domain-boundary WFST weights (Section~\ref{sec:wait-outgoing}) involve
+a ratio of the Pair HMM transition weight to the singlet transition weight.
+This simplifies considerably.
+
+For a transition that consumes input with label $\ell' = (\frag', g', \dom', e')$
+from a domain boundary ($g=1, e=1$), the singlet weight is
+(from Equation~\ref{eq:singlet-newdom}):
+\[
+P_{\rm sing}(\ell \to \ell') = \frac{\kappa_\main \cdot \domdist_{\dom'} \cdot \kappa_{\dom'} \cdot \fragdist_{\dom'\frag'}}{1 - \zeta}
+\]
+
+The Pair HMM weight for $\mat\mat_{\srcdom\srcfrag} \to \mat\mat_{\destdom\destfrag}$
+with $\srcdom \neq \destdom$ (different domain, going through domain boundary) is:
+\[
+\notext^{(\srcdom)}_\srcfrag \cdot \tkftrans^{(\srcdom)}_{\mat\fin} \cdot
+\nonemptytrans_{\mat\mat} \cdot \domdist_{\destdom} \cdot
+\tkftrans^{(\destdom)}_{\sta\mat} \cdot \fragdist_{\destdom\destfrag}
+\]
+
+The WFST weight is therefore:
+\[
+\frac{\notext^{(\srcdom)}_\srcfrag \cdot \tkftrans^{(\srcdom)}_{\mat\fin} \cdot
+\nonemptytrans_{\mat\mat} \cdot \domdist_{\destdom} \cdot
+\tkftrans^{(\destdom)}_{\sta\mat} \cdot \fragdist_{\destdom\destfrag}}
+{\frac{\kappa_\main \cdot \domdist_{\destdom} \cdot \kappa_{\destdom} \cdot \fragdist_{\destdom\destfrag}}{1 - \zeta}}
+= \frac{(1-\zeta)\notext^{(\srcdom)}_\srcfrag \cdot \tkftrans^{(\srcdom)}_{\mat\fin} \cdot
+\nonemptytrans_{\mat\mat} \cdot \tkftrans^{(\destdom)}_{\sta\mat}}
+{\kappa_\main \cdot \kappa_{\destdom}}
+\]
+
+The $\domdist_{\destdom}$ and $\fragdist_{\destdom\destfrag}$ cancel, leaving a weight
+that depends on the source domain parameters and the destination domain's TKF parameters,
+but \emph{not} on the specific fragment or domain type of the destination.
+This is a significant simplification: the WFST transition weight at domain boundaries
+is the same for all destination labels $\ell'$, given the source label $\ell$.
+
+Since $\tkftrans^{(\srcdom)}_{\mat\fin} = (1-\beta_{\srcdom})(1-\kappa_{\srcdom})$
+and $\tkftrans^{(\destdom)}_{\sta\mat} = (1-\beta_{\destdom})\kappa_{\destdom}\alpha_{\destdom}$,
+the weight becomes:
+\[
+\frac{(1-\zeta)\notext^{(\srcdom)}_\srcfrag(1-\beta_{\srcdom})(1-\kappa_{\srcdom}) \cdot
+\nonemptytrans_{\mat\mat} \cdot (1-\beta_{\destdom})\alpha_{\destdom}}
+{\kappa_\main}
+\]
+
+Note that this weight still depends on $\destdom$ through $(1-\beta_{\destdom})\alpha_{\destdom}$,
+so the cancellation is partial: $\domdist$ and $\fragdist$ cancel but the TKF92 entry
+parameters do not.
+
+
+\subsection{State Count and Sparsity}
+\label{sec:state-count}
+
+The Labeled-MixDom WFST has at most $8L + 2$ states where $L = |\nfrag| \cdot |\ndom| \cdot 4$.
+In practice, many combinations are constrained away:
+\begin{itemize}
+\item $\mathrm{I_F}$ states only occur with $e \neq 1$ (inserted fragments cannot be the last in a domain
+  since they are inserted \emph{within} a domain).
+\item Mid-fragment ($g=0$) wait states have at most 2 outgoing transitions each
+  (continue in same fragment, match or delete).
+\item Fragment-boundary ($g=1, e=0$) wait states have at most 3 outgoing transition types.
+\item Domain-boundary ($g=1, e=1$) wait states have at most 5 outgoing transition types
+  (one per $\nonemptytrans$ column).
+\end{itemize}
+
+The transition matrix is therefore very sparse.
+For typical values ($|\nfrag| = 4$, $|\ndom| = 20$, $|\nclass| = 4$),
+we get $L = 4 \cdot 20 \cdot 4 = 320$ and the WFST has at most $8 \cdot 320 + 2 = 2562$ states,
+comparable to the Maraschino-distilled WFST
+(which has $\sim 8 \cdot |\alphabet|^2 + 2$ states for the order-1 pair context).
+
+The key advantage over distillation is exactness: the Labeled-MixDom WFST preserves
+all correlations of the MixDom model without approximation, at the cost of a larger
+effective alphabet.

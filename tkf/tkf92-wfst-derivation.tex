@@ -1,0 +1,469 @@
+% tkf92-wfst-derivation.tex — TKF92 conditional WFST by singlet division
+% To be \input from tkf.tex
+
+\section{TKF92 WFST by Singlet Division}
+\label{sec:tkf92-wfst}
+
+This appendix derives the TKF92 conditional WFST
+$\tkfwfst'(\insrate,\delrate,\evoltime,\ext)$
+representing $P(\text{descendant} \mid \text{ancestor}, \theta)$
+by dividing the TKF92 Pair HMM by the TKF92 Singlet HMM.
+
+The TKF91 WFST (Section~\ref{sec:tkf91-machines}) is a $5{\times}5$
+matrix obtained from the TKF91 Pair HMM $\tkftrans$ by stripping
+$\kappa$ from ancestor-consuming columns ($\mat,\del$) and $1{-}\kappa$
+from the end column ($\fin$).
+The TKF92 WFST cannot be expressed as a $5{\times}5$ matrix in the same
+state space.  As we show in Section~\ref{sec:wfst92-i0i1-split},
+the singlet's outgoing-emission weight differs between its
+$\sta$ state and its emit state, so the two cases must be carried as
+distinct insert states (\emph{Ins0} and \emph{Ins1}) in the WFST.
+The natural object is therefore $6{\times}6$, with state space
+$\{\sta,\mat,\ins_0,\ins_1,\del,\fin\}$.
+A $5{\times}5$ presentation that lumps $\ins_0$ and $\ins_1$ into a
+single $\ins$ state and uses the emit-state divisor $p$ throughout is
+incorrect for paths that traverse $\sta\to\ins\to\cdots\to\{\mat,\del\}$;
+this is discussed in Section~\ref{sec:wfst92-vs-5x5}.
+
+\subsection{TKF92 Singlet HMM Transitions}
+
+The TKF92 singlet at stationarity emits sequences whose length $L$
+follows a zero-inflated geometric distribution
+(Section~\ref{sec:tkf92-machines}).
+The singlet HMM has two transition contexts:
+
+\begin{itemize}[nosep]
+\item \emph{From $\sta$ (before any character):}
+  $P(\text{emit first character}) = \kappa$,\quad
+  $P(\text{end}) = 1-\kappa$.
+
+\item \emph{From an emitting state (after character $i \geq 1$):}
+  $P(\text{emit next character}) = p \equiv \ext + (1{-}\ext)\kappa$,\quad
+  $P(\text{end}) = (1{-}\ext)(1{-}\kappa)$.
+\end{itemize}
+The effective continuation probability $p$ decomposes as:
+fragment extension with probability $\ext$,
+or fragment termination ($1{-}\ext$) followed by a new nonempty link ($\kappa$).
+Each emitted character is drawn i.i.d.\ from $\eqm$.
+
+The key consequence for the WFST construction below is that
+$\kappa \neq p$ whenever $\ext > 0$.
+
+\subsection{Why an Ins0 / Ins1 Split is Necessary}
+\label{sec:wfst92-i0i1-split}
+
+Transducer composition $\text{Singlet} \circ \text{WFST} = \text{Pair HMM}$
+couples each ancestor-consuming Pair HMM transition to one of the two
+singlet emission events:
+\begin{itemize}[nosep]
+\item the $\sta\to\text{emit}$ event (weight $\kappa$), used \emph{exactly once},
+  for the first ancestor character; or
+\item the $\text{emit}\to\text{emit}$ event (weight $p$), used for every
+  subsequent ancestor character.
+\end{itemize}
+The Pair HMM's $\ins$ state corresponds to ``the descendant is in the
+middle of a descendant-only fragment.''  This state is reached either
+\emph{before} the first ancestor character has been consumed (entered
+from $\sta$, possibly via $\ins\to\ins$ self-loops) or \emph{after}
+$\geq 1$ ancestor characters have been consumed (entered from
+$\mat,\del,\ins$).  In the first case, the next ancestor-consuming
+transition out of $\ins$ corresponds to the $\sta\to\text{emit}$
+event in the singlet (weight $\kappa$); in the second case, it
+corresponds to $\text{emit}\to\text{emit}$ (weight $p$).
+The two divisors differ unless $\ext=0$.
+
+The $5{\times}5$ Pair HMM
+$\tkftrans'(\insrate,\delrate,\evoltime,\ext)$ of
+Section~\ref{sec:tkf92-machines} marginalises over the
+``has any ancestor character been consumed yet?'' bit and is correct
+as a generator of the joint distribution.  But because that bit
+controls which singlet divisor applies, the WFST construction must
+expose it.  We therefore split the Pair HMM $\ins$ state into
+\begin{itemize}[nosep]
+\item $\ins_0$ --- reachable only from $\sta$ (via $\sta\to\ins_0$) and from itself
+  (via $\ins_0\to\ins_0$): the singlet has not yet emitted.
+\item $\ins_1$ --- reachable from $\mat,\del,\ins_1$: the singlet has emitted
+  at least one character.
+\end{itemize}
+The $6{\times}6$ Pair HMM in this state space is row-stochastic
+(verified below), and the $5{\times}5$ Pair HMM is recovered by lumping
+$\ins_0$ and $\ins_1$ into a single $\ins$ row.  The lumping preserves
+the joint distribution because the outgoing transitions from $\ins_0$
+and $\ins_1$ have identical Pair HMM structure once weighted by their
+singlet contributions; what fails to lump is the WFST.
+
+\subsection{The \texorpdfstring{$6{\times}6$}{6x6} TKF92 Pair HMM}
+\label{sec:wfst92-pair-hmm}
+
+Writing $\alpha,\beta,\gamma,\kappa$ for the TKF link-level parameters
+(as in Section~\ref{sec:tkf91-machines}), and $r=\ext$
+for the fragment-extension probability:
+\begin{equation}
+\tkftrans''(\insrate,\delrate,\evoltime,\ext)=
+\renewcommand{\arraystretch}{1.6}
+\left(
+\begin{array}{r|cccccc}
+& \sta & \mat & \ins_0 & \ins_1 & \del & \fin \\\hline
+\sta   & 0 & (1{-}\beta)\kappa\alpha
+            & \beta
+            & 0
+            & (1{-}\beta)\kappa(1{-}\alpha)
+            & (1{-}\beta)(1{-}\kappa) \\
+\mat   & 0 & r + (1{-}r)(1{-}\beta)\kappa\alpha
+            & 0
+            & (1{-}r)\beta
+            & (1{-}r)(1{-}\beta)\kappa(1{-}\alpha)
+            & (1{-}r)(1{-}\beta)(1{-}\kappa) \\
+\ins_0 & 0 & (1{-}r)(1{-}\beta)\kappa\alpha
+            & r + (1{-}r)\beta
+            & 0
+            & (1{-}r)(1{-}\beta)\kappa(1{-}\alpha)
+            & (1{-}r)(1{-}\beta)(1{-}\kappa) \\
+\ins_1 & 0 & (1{-}r)(1{-}\beta)\kappa\alpha
+            & 0
+            & r + (1{-}r)\beta
+            & (1{-}r)(1{-}\beta)\kappa(1{-}\alpha)
+            & (1{-}r)(1{-}\beta)(1{-}\kappa) \\
+\del   & 0 & (1{-}r)(1{-}\gamma)\kappa\alpha
+            & 0
+            & (1{-}r)\gamma
+            & r + (1{-}r)(1{-}\gamma)\kappa(1{-}\alpha)
+            & (1{-}r)(1{-}\gamma)(1{-}\kappa) \\
+\fin   & 0 & 0 & 0 & 0 & 0 & 0
+\end{array}
+\right)
+\label{eq:tkf92-pair-hmm-6x6}
+\end{equation}
+The structural zeros are: $\sta$ cannot reach $\ins_1$ in one step
+(no ancestor has yet been emitted), and $\mat,\del,\ins_1$ cannot
+reach $\ins_0$ in one step (an ancestor has already been emitted).
+The $\ins_0$ and $\ins_1$ rows differ only in their self-loop column
+($\ins_0\to\ins_0$ vs $\ins_1\to\ins_1$); their entries to $\mat,\del,
+\fin$ are identical.
+
+\paragraph{Row-stochasticity.}
+For each non-$\fin$ source row, the row sum equals
+\[
+r + (1{-}r)\Bigl[\beta + (1{-}\beta)\kappa\alpha + (1{-}\beta)\kappa(1{-}\alpha)
+                  + (1{-}\beta)(1{-}\kappa)\Bigr]
+= r + (1{-}r)\bigl[\beta + (1{-}\beta)\bigr] = 1
+\]
+(replacing $\beta$ with $\gamma$ for the $\del$ row), confirming that
+$\tkftrans''$ is a valid Markov transition matrix.
+
+\paragraph{Recovery of the $5{\times}5$ Pair HMM.}
+Lumping $\ins_0$ and $\ins_1$ into a single $\ins$ state preserves
+all four non-$\ins$-column entries (which are identical between the
+two rows by construction).  In the self-loop column,
+$\ins_0\to\ins_0$ and $\ins_1\to\ins_1$ both equal $r+(1{-}r)\beta$,
+so the lumped self-loop is also $r+(1{-}r)\beta$.  The result is the
+$5{\times}5$ Pair HMM of Section~\ref{sec:tkf92-machines}, recovered
+exactly.
+
+\subsection{The \texorpdfstring{$6{\times}6$}{6x6} TKF92 WFST}
+\label{sec:wfst92-6x6}
+
+Each Pair HMM transition consumes either one ancestor character
+($\to\mat$ or $\to\del$), zero ancestor characters
+($\to\ins_0$ or $\to\ins_1$), or signals termination ($\to\fin$).
+The WFST $\tkfwfst''$ is obtained by dividing each Pair HMM
+entry by the corresponding singlet weight:
+
+\begin{itemize}[nosep]
+\item Ancestor-consuming entries from $\sta,\ins_0$
+  (the next ancestor character is the \emph{first}):
+  divide by $\kappa$.
+\item Ancestor-consuming entries from $\mat,\ins_1,\del$
+  (the next ancestor character is a \emph{subsequent} one):
+  divide by $p = \ext + (1{-}\ext)\kappa$.
+\item $\fin$ entries from $\sta,\ins_0$
+  (the ancestor sequence has length zero):
+  divide by $1{-}\kappa$.
+\item $\fin$ entries from $\mat,\ins_1,\del$
+  (the ancestor sequence has length $\geq 1$):
+  divide by $(1{-}\ext)(1{-}\kappa)$.
+\item $\ins_0$ and $\ins_1$ entries (no ancestor consumed): divide by $1$.
+\end{itemize}
+
+The emission factor $\eqm_\anctok$ is also stripped from the emission
+weights, exactly as in TKF91, so that $\mat$-state emission becomes
+$\exp(\revsub\evoltime)_{\anctok\destok}$ and $\del$-state emission
+becomes $1$; we focus on the transition matrix below.
+
+\begin{equation}
+\tkfwfst''(\insrate,\delrate,\evoltime,\ext)=
+\renewcommand{\arraystretch}{1.7}
+\left(
+\begin{array}{r|cccccc}
+& \sta & \mat & \ins_0 & \ins_1 & \del & \fin \\\hline
+\sta   & 0 & (1{-}\beta)\alpha
+            & \beta
+            & 0
+            & (1{-}\beta)(1{-}\alpha)
+            & 1{-}\beta \\
+\mat   & 0 & \dfrac{r + (1{-}r)(1{-}\beta)\kappa\alpha}{p}
+            & 0
+            & (1{-}r)\beta
+            & \dfrac{(1{-}r)(1{-}\beta)\kappa(1{-}\alpha)}{p}
+            & 1{-}\beta \\
+\ins_0 & 0 & (1{-}r)(1{-}\beta)\alpha
+            & r + (1{-}r)\beta
+            & 0
+            & (1{-}r)(1{-}\beta)(1{-}\alpha)
+            & (1{-}r)(1{-}\beta) \\
+\ins_1 & 0 & \dfrac{(1{-}r)(1{-}\beta)\kappa\alpha}{p}
+            & 0
+            & r + (1{-}r)\beta
+            & \dfrac{(1{-}r)(1{-}\beta)\kappa(1{-}\alpha)}{p}
+            & 1{-}\beta \\
+\del   & 0 & \dfrac{(1{-}r)(1{-}\gamma)\kappa\alpha}{p}
+            & 0
+            & (1{-}r)\gamma
+            & \dfrac{r + (1{-}r)(1{-}\gamma)\kappa(1{-}\alpha)}{p}
+            & 1{-}\gamma \\
+\fin   & 0 & 0 & 0 & 0 & 0 & 0
+\end{array}
+\right)
+\label{eq:tkf92-wfst}
+\end{equation}
+
+The $\ins_1$ row uses the $p$ divisor on its $\mat$ and $\del$ exits
+and $1{-}\beta$ on its $\fin$ exit, matching the post-immortal-link
+regime.  The $\ins_0$ row uses $\kappa$ on its $\mat,\del$ exits
+(absorbed into the numerator: $(1{-}r)(1{-}\beta)\kappa\alpha/\kappa
+= (1{-}r)(1{-}\beta)\alpha$, etc.) and $1{-}\kappa$ on its $\fin$
+exit (giving $(1{-}r)(1{-}\beta)$).  These are exactly the TKF91
+WFST $\sta/\mat/\ins$-row outputs scaled by $(1{-}r)$, reflecting
+the leading-extension fragment's chance of terminating before any
+ancestor is consumed.
+
+\subsection{Structure and Verification}
+\label{sec:wfst92-verification}
+
+\paragraph{Sanity check 1: $\sta$ row.}
+The $\sta$ row inherits the TKF91 form because the first character
+of the immortal-link descendant fragment has no extension self-loop.
+Multiplying by the singlet emission weights from $\sta$
+($\kappa$ for $\mat,\del$, $1$ for $\ins_0$, $1{-}\kappa$ for $\fin$)
+recovers the Pair HMM $\sta$ row of \eqref{eq:tkf92-pair-hmm-6x6}.
+
+\paragraph{Sanity check 2: $\ins_0$ row.}
+Multiplying $\tkfwfst''$ entries by the appropriate singlet weights
+(``from~$\sta$''~weights: $\kappa$ for $\mat/\del$, $1$ for $\ins_0$,
+$1{-}\kappa$ for $\fin$):
+\begin{align*}
+\kappa\cdot(1{-}r)(1{-}\beta)\alpha &= (1{-}r)(1{-}\beta)\kappa\alpha
+\quad =\;\tkftrans''_{\ins_0\mat},\\
+1\cdot[r+(1{-}r)\beta] &= r+(1{-}r)\beta
+\quad =\;\tkftrans''_{\ins_0\ins_0},\\
+\kappa\cdot(1{-}r)(1{-}\beta)(1{-}\alpha) &= (1{-}r)(1{-}\beta)\kappa(1{-}\alpha)
+\quad =\;\tkftrans''_{\ins_0\del},\\
+(1{-}\kappa)\cdot(1{-}r)(1{-}\beta) &= (1{-}r)(1{-}\beta)(1{-}\kappa)
+\quad =\;\tkftrans''_{\ins_0\fin}.
+\end{align*}
+All four entries match the Pair HMM, so $\text{Singlet}\circ\tkfwfst''=
+\tkftrans''$ on the $\ins_0$ row.
+
+\paragraph{Sanity check 3: $\mat$ row.}
+Multiplying by emit-state weights ($p$ for $\mat/\del$, $1$ for
+$\ins_1$, $(1{-}\ext)(1{-}\kappa)$ for $\fin$):
+\begin{align*}
+p\cdot\frac{r+(1{-}r)(1{-}\beta)\kappa\alpha}{p}
+   &= r+(1{-}r)(1{-}\beta)\kappa\alpha
+   \;=\;\tkftrans''_{\mat\mat},\\
+1\cdot(1{-}r)\beta &= (1{-}r)\beta
+   \;=\;\tkftrans''_{\mat\ins_1},\\
+p\cdot\frac{(1{-}r)(1{-}\beta)\kappa(1{-}\alpha)}{p}
+   &= (1{-}r)(1{-}\beta)\kappa(1{-}\alpha)
+   \;=\;\tkftrans''_{\mat\del},\\
+(1{-}r)(1{-}\kappa)\cdot(1{-}\beta) &= (1{-}r)(1{-}\beta)(1{-}\kappa)
+   \;=\;\tkftrans''_{\mat\fin}.
+\end{align*}
+
+The $\ins_1$ and $\del$ rows verify identically (with $\gamma$ for
+$\beta$ in the $\del$ row).
+
+\paragraph{TKF91 limit ($\ext=0$).}
+At $\ext=0$, $p=\kappa$ and $r=0$.  The $\ins_0$ and $\ins_1$ rows
+become:
+\begin{align*}
+\tkfwfst''_{\ins_0\,*\;|\,r=0}
+  &= \bigl(0,\;(1{-}\beta)\alpha,\;\beta,\;0,\;(1{-}\beta)(1{-}\alpha),\;1{-}\beta\bigr),\\
+\tkfwfst''_{\ins_1\,*\;|\,r=0}
+  &= \bigl(0,\;(1{-}\beta)\alpha,\;0,\;\beta,\;(1{-}\beta)(1{-}\alpha),\;1{-}\beta\bigr).
+\end{align*}
+With the $\ins_0$ and $\ins_1$ self-loops both equal to $\beta$ and
+all other columns identical, the two rows reduce to the same
+TKF91-Ins row when $\ins_0,\ins_1$ are merged.  The TKF91 WFST
+(Section~\ref{sec:tkf91-machines}) is recovered.
+
+\paragraph{Latent fragment-boundary posterior.}
+The $\mat$ row's $\mat\to\mat$ entry decomposes as
+\[
+\tkfwfst''_{\mat\mat}
+= \underbrace{\frac{r}{p}}_{\substack{\text{same}\\\text{frag}}} \cdot 1
+\;+\;
+\underbrace{\frac{(1{-}r)\kappa}{p}}_{\substack{\text{new}\\\text{frag}}} \cdot (1{-}\beta)\alpha,
+\]
+exactly as in the original construction; under same-fragment
+continuation the descendant certainly stays in $\mat$
+(the link persists within the fragment), and under new-fragment
+start the descendant must survive ($1{-}\beta$) and align ($\alpha$).
+The fragment-boundary posterior $r/p + (1{-}r)\kappa/p = 1$ holds by
+definition of $p$.  The $\ins_0$ row has \emph{no} same-fragment
+ancestor-consuming term --- since the singlet has not yet emitted,
+the fragment-boundary posterior is degenerate at ``new fragment'' ---
+which is why the $\ins_0\to\mat$ entry has the simple
+$(1{-}r)(1{-}\beta)\alpha$ form rather than a $1/p$-divided form.
+
+\subsection{Comparison with the \texorpdfstring{$5{\times}5$}{5x5} Form}
+\label{sec:wfst92-vs-5x5}
+
+A $5{\times}5$ presentation that replaces the two rows
+$\ins_0,\ins_1$ of \eqref{eq:tkf92-wfst} by a single $\ins$ row equal
+to the $\ins_1$ row is correct only at $\ext=0$.  For $\ext>0$, that
+$5{\times}5$ form misweights paths
+$\sta \to \ins \to \cdots \to \{\mat,\del,\fin\}$ with one or more
+leading inserts before the first ancestor consumption: the divisor
+on the leading-insert exit should be $\kappa$ (or $1{-}\kappa$ for
+$\fin$) rather than $p$ (or $(1{-}\ext)(1{-}\kappa)$).
+For a single-leading-insert path $\sta\to\ins\to\mat\to\fin$,
+the multiplicative discrepancy is
+$(1{-}\ext)\kappa/p < 1$ when $\ext>0$, so the $5{\times}5$ WFST
+\emph{underweights} such paths.
+
+For benchmarks dominated by alignments without leading inserts
+(typical when the ancestor's $N$-terminus is well-conserved),
+the numerical effect of the discrepancy is small per pair.
+However, the $5{\times}5$ form does not represent the true
+conditional distribution $P(\text{descendant} \mid \text{ancestor},
+\theta)$, and the $6{\times}6$ WFST in \eqref{eq:tkf92-wfst} is
+the construction we recommend.
+
+\subsection{Normalization Structure}
+\label{sec:wfst-row-sums}
+
+The WFST is conditionally normalised in the global sense: for every
+input sequence $x \in \Sigma^*$,
+\[
+\sum_{(y,\,\text{alignment})}
+   \bigl[\text{WFST path-weight}\bigr]
+\;=\; 1,
+\]
+where the sum is over all paths from $\sta$ to $\fin$ that read $x$
+exactly.  This is a direct consequence of
+$\text{Singlet} \circ \tkfwfst'' = \tkftrans''$ (verified row by row
+in Section~\ref{sec:wfst92-verification}) combined with the fact that
+$\tkftrans''$ is row-stochastic and the Singlet HMM defines a proper
+distribution on $x$.
+
+The WFST is \emph{not} stochastic in the local single-step sense:
+its rows do not sum to $1$, and the divisor structure
+(ancestor-consuming columns divide by $\kappa$ from $\sta,\ins_0$ and
+by $p$ from $\mat,\ins_1,\del$; the $\fin$ column divides by $1{-}\kappa$
+from $\sta,\ins_0$ and by $(1{-}\ext)(1{-}\kappa)$ from
+$\mat,\ins_1,\del$; insert columns divide by $1$) means a fixed source
+row's outgoing weights are not constrained to sum to $1$.
+
+\paragraph{$\varepsilon$-closure conditional normalisation.}
+A more useful local property is the following.  Define
+$w_X^L$ as the total WFST weight of paths starting at state $X$
+that consume the next non-$\varepsilon$ input symbol $L$ (a character or
+end-of-input sentinel $\$\,$), where each path is a (possibly empty)
+geometric chain of insert self-loops followed by a single
+input-consuming exit.  For our $6{\times}6$ WFST:
+\begin{equation}
+\begin{array}{c|cc}
+X & w_X^c & w_X^\$ \\\hline
+\sta   & 1 & 1 \\
+\mat   & 1 & 1 \\
+\ins_0 & 1 & 1 \\
+\ins_1 & \kappa/p & 1/(1-\ext) \\
+\del   & 1 & 1
+\end{array}
+\label{eq:wfst-eps-closure-table}
+\end{equation}
+The $\sta,\mat,\ins_0,\del$ rows are conditionally normalised: each
+sums to exactly $1$.  The $\ins_1$ row alone is not, because its
+destination divisors mix the $r$ (extension) and $1{-}r$ (exit) weights
+asymmetrically into the single-step edges.
+
+This local non-normalisation does \emph{not} affect the WFST's
+correctness as a representation of $P(\text{descendant}\mid
+\text{ancestor},\theta)$: every WFST path begins at $\sta$, and from
+$\sta$ the chain-through-$\ins_1$ contribution accumulates exactly the
+right $\kappa/p$ factor at the appropriate step to bring the total
+back to $1$.  Concretely, starting from $\mat$ the $\varepsilon$-closure
+weight to consume the next character is
+\[
+w_\mat^c
+=\bigl(\tkfwfst''_{\mat\mat}+\tkfwfst''_{\mat\del}\bigr)
++\tkfwfst''_{\mat\ins_1}\cdot
+   \frac{\tkfwfst''_{\ins_1\mat}+\tkfwfst''_{\ins_1\del}}{1-\tkfwfst''_{\ins_1\ins_1}}
+=\frac{r+(1{-}r)(1{-}\beta)\kappa}{p}+(1{-}r)\beta\cdot\frac{\kappa}{p}
+=\frac{r+(1{-}r)\kappa}{p}=1,
+\]
+so the $\kappa/p$ factor that the $\ins_1$ row alone undershoots is
+exactly recovered when $\ins_1$ is reached from a ``proper'' source
+state.  The $\ins_1$ row is improper only if the WFST were started
+mid-stream from $\ins_1$ in isolation, which never happens in normal
+use.
+
+\paragraph{Per-input single-step row sums.}
+The simpler invariant $\sum_b\tkfwfst''_{Xb}=1$ does \emph{not} hold
+for any of the body rows.  This is a state-encoding artefact of folding
+the Bernoulli-$r$ extension-vs-exit decision into the same outgoing
+edges that carry the destination-singlet factor.  An alternative WFST
+that exposes the extension event as a silent ``decision'' state would
+be locally row-stochastic at the cost of more states.  The compact
+$6{\times}6$ form trades local stochasticity for a smaller graph;
+the global property
+$\text{Singlet}\circ\tkfwfst''=\tkftrans''$
+(with $\tkftrans''$ row-stochastic) is preserved either way.
+
+\subsection{Testable Invariants}
+\label{sec:wfst-invariants}
+
+The following invariants hold for any valid parameters
+$0 < \insrate, \delrate$, $\evoltime > 0$, $0 \leq \ext < 1$
+and can be verified numerically from the WFST tensor code.
+
+\begin{enumerate}[nosep]
+\item \textbf{Fragment-boundary posterior:}
+  $\ext/p + (1{-}\ext)\kappa/p = 1$.
+
+\item \textbf{Pair HMM reconstruction:}
+  For each state $a$ in $\{\sta,\mat,\ins_0,\ins_1,\del\}$, reconstruct
+  the Pair HMM row by multiplying WFST entries by their singlet factors
+  (per the rules above), and verify $\sum_b \tkftrans''_{ab} = 1$.
+
+\item \textbf{Mixture decomposition:}
+  $\tkfwfst''_{\mat\mat} = \ext/p + [(1{-}\ext)\kappa/p](1{-}\beta)\alpha$
+  (and analogously for $\del \to \del$ with $\gamma$).
+  Both mixture components are non-negative.
+
+\item \textbf{TKF91 limit:}
+  At $\ext = 0$: $p = \kappa$, the $\ins_0$ and $\ins_1$ rows
+  become identical (and equal the TKF91 $\ins$ row), and the
+  $6{\times}6$ WFST reduces to the TKF91 $5{\times}5$ WFST.
+
+\item \textbf{$\fin$-column dichotomy:}
+  $\tkfwfst''_{X\fin} = 1{-}\beta$ for $X \in \{\sta,\mat,\ins_1\}$
+  and $1{-}\gamma$ for $X = \del$, but
+  $\tkfwfst''_{\ins_0\fin} = (1{-}\ext)(1{-}\beta)$ scales linearly
+  in $1{-}\ext$ because the $\ins_0$ exit weight is divided by the
+  smaller $\sta\to\fin$ singlet weight $1{-}\kappa$ rather than
+  $(1{-}\ext)(1{-}\kappa)$.
+
+\item \textbf{$\ins_1$ column scaling:}
+  $\tkfwfst''_{\mat\ins_1} = (1{-}\ext)\beta$ and
+  $\tkfwfst''_{\del\ins_1} = (1{-}\ext)\gamma$ scale linearly in
+  $(1{-}\ext)$, reflecting that inserts can only begin at fragment
+  boundaries.
+
+\item \textbf{Structural zeros:}
+  $\tkfwfst''_{\sta\,\ins_1} = \tkfwfst''_{\mat\,\ins_0}
+  = \tkfwfst''_{\ins_1\,\ins_0} = \tkfwfst''_{\del\,\ins_0} = 0$,
+  reflecting that $\ins_0$ is reachable only before any ancestor
+  has been consumed and $\ins_1$ only after.
+\end{enumerate}

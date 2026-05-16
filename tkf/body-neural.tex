@@ -1,0 +1,81 @@
+\section{Neural Models Taking Individual Sequence Inputs}
+
+\newcommand\eos{{\tt EOS}}
+
+% The first class of neural models we introduce are similar to the neural transducer \cite{jaitly2016neuraltransducer}
+% These are models that process an input sequence one token at a time, emitting an output sequence that is annotated with Match/Insert/Delete alignment labels
+% Specifically, for an input alphabet $\alphabet$, the output alphabet is $\alphabet \times \{ \mat, \ins \} \cup \{ (\epsilon, \del), (\eos, \fin) \}$.
+% Thus every output token has the form $(\destok,\xstate)$ where $\destok \in \alphabet \cup \{\epsilon\}$ is a character (or the empty string) and $\xstate \in \{ \mat, \ins, \del, \fin \}$ is an alignment label.
+% Output token $(\destok,\mat)$ denotes a descendant character $\destok$ aligned to an ancestral character;
+% $(\destok,\ins)$ denotes an inserted descendant character (no ancestral character);
+% $(\epsilon,\del)$ denotes a deleted ancestral character (no descendant character);
+% and $(\eos,\fin)$ terminates the descendant sequence.
+
+% The general form of these models is such that the output distribution is allowed to depend on the entire ancestral sequence,
+% the causal descendant context (i.e. all descendant symbols emitted so far),
+% and the most recently-emitted alignment label.
+% This alignment-Markovian property---that only the most recent alignment label can influence the output distribution---guarantees
+% that we can still sum over alignment paths, as with Pair HMMs and the neural transducer \cite{jaitly2016neuraltransducer}.
+
+% [include alignment-Markovian likelihood here...]
+
+% There are many different ways that we could construct a model to generate likelihoods like this
+% We adopt a particular form: position-specific ancestral (full-context) and descendant (causal-context) embeddings are concatenated and passed to an output head.
+
+\subsection{Time-Dependent Neural Transducer}
+
+% We adapt the neural transducer by introducing a dependency on a time parameter...
+
+\subsection{Hybrid Neural-TKF Model}
+
+% We next consider a hybrid architecture...
+
+\section{Neural Models Taking MSA Inputs}
+
+% The second class of neural models we consider are ones that process an MSA.
+% Again, we provide evolutionary timing information in the form of tree distances from each alignment row to the prediction target
+% Beyond this, we do not include any information about the phylogenetic structure in these models.
+% We note that it is certainly possible to construct models which do incorporate that structure; for reasons of simplicity we have not evaluated them for this work.
+
+\subsection{MSA Transformer}
+
+% Each layer of the MSA transformer interleaves attention over columns (simultaneously for each row) with attention over rows (simultaneous over volumns)
+% Parallel complexity: work $O(R^2 C^2)$, span $O(\log R + \log C)$
+
+\subsection{MSA Scan-Reduce}
+
+% MSA Scan-Reduce uses operations we call CARABS: Commutative Associative Reductions of Affine Bidirectional Scans
+
+% Commutative Associative Reductions are exchangeable pooling operations
+% These include mean and max pooling, along with more general/exotic schemes such as DeepSets, Weighted Averages, and Exchangeable Neural Networks
+% Affine Bidirectional Scans are products on the affine monoid with the matrix form $\prod_t \begin{bmatrix} \bA_t & \bB_t \\ \bzero & \bI \end{bmatrix}$
+% These include models such as Mamba, RoPE-trick Mamba, and DeltaNet
+
+% Parallel complexity: work $O(RC)$, span $O(\log R + \log C)$
+% Thus work complexity is linear (improving on the MSA transformer's quadratic work complexity),
+% while span complexity is no worse than MSA transformer
+% In practice, MSA transformer is usually faster due to highly optimized kernels
+% MSA scan-reduce should eventually dominate in asymptotic complexity
+% We note that MSA scan-reduce has slightly better model performance in our tests
+
+% Consolidating the framework presents opportunities for efficient fused kernels, e.g. fused scan-reduce
+
+\subsubsection{Column scanners}
+
+% Mamba and RoPE-trick Mamba
+% Other affine bidirectional scans
+
+\subsubsection{Row reducers}
+
+% Mean- and Max-Pooling
+% DeepSets
+% Weighted Average
+% Exchangeable Neural Networks
+
+\subsection{Injecting tree distances and uniqueness weights as row labels}
+
+% Write me
+
+\subsection{Injecting protein language model embeddings}
+
+% Write me

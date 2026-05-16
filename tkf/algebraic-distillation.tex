@@ -1,0 +1,1332 @@
+\ifdefined\INCLUDEDFROMTKF\else
+\documentclass{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\newcommand\insrate{\lambda}
+\newcommand\delrate{\mu}
+\newcommand\ext{r}
+\newcommand\notext{\rho}
+\newcommand\main{0}
+\newcommand\dom{n}
+\newcommand\ndom{\mathcal{N}}
+\newcommand\nfrag{\mathcal{F}}
+\newcommand\domdist{v}
+\newcommand\fragdist{w}
+\newcommand\classdist{u}
+\newcommand\anctok{a}
+\newcommand\destok{b}
+\newcommand\alphabet{A}
+\newcommand\eqm{\pi}
+\providecommand\revsub{R}
+\providecommand\exch{Q}
+\newcommand\evoltime{t}
+\newcommand\tkftrans{\tau}
+\newcommand\exptrans{\upsilon}
+\newcommand\transnest{\chi}
+\newcommand\emptyseg{z}
+\newcommand\nonemptytrans{T}
+\newcommand\slicetrans{U}
+\newcommand\betagamma{\beta^\ast}
+\newcommand\sta{{\tt S}}
+\newcommand\mat{{\tt M}}
+\newcommand\ins{{\tt I}}
+\newcommand\del{{\tt D}}
+\newcommand\fin{{\tt E}}
+\newcommand\mnull{{\tt A}}
+\newcommand\inull{{\tt B}}
+\newcommand\dnull{{\tt C}}
+\newcommand\waitm{{\tt V}}
+\newcommand\waitd{{\tt W}}
+\newcommand\emit{\Omega}
+\newcommand\silent{\mathcal{Z}}
+\newcommand\effT{\hat{T}}
+\newcommand\emprob{e}
+\newcommand\pathE{\mathcal{E}}
+\newcommand\nullcl{N^\ast}
+\newcommand\xstate{{\tt X}}
+\newcommand\ystate{{\tt Y}}
+\newcommand\ustate{{\tt U}}
+\newcommand\vstate{{\tt V}}
+\newcommand\srcdom{l}
+\newcommand\destdom{m}
+\newcommand\frag{f}
+\newcommand\srcfrag{f}
+\newcommand\destfrag{g}
+\newcommand\class{c}
+\newcommand\nclasses{\mathcal{C}}
+
+\title{Algebraic Distillation of MixDom}
+\author{}
+\begin{document}
+\maketitle
+\fi
+
+\section{Algebraic Distillation of MixDom}
+\label{sec:algebraic-distillation}
+
+We investigate whether the distillation of the MixDom model
+to order-1 machines (Section~\ref{sec:distill-hmm} and~\ref{sec:order1trans})
+can be performed in closed algebraic form, and how the computation scales
+with the number of domain types $\ndom$, the number of fragment types
+per domain $\nfrag$, and the number of site classes $\nclasses$.
+The same algebraic decomposition powers the cherry-count log-likelihood
+that the Maraschino fitter (Section~\ref{sec:maraschino-fit}) maximises
+under MixDom.
+
+\subsection{Setup}
+
+The MixDom model has the following parameters
+(matching Section~\ref{sec:nestpairhmm}):
+\begin{itemize}
+\item Top-level TKF91: $\insrate_\main, \delrate_\main$ (domain birth/death rates).
+\item Domain weights: $\domdist_\dom$, $\sum_\dom \domdist_\dom = 1$.
+\item Per-domain TKF91 rates governing the per-domain TKF92 fragment process:
+  $\insrate_\dom, \delrate_\dom$ for $\dom = 1, \ldots, \ndom$.
+\item Per-domain fragment-type entry distribution:
+  $\fragdist_{\dom\frag}$ with $\sum_\frag \fragdist_{\dom\frag} = 1$.
+\item Per-domain intra-fragment Markov ext matrix
+  $\ext^{(\dom)}_{\srcfrag\destfrag}$, $\nfrag \times \nfrag$, with
+  row sums $\leq 1$. The fragment-termination probability is
+  $\notext^{(\dom)}_\srcfrag = 1 - \sum_\destfrag \ext^{(\dom)}_{\srcfrag\destfrag}$.
+\item Per-(domain, fragment-type) site-class Dirichlet:
+  $\classdist_{\dom\frag\class}$ with
+  $\sum_\class \classdist_{\dom\frag\class} = 1$.
+\item Per-class reversible substitution model:
+  $(\exch^{(\class)}, \eqm^{(\class)})$ for $\class = 1, \ldots, \nclasses$;
+  rate matrix $\revsub^{(\class)} = \exch^{(\class)} \diag(\eqm^{(\class)})$.
+\end{itemize}
+The total scalar parameter count is $2 + (\ndom-1) + 2\ndom + \ndom\nfrag^2
++ \ndom(\nfrag-1) + \ndom\nfrag(\nclasses-1)$ plus $\nclasses$ rate matrices.
+
+Write $\kappa_\dom = \insrate_\dom / \delrate_\dom$,
+$\alpha_\dom = \alpha(\insrate_\dom, \delrate_\dom, \evoltime)$,
+$\beta_\dom = \beta(\insrate_\dom, \delrate_\dom, \evoltime)$,
+$\gamma_\dom = \gamma(\insrate_\dom, \delrate_\dom, \evoltime)$,
+and similarly $\alpha_\main, \beta_\main, \gamma_\main, \kappa_\main$
+for the top-level parameters.
+
+\subsection{Class-mixture emissions}
+\label{sec:class-mixture-emissions}
+
+In MixDom the per-(domain, fragment-type) site-class mixture
+appears in every emission probability of the collapsed Pair HMM.
+Define the per-class match emission as
+\[
+P^{(\class)}(\anctok,\destok\mid\evoltime)
+= \eqm^{(\class)}_\anctok\, \exp(\revsub^{(\class)}\evoltime)_{\anctok\destok}.
+\]
+The model's per-(domain, fragment-type) emission factors at evolutionary time $\evoltime$ are:
+\begin{align*}
+\phi^{\mat}_{\dom\frag}(\anctok, \destok)
+  &\equiv \emprob_{\mat\mat_{\dom\frag}}(\anctok,\destok)
+  = \sum_{\class=1}^{\nclasses} \classdist_{\dom\frag\class}\,
+    P^{(\class)}(\anctok,\destok\mid\evoltime), \\
+\phi^{\ins}_{\dom\frag}(\destok)
+  &\equiv \emprob_{\mat\ins_{\dom\frag}}(\destok)
+       = \emprob_{\ins\ins_{\dom\frag}}(\destok)
+  = \sum_\class \classdist_{\dom\frag\class}\, \eqm^{(\class)}_\destok, \\
+\phi^{\del}_{\dom\frag}(\anctok)
+  &\equiv \emprob_{\mat\del_{\dom\frag}}(\anctok)
+       = \emprob_{\del\del_{\dom\frag}}(\anctok)
+  = \sum_\class \classdist_{\dom\frag\class}\, \eqm^{(\class)}_\anctok.
+\end{align*}
+Each of these is a $\nclasses$-term mixture over the per-class GTRs.
+The match emission $\phi^{\mat}_{\dom\frag}$ inherits the time
+dependence from the per-class transition kernels $P^{(\class)}(\evoltime)$;
+the singlet emissions $\phi^{\ins}_{\dom\frag}$, $\phi^{\del}_{\dom\frag}$
+are time-independent.
+
+\begin{remark}[Bilinear emission tensor]
+The match emission factors as
+\[
+\phi^{\mat}_{\dom\frag}(\anctok,\destok)
+= \sum_{\class} \classdist_{\dom\frag\class}\, \eqm^{(\class)}_\anctok\,
+  \exp(\revsub^{(\class)}\evoltime)_{\anctok\destok}
+\]
+which is rank-$\nclasses$ in the latent class index, and the resulting
+$|\alphabet| \times |\alphabet|$ emission tensor at $(\dom,\frag)$ has
+rank at most $\nclasses$. The single-class case $\classdist = \delta_{\dom\class}$
+makes this rank-1 per domain (a single GTR per domain). The general parameterisation strictly
+generalises by sharing the GTR pool across (domain, fragment-type)
+contexts and allowing any soft mixture.
+\end{remark}
+
+\subsection{Single HMM Distillation}
+
+\subsubsection{State space}
+
+The MixDom Singlet HMM generates sequences from the stationary
+distribution. Its collapsed state space (Section~\ref{sec:nestpairhmm})
+is $\{ \sta, \fin \} \cup \{ \ins_{\dom\frag} : \dom \in \ndom,
+\frag \in \nfrag \}$, so there are $\ndom\nfrag$ emitting states with
+emissions $\phi^\ins_{\dom\frag}(\anctok)$.
+
+Within a domain, fragment continuation is governed by the intra-fragment
+Markov ext matrix $\ext^{(\dom)}_{\srcfrag\destfrag}$ and the
+new-fragment $\kappa_\dom \fragdist_{\dom,\destfrag}$ branch.
+Adapting the formulae in Section~\ref{sec:nestpairhmm} for the singlet,
+the effective transition matrix between emitting states
+$\ins_{\srcdom\srcfrag} \to \ins_{\destdom\destfrag}$ has entries
+\[
+\effT_{\ins_{\srcdom\srcfrag},\ins_{\destdom\destfrag}}
+= \ext^{(\srcdom)}_{\srcfrag\destfrag}\delta_{\srcdom\destdom}
++ \notext^{(\srcdom)}_\srcfrag \kappa_\srcdom \fragdist_{\srcdom\destfrag}\delta_{\srcdom\destdom}
++ \frac{\notext^{(\srcdom)}_\srcfrag (1-\kappa_\srcdom)\,
+       \kappa_\main \domdist_\destdom \kappa_\destdom \fragdist_{\destdom\destfrag}}
+       {1 - \kappa_\main \emptyseg_0}
+\]
+where $\emptyseg_0 = \sum_\dom \domdist_\dom (1-\kappa_\dom)$.
+The path-sum matrix $(I - \effT_{\emit,\emit})^{-1}$ is an
+$\ndom\nfrag \times \ndom\nfrag$ inversion in general.
+
+\subsubsection{Adjacency frequencies}
+
+The Singlet adjacency frequency is
+\begin{equation}\label{eq:single-adj}
+f(\anctok, \destok)
+= \sum_{(\srcdom,\srcfrag),(\destdom,\destfrag)}
+  W_{(\srcdom,\srcfrag),(\destdom,\destfrag)}\,
+  \phi^\ins_{\srcdom\srcfrag}(\anctok)\,
+  \phi^\ins_{\destdom\destfrag}(\destok)
+\end{equation}
+where the structural weights
+$W_{(\srcdom,\srcfrag),(\destdom,\destfrag)}
+= L_{(\srcdom,\srcfrag)}\, \effT_{(\srcdom,\srcfrag)(\destdom,\destfrag)}\,
+R_{(\destdom,\destfrag)}$ are character-independent, with
+$L_{(\dom,\frag)} = \sum_i \pi_i \effT^\ast_{i,(\dom,\frag)}$ and
+$R_{(\dom,\frag)} = \sum_j \effT^\ast_{(\dom,\frag),j}$.
+Substituting the class-mixture emission yields a bilinear sum over
+both the (domain, fragment-type) latent and the site-class latent:
+\[
+f(\anctok, \destok)
+= \sum_{\srcdom,\srcfrag,\destdom,\destfrag,\class_1,\class_2}
+  W_{(\srcdom,\srcfrag),(\destdom,\destfrag)}
+  \classdist_{\srcdom\srcfrag\class_1}
+  \classdist_{\destdom\destfrag\class_2}\,
+  \eqm^{(\class_1)}_\anctok\, \eqm^{(\class_2)}_\destok.
+\]
+
+The order-1 HMM transition is therefore
+\[
+P(\destok \mid \anctok)
+= \frac{f(\anctok, \destok)}{\sum_{\destok'} f(\anctok, \destok')}
+= \frac{
+    \sum_{\class_2}
+    \big(\sum_{\srcdom,\srcfrag,\destdom,\destfrag,\class_1}
+         W \classdist \classdist\, \eqm^{(\class_1)}_\anctok\big)
+    \eqm^{(\class_2)}_\destok
+  }{
+    \sum_{\srcdom,\srcfrag,\class_1} \eqm^{(\class_1)}_\anctok
+    \sum_{\destdom,\destfrag,\class_2}
+      W_{(\srcdom,\srcfrag),(\destdom,\destfrag)}
+      \classdist_{\srcdom\srcfrag\class_1}
+      \classdist_{\destdom\destfrag\class_2}
+  }.
+\]
+
+\begin{remark}[Non-trivial character correlations]
+When the per-class equilibria $\eqm^{(\class)}$ differ, the previous
+character $\anctok$ carries information about the latent class $\class_1$
+of the source state via the Bayesian posterior
+$P(\class_1 \mid \anctok) \propto \eqm^{(\class_1)}_\anctok\,
+\sum_{\srcdom\srcfrag,\destdom\destfrag,\class_2}
+W \classdist \classdist$,
+and consequently about which (domain, fragment-type) is likely to be
+generating this region. The order-1 HMM therefore has genuinely
+$\anctok$-dependent transitions: a mixture of $\eqm^{(\class_2)}$ tilted
+by the joint posterior over latent state and source class.
+\end{remark}
+
+\begin{remark}[Closed form]
+All quantities in~\eqref{eq:single-adj} are rational functions of the
+model parameters: the $\ndom\nfrag \times \ndom\nfrag$ matrix
+$(I - \effT)^{-1}$ has entries that are ratios of polynomials in
+$(\ext^{(\dom)}_{\srcfrag\destfrag}, \kappa_\dom, \kappa_\main, \beta_\main,
+\fragdist_{\dom\frag}, \domdist_\dom)$. The class mixture enters
+linearly through $\classdist_{\dom\frag\class}$, and the per-class GTRs
+appear only inside $\eqm^{(\class)}, P^{(\class)}(\evoltime)$.
+\end{remark}
+
+
+\subsection{Pair HMM Distillation}
+
+\subsubsection{Emitting state space}
+
+The collapsed MixDom Pair HMM with $\ndom$ domain types and $\nfrag$
+fragment types per domain has $5\ndom\nfrag + 2$ states:
+$\{ \sta\sta, \fin\fin \}$ and
+$\{ \mat\mat_{\dom\frag}, \mat\ins_{\dom\frag}, \mat\del_{\dom\frag},
+\ins\ins_{\dom\frag}, \del\del_{\dom\frag}
+: \dom \in \ndom, \frag \in \nfrag \}$.
+
+Group the $5\ndom\nfrag$ emitting states by emission type:
+match $\mathcal{M} = \{\mat\mat_{\dom\frag}\}$,
+insert $\mathcal{I} = \{\mat\ins_{\dom\frag}, \ins\ins_{\dom\frag}\}$,
+delete $\mathcal{D} = \{\mat\del_{\dom\frag}, \del\del_{\dom\frag}\}$.
+
+\subsubsection{Class-mixture emissions in the Pair HMM}
+
+The per-state emissions at $(d,f)$ are the class-mixture emissions
+$\phi^{\mat,\ins,\del}_{\dom\frag}$ defined in
+Section~\ref{sec:class-mixture-emissions}. Two states with the same
+$(d,f)$ but different top-level types share the same equilibrium
+mixture, but the match state combines this with the time-evolved
+class-mixture transition kernel.
+
+The per-(domain, fragment-type) emission factors do \emph{not} lift
+cleanly out of the structural sum; however, they have low rank in the
+class index $\class$ (Section~\ref{sec:class-mixture-emissions}).
+Within a fixed $(d,f)$, all match states emit from
+$\phi^{\mat}_{\dom\frag}$ and all insert/delete singlets from
+$\phi^{\ins}_{\dom\frag}$ / $\phi^{\del}_{\dom\frag}$.
+
+\subsubsection{Per-(domain, fragment)-pair structural weights}
+
+The pair adjacency frequencies decompose as sums over
+(domain, fragment-type) pairs.
+For match-to-match, writing
+$X = \anctok, Y = \destok, X' = \anctok', Y' = \destok'$:
+\begin{equation}\label{eq:pair-adj}
+f^{\mathcal{M}\mathcal{M}}(X,Y,X',Y')
+= \sum_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  C^{\mathcal{M}\mathcal{M}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}\,
+  \phi^{\mat}_{\dom_1\frag_1}(X,Y)\,
+  \phi^{\mat}_{\dom_2\frag_2}(X',Y')
+\end{equation}
+where
+\[
+C^{\mathcal{M}\mathcal{M}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+= \sum_{s_1 \in \mathcal{M}_{\dom_1\frag_1}} \sum_{s_2 \in \mathcal{M}_{\dom_2\frag_2}}
+  L_{s_1}\, \effT_{s_1 s_2}\, R_{s_2}
+\]
+are structural weights indexed by (domain, fragment-type) pairs (not
+just emission types). Similarly for other adjacency types
+($\mathcal{M}\mathcal{I}$, $\mathcal{M}\mathcal{D}$, etc.), with
+the appropriate per-(domain, fragment-type) emissions.
+
+Each adjacency frequency is therefore a sum of $(\ndom\nfrag)^2$
+structural-weight terms, each multiplied by per-(domain, fragment-type)
+emission factors that are themselves rank-$\nclasses$ class mixtures.
+
+\subsubsection{Context dependence}
+
+In the order-1 WFST, the wait-after-match/insert transition involves
+\begin{align*}
+&f^{\cdot\mathcal{M}}(X,Y,\anctok',\destok')
+= \sum_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \Big( C^{\mathcal{M}\mathcal{M}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}\,
+        \phi^{\mat}_{\dom_1\frag_1}(X,Y) \\
+&\phantom{= \sum_{(\dom_1,\frag_1),(\dom_2,\frag_2)} \Big(}
+      + C^{\mathcal{I}\mathcal{M}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}\,
+        \phi^{\ins}_{\dom_1\frag_1}(Y) \Big)
+  \phi^{\mat}_{\dom_2\frag_2}(\anctok',\destok')
+\end{align*}
+
+After normalization, $p_{\waitm\mat}(X,Y,\anctok',\destok')$ depends on
+$(X,Y)$ through the joint posterior over (domain, fragment-type, class)
+of the previous emission. Specifically, the context enters through the
+$\ndom\nfrag$-dimensional vector
+\[
+\boldsymbol{\rho}(X,Y) = \Big(
+  \sum_{(\dom_2,\frag_2)} C^{\mathcal{M}\mathcal{M}}_{(1,1),(\dom_2,\frag_2)}\,
+  \phi^{\mat}_{1,1}(X,Y)
+  + \sum_{(\dom_2,\frag_2)} C^{\mathcal{I}\mathcal{M}}_{(1,1),(\dom_2,\frag_2)}\,
+  \phi^{\ins}_{1,1}(Y), \ldots \Big)
+\]
+which captures the relative likelihood of each source (domain, fragment-type).
+
+\begin{remark}[Richer context than per-domain shared-$\eqm$ case]
+With class-mixture emissions, the WFST transition probabilities depend
+on context $(X,Y)$ through a joint (domain, fragment-type, class)
+posterior that is sensitive to \emph{both} $X$ and $Y$ independently---not
+just through a single scalar ratio. The right-side character dependence
+($\anctok', \destok'$) also varies by (domain, fragment-type, class):
+the next emission is a mixture of
+$\eqm^{(\class_2)} P^{(\class_2)}(\evoltime)$ weighted by the structural
+weights, the source posterior, and the destination $\classdist$.
+Despite this richer structure, all quantities are closed-form rational
+functions of the model parameters (composed with $\nclasses$ rate-matrix
+exponentials).
+\end{remark}
+
+
+\subsection{Block Structure and Matrix Inversions}
+
+\subsubsection{\texorpdfstring{Top-level null closure (always $3 \times 3$)}{Top-level null closure (always 3 x 3)}}
+
+The null states $\mnull, \inull, \dnull$ yield a $3 \times 3$ submatrix
+with entries depending on
+\begin{align*}
+\emptyseg_0 &= \sum_\dom \domdist_\dom(1 - \kappa_\dom) \\
+\emptyseg_\evoltime &= \sum_\dom \domdist_\dom(1 - \kappa_\dom)(1 - \beta_\dom)
+\end{align*}
+The null closure is a $3 \times 3$ inversion with closed-form
+determinant, independent of $\ndom, \nfrag, \nclasses$ (the dependence
+on $\ndom$ enters only through these two scalar sums; $\nfrag$ and
+$\nclasses$ do not appear at all because empty domains are independent
+of fragment and class structure inside the domain).
+
+\subsubsection{Block-diagonal-plus-low-rank decomposition}
+
+The $5\ndom\nfrag \times 5\ndom\nfrag$ effective transition matrix
+between emitting states decomposes as
+\[
+\effT_{\emit,\emit}
+= \underbrace{\mathrm{diag}(D_1, \ldots, D_\ndom)}_{\text{intra-domain}}
++ \underbrace{E\,\nonemptytrans_\bullet\, S^\top}_{\text{inter-domain (rank } \leq 3\text{)}}
+\]
+where each $D_\dom$ is a $5\nfrag \times 5\nfrag$ within-domain block
+that combines the intra-fragment Markov ext matrix
+$\ext^{(\dom)}_{\srcfrag\destfrag}$ (acting on the fragment-type axis)
+with the same-domain new-fragment TKF92 transitions
+($\notext^{(\dom)}_\srcfrag \tkftrans^{(\dom)}_{\xstate\ystate}
+\fragdist_{\dom,\destfrag}$ for M-type entries,
+$\notext^{(\dom)}_\srcfrag \kappa_\dom \fragdist_{\dom,\destfrag}$ for
+I/D-type entries),
+$E \in \mathbb{R}^{5\ndom\nfrag \times 3}$ stacks per-(domain,fragment-type)
+exit vectors projected to top-level types $\{\mat,\ins,\del\}$ via
+$(\notext^{(\dom)}_\srcfrag\, \notkappa_\dom)$ for the I/D singlet rows
+and $(\notext^{(\dom)}_\srcfrag\, \tkftrans^{(\dom)}_{\xstate\fin})$ for
+the matched-domain rows,
+$S \in \mathbb{R}^{5\ndom\nfrag \times 3}$ stacks per-(domain,fragment-type)
+start vectors with $(1-\emptyseg_\evoltime)^{-1}\domdist_\destdom\,
+\tkftrans^{(\destdom)}_{\sta\ystate}\fragdist_{\destdom\destfrag}$ for
+M-type entries and $(1-\emptyseg_0)^{-1}\domdist_\destdom\, \kappa_\destdom\,
+\fragdist_{\destdom\destfrag}$ for I/D-type entries (these
+$1/(1-\emptyseg)$ factors are the domenter normalisation that conditions
+on the destination domain being non-empty),
+and $\nonemptytrans_\bullet$ is the relevant $5 \times 5$ submatrix of
+the null-eliminated top-level matrix.
+
+Note that $D_{\dom_1} \neq D_{\dom_2}$ in general (different
+$\ext^{(\dom)}_{\srcfrag\destfrag}, \fragdist_{\dom\frag}, \insrate_\dom,
+\delrate_\dom$). For $\nfrag > 1$, $D_\dom$ has no further
+emission-type block-diagonal sub-structure within the matched-domain
+block (the intra-fragment Markov ext couples
+$\{\mat\mat, \mat\ins, \mat\del\}$ across fragment-types); however, it
+admits a Kronecker-plus-low-rank decomposition that preserves the
+linear-in-$\ndom\nfrag$ scaling
+(Section~\ref{sec:within-domain-mixdom}). The diagonal-ext baseline
+(\texttt{--freeze-offdiag-ext} in the fitter) recovers the diagonal-extension special case
+block structure as a special case.
+
+\begin{remark}[Domenter normalization]
+The $\transnest$ matrix (Section~\ref{sec:nestpairhmm},
+Equation~\ref{eq:mixdom_transitions}) includes factors
+$(1-\emptyseg_\evoltime)^{-1}$ for M-type destinations and
+$(1-\emptyseg_0)^{-1}$ for I/D-type destinations, conditioning domain
+entry on the domain being non-empty. These factors cancel the
+corresponding $(1-\emptyseg_\evoltime)$ and $(1-\emptyseg_0)$ column
+scaling in $\nonemptytrans_\bullet$ (which arises from the $\exptrans$
+null-elimination Schur complement). In the distillation, the start
+vectors $\mathbf{s}_{\dom,\frag}$ carry the domenter factors while
+$\nonemptytrans_\bullet$ retains the column factors; the product
+$\nonemptytrans_\bullet \cdot \mathbf{s}_{\dom,\frag}$ thus reproduces
+the correct $\transnest$ entries.
+\end{remark}
+
+\subsubsection{Woodbury identity}
+
+Writing $G_\dom = (I-D_\dom)^{-1}$ (each $5\nfrag \times 5\nfrag$),
+$E = (\mathbf{e}_{\dom,\frag})$ (exit vectors, $5\ndom\nfrag \times 3$),
+$S = (\mathbf{s}_{\dom,\frag})$ (start vectors, $5\ndom\nfrag \times 3$),
+and $\nonemptytrans_\text{mid}$ for the $3\times 3$ subblock of
+$\nonemptytrans_\bullet$ restricted to $\{\mat,\ins,\del\}$ (the only
+top-level types that couple across domains), the path-sum matrix is
+\[
+(I - \effT)^{-1}
+= G + G\,E\,\nonemptytrans_\text{mid}
+  \bigl(I_3 - S^\top G\,E\,\nonemptytrans_\text{mid}\bigr)^{-1}
+  S^\top G
+\]
+using the push-through form of the Woodbury identity, where
+$G = \mathrm{diag}(G_1, \ldots, G_\ndom)$.
+This avoids inverting $\nonemptytrans_\text{mid}$, which is singular
+(the TKF91 $\mat$ and $\ins$ rows are identical, so
+$\nonemptytrans_\text{mid}$ has rank~2).
+
+\begin{proposition}[Closed-form distillation for MixDom]
+All adjacency frequencies, and hence all order-1 HMM and WFST
+parameters, are closed-form rational functions of the model parameters
+(composed with the matrix exponentials $\exp(\revsub^{(\class)}\evoltime)$),
+for any finite $\ndom, \nfrag, \nclasses$.
+The computation requires:
+\begin{enumerate}
+\item A $3 \times 3$ inversion for the top-level null closure.
+\item $\ndom$ within-domain inversions $(I - D_\dom)^{-1}$, each of size
+  $5\nfrag \times 5\nfrag$. By the Kronecker-plus-rank-3 decomposition
+  of $D_\dom$ (Section~\ref{sec:within-domain-mixdom}), this reduces
+  to one $\nfrag \times \nfrag$ inversion of
+  $(I - \ext^{(\dom)})$ plus a $3 \times 3$ inner Woodbury kernel per
+  domain. For $\nfrag = 1$ the whole within-domain block collapses to a
+  $3 \times 3$ adjugate plus two scalar inversions
+  (Section~\ref{sec:within-domain-inversion}).
+\item One $3 \times 3$ outer Woodbury correction for inter-domain coupling.
+\item Summation of $(\ndom\nfrag)^2$ (domain, fragment-type)-pair terms
+  per adjacency entry, with each term involving a class-mixture
+  emission factor of length $\nclasses$.
+\end{enumerate}
+Every step is a rational function of the model parameters: no
+numerical iteration is required to evaluate the closed form.
+\end{proposition}
+
+\begin{remark}[Contrast with shared-emission case]
+If all $(d,f)$ shared a single class mixture (e.g.\
+$\classdist_{\dom\frag\class} = u_\class$ uniform), the adjacency
+frequencies would still factor as in~\eqref{eq:pair-adj}, but the
+emission tensor would have rank-1 structure across $(d,f)$, collapsing
+the WFST context dependence. With per-(domain, fragment-type) class
+mixtures, the structural constants are full
+$(\ndom\nfrag) \times (\ndom\nfrag)$ matrices indexed by
+(domain, fragment-type) pairs, the emission tensors are
+class-rank-$\nclasses$, and the context dependence is genuinely
+multi-dimensional.
+\end{remark}
+
+
+\subsection{Within-Domain Inversion: closed form}
+\label{sec:within-domain-mixdom}
+
+For general $\nfrag$, the within-domain block $D_\dom$ has a
+Kronecker-plus-rank-3 structure that yields a closed-form inverse
+without ever inverting a $5\nfrag \times 5\nfrag$ matrix directly.
+
+\subsubsection{Kronecker-plus-rank-3 decomposition of the matched-domain block}
+
+The matched-domain inner block (acting on
+$\{\mat\mat, \mat\ins, \mat\del\}$ at each fragment-type, total
+$3\nfrag$ states) combines intra-fragment Markov continuation with
+fragment termination plus a TKF92 same-domain new-fragment branch:
+\begin{equation}\label{eq:mixdom-D-match}
+D_\dom^{\text{match}}[(\xstate, \frag), (\ystate, \destfrag)]
+= \delta_{\xstate\ystate}\, \ext^{(\dom)}_{\frag\destfrag}
++ \notext^{(\dom)}_\frag \cdot
+  \tkftrans^{(\dom)}_{\xstate\ystate} \cdot
+  \fragdist_{\dom,\destfrag}.
+\end{equation}
+The first term is $I_{3} \otimes \ext^{(\dom)}$ (the
+intra-fragment Markov chain, identical at every emission type);
+the second is
+$\tkftrans^{(\dom)}_{3\times 3} \otimes (\notext^{(\dom)}\, \fragdist_\dom^\top)$
+where $\notext^{(\dom)}\, \fragdist_\dom^\top$ is the rank-1
+$\nfrag \times \nfrag$ outer product of fragment-termination
+probabilities and fragment-entry weights.
+The whole rank-3 correction is therefore of rank $\leq 3$ in the joint
+$(\xstate,\frag)$ space (one factor of 3 from
+$\tkftrans^{(\dom)}_{3\times 3}$, and rank 1 in the fragment slot
+from the outer product). Writing
+\[
+D_\dom^{\text{match}} = I_{3} \otimes \ext^{(\dom)}
++ U_\dom\, V_\dom^\top,
+\quad
+U_\dom = \tkftrans^{(\dom)}_{3\times 3} \otimes \notext^{(\dom)},
+\quad
+V_\dom = I_{3} \otimes \fragdist_\dom,
+\]
+$U_\dom$ and $V_\dom$ are $3\nfrag \times 3$ matrices.
+
+\subsubsection{Inverse via inner Woodbury}
+
+Since $I_{3} \otimes \ext^{(\dom)}$ commutes with itself,
+$I - I_3 \otimes \ext^{(\dom)} = I_3 \otimes (I_\nfrag - \ext^{(\dom)})$,
+which inverts blockwise: $(I_3 \otimes (I_\nfrag - \ext^{(\dom)}))^{-1}
+= I_3 \otimes (I_\nfrag - \ext^{(\dom)})^{-1}$.
+Note $(I_\nfrag - \ext^{(\dom)})^{-1}$ is a single
+$\nfrag \times \nfrag$ inversion per domain.
+Applying the Sherman--Morrison--Woodbury identity to the rank-3
+correction gives
+\begin{equation}\label{eq:mixdom-Dmatch-inverse}
+\begin{aligned}
+(I - D_\dom^{\text{match}})^{-1}
+&= G_0
++ G_0\, U_\dom\, K_\dom^{\text{inner}}\, V_\dom^\top G_0, \\
+G_0 &\equiv I_{3} \otimes (I_\nfrag - \ext^{(\dom)})^{-1}, \\
+K_\dom^{\text{inner}}
+&\equiv (I_3 - V_\dom^\top G_0\, U_\dom)^{-1}.
+\end{aligned}
+\end{equation}
+$K_\dom^{\text{inner}}$ is a $3 \times 3$ matrix whose entries are
+rational functions of $\fragdist_\dom$, $\ext^{(\dom)}$,
+$\tkftrans^{(\dom)}$ via a single $\nfrag$-fold inner product
+$\fragdist_\dom^\top (I - \ext^{(\dom)})^{-1} \notext^{(\dom)}$
+times $\tkftrans^{(\dom)}_{3\times 3}$.
+
+The two singlet-domain blocks act on $\nfrag$ states each
+($\{\ins\ins_{\dom\frag} : \frag\}$ and
+$\{\del\del_{\dom\frag} : \frag\}$):
+\[
+d_\dom^{\text{ins}}[\frag,\destfrag]
+= d_\dom^{\text{del}}[\frag,\destfrag]
+= \ext^{(\dom)}_{\frag\destfrag} + \notext^{(\dom)}_\frag\,
+  \kappa_\dom\, \fragdist_{\dom,\destfrag}.
+\]
+Their inverse follows the same pattern: rank-1 correction to
+$(I - \ext^{(\dom)})$, giving
+\[
+(I - d_\dom^{\text{ins}})^{-1}
+= (I - \ext^{(\dom)})^{-1}
++ (I - \ext^{(\dom)})^{-1} \notext^{(\dom)}\,
+  k_\dom^{\text{ins}}\,
+  \fragdist_\dom^\top (I - \ext^{(\dom)})^{-1},
+\]
+with scalar inner kernel
+$k_\dom^{\text{ins}}
+= \kappa_\dom \, [1 - \kappa_\dom \fragdist_\dom^\top
+(I - \ext^{(\dom)})^{-1} \notext^{(\dom)}]^{-1}$,
+and identically for delete.
+
+Every entry of $(I - D_\dom)^{-1}$ is therefore a rational function of
+$(\ext^{(\dom)}, \fragdist_\dom, \alpha_\dom, \beta_\dom, \gamma_\dom,
+\kappa_\dom)$, computed at cost $O(\nfrag^3)$ per domain (the inversion
+of $I_\nfrag - \ext^{(\dom)}$) plus $O(\nfrag^2)$ for the singlet
+blocks and $O(1)$ for the inner $3 \times 3$ Woodbury kernel.
+No numerical iteration is required; the inversion can be carried out
+analytically (for small $\nfrag$, by Cramer's rule on
+$I_\nfrag - \ext^{(\dom)}$) or directly evaluated for larger $\nfrag$.
+
+\begin{remark}[Compactness]
+For small $\nfrag$ the inverse $(I_\nfrag - \ext^{(\dom)})^{-1}$ has a
+compact symbolic form (e.g.\ at $\nfrag = 2$ it is a $2 \times 2$
+adjugate over a scalar determinant). The further reductions of the
+matched-domain block via~\eqref{eq:mixdom-Dmatch-inverse} and the
+singlet blocks above involve only $3 \times 3$ and scalar inner
+inversions, so the overall within-domain inverse can be
+written down symbolically without ever exceeding a $\nfrag \times
+\nfrag$ inversion. The $\nfrag = 1$ scalar-extension special case
+collapses $(I_\nfrag - \ext^{(\dom)})^{-1}$ to the scalar
+$1/(1 - \ext_\dom)$ and recovers the more compact
+$3 \times 3$ adjugate of Section~\ref{sec:within-domain-inversion}
+below.
+\end{remark}
+
+\subsection{\texorpdfstring{Within-Domain Inversion: $\nfrag = 1$ closed form}{Within-Domain Inversion: F = 1 closed form}}
+\label{sec:within-domain-inversion}
+
+When $\nfrag = 1$ (scalar self-extension
+$\ext_\dom \equiv \ext^{(\dom)}_{11}$, no off-diagonal Markov coupling),
+$D_\dom$ collapses to $5 \times 5$ with the additional block structure
+described below; we record this special case because it admits a
+particularly compact algebraic form.
+
+\subsubsection{\texorpdfstring{Block decomposition: $3 \times 3 + 1 + 1$}{Block decomposition: 3 x 3 + 1 + 1}}
+
+In the $\nfrag = 1$ limit, the five emitting state types
+$\{\mat\mat, \mat\ins, \mat\del, \ins\ins, \del\del\}$
+cannot transition between top-level types within a domain:
+if the domain is inserted (top-level $\ins$), all emissions stay in
+$\ins\ins$ until the domain ends; similarly for deleted domains
+($\del\del$). Therefore $D_\dom$ is block-diagonal:
+\[
+D_\dom = \begin{pmatrix} D_\dom^{\text{match}} & 0 & 0 \\ 0 & d_\dom^{\text{ins}} & 0 \\ 0 & 0 & d_\dom^{\text{del}} \end{pmatrix}
+\]
+where $D_\dom^{\text{match}}$ is $3 \times 3$ (for matched-domain states
+$\mat\mat, \mat\ins, \mat\del$) and the singlet-domain states have
+scalar self-loops:
+\[
+d_\dom^{\text{ins}} = d_\dom^{\text{del}} = \ext_\dom + (1 - \ext_\dom)\kappa_\dom
+\]
+
+The scalar inversions are trivial:
+$(1 - d_\dom^{\text{ins}})^{-1} = [(1-\ext_\dom)(1-\kappa_\dom)]^{-1}$.
+
+\subsubsection{\texorpdfstring{The $3\times 3$ matched-domain block}{The 3 x 3 matched-domain block}}
+
+The matched-domain block combines fragment extension (self-loop at rate
+$\ext_\dom$) with intra-domain TKF transitions:
+\[
+D_\dom^{\text{match}} = \ext_\dom I_3 + (1 - \ext_\dom)\, \tkftrans_{\mat\ins\del,\mat\ins\del}^{(\dom)}
+\]
+where $\tkftrans_{\mat\ins\del,\mat\ins\del}^{(\dom)}$ is the
+$3 \times 3$ submatrix of $\tkftrans^{(\dom)}$ restricted to rows and
+columns $\mat, \ins, \del$.
+
+A key property: in the TKF transition matrix, rows $\mat$ and $\ins$
+are identical. Defining shorthand (suppressing domain subscript $\dom$):
+\begin{align*}
+\mathfrak{a} &= (1-\beta)\kappa\alpha, &
+\mathfrak{b} &= \beta, &
+\mathfrak{c} &= (1-\beta)\kappa(1-\alpha) \\
+\mathfrak{d} &= (1-\gamma)\kappa\alpha, &
+\mathfrak{g} &= \gamma, &
+\mathfrak{h} &= (1-\gamma)\kappa(1-\alpha)
+\end{align*}
+the $3 \times 3$ TKF submatrix is
+\[
+\tkftrans_{\mat\ins\del,\mat\ins\del}^{(\dom)} =
+\begin{pmatrix}
+\mathfrak{a} & \mathfrak{b} & \mathfrak{c} \\
+\mathfrak{a} & \mathfrak{b} & \mathfrak{c} \\
+\mathfrak{d} & \mathfrak{g} & \mathfrak{h}
+\end{pmatrix}
+\]
+with row sums $\mathfrak{a}+\mathfrak{b}+\mathfrak{c} = (1-\beta)\kappa + \beta$ for the first two rows
+and $\mathfrak{d}+\mathfrak{g}+\mathfrak{h} = (1-\gamma)\kappa + \gamma$ for the third.
+
+\subsubsection{Factoring out the extension rate}
+
+Since $I - D^{\text{match}} = I - \ext I - (1-\ext)\tkftrans_{3\times 3}
+= (1-\ext)(I - \tkftrans_{3\times 3})$,
+the extension rate factors out as a scalar:
+\[
+(I - D_\dom^{\text{match}})^{-1} = \frac{1}{1-\ext_\dom}\, P_\dom^{-1}
+\]
+where
+\[
+P_\dom \equiv I - \tkftrans_{\mat\ins\del,\mat\ins\del}^{(\dom)} =
+\begin{pmatrix}
+1-\mathfrak{a} & -\mathfrak{b} & -\mathfrak{c} \\
+-\mathfrak{a} & 1-\mathfrak{b} & -\mathfrak{c} \\
+-\mathfrak{d} & -\mathfrak{g} & 1-\mathfrak{h}
+\end{pmatrix}
+\]
+with row sums $(1-\beta)(1-\kappa)$, $(1-\beta)(1-\kappa)$, $(1-\gamma)(1-\kappa)$
+(the domain-exit probabilities from each inner state).
+
+\subsubsection{\texorpdfstring{Determinant of $P_\dom$}{Determinant of P\_n}}
+
+Since rows 1 and 2 of $\tkftrans_{3\times 3}$ are identical,
+subtracting row~2 from row~1 in $P$ yields $(1, -1, 0)$.
+Expanding the determinant along this simplified row gives
+\begin{align*}
+\det(P_\dom) &= (1-\mathfrak{b})(1-\mathfrak{h}) - \mathfrak{c}\mathfrak{g}
+   - \mathfrak{a}(1-\mathfrak{h}) - \mathfrak{c}\mathfrak{d} \\
+&= (1-\beta_\dom)(1-\kappa_\dom)
+\end{align*}
+This factors cleanly: since $\mathfrak{a}+\mathfrak{b}+\mathfrak{c}$ and
+$\mathfrak{d}+\mathfrak{g}+\mathfrak{h}$ are the row sums of
+$\tkftrans_{3\times 3}$, we have
+\[
+\boxed{\det(P_\dom) = (1-\beta_\dom)(1-\kappa_\dom)}
+\]
+The determinant is the product of the M/I-row exit probability $(1-\beta)$
+and the stationary emptiness probability $(1-\kappa)$.
+
+\subsubsection{\texorpdfstring{Inverse of $P_\dom$}{Inverse of P\_n}}
+
+The adjugate $\text{adj}(P_\dom)$ has entries (again suppressing domain subscripts):
+\[
+\text{adj}(P) =
+\begin{pmatrix}
+(1-\beta)(1-\kappa(1-\alpha))
+  & \beta + \kappa(1-\alpha)(\gamma-\beta)
+  & (1-\beta)\kappa(1-\alpha) \\[4pt]
+(1-\beta)\kappa\alpha
+  & 1 - (1-\beta)\kappa\alpha - (1-\gamma)\kappa(1-\alpha)
+  & (1-\beta)\kappa(1-\alpha) \\[4pt]
+(1-\beta)\kappa\alpha
+  & \gamma + \kappa\alpha(\beta-\gamma)
+  & (1-\beta)(1-\kappa\alpha)
+\end{pmatrix}
+\]
+Note the symmetries: $\text{adj}(P)_{21} = \text{adj}(P)_{31}$
+and $\text{adj}(P)_{13} = \text{adj}(P)_{23}$
+(reflecting the identical rows of $\tkftrans_{3\times 3}$),
+while $\text{adj}(P)_{11} - \text{adj}(P)_{33} = (1-\beta)\kappa(2\alpha-1)$,
+which vanishes only when $\alpha = \tfrac{1}{2}$.
+
+The full inverse is
+\[
+P_\dom^{-1} = \frac{\text{adj}(P_\dom)}{(1-\beta_\dom)(1-\kappa_\dom)}
+\]
+and therefore
+\[
+(I - D_\dom^{\text{match}})^{-1} = \frac{\text{adj}(P_\dom)}{(1-\ext_\dom)(1-\beta_\dom)(1-\kappa_\dom)}
+\]
+
+\begin{remark}[Compactness in the $\nfrag = 1$ limit]
+Each entry of $(I - D_\dom^{\text{match}})^{-1}$ is a ratio of a polynomial
+with 1--3 terms (numerator, from the adjugate) over a polynomial with 2--3 terms
+(denominator $(1-\ext)(1-\beta)(1-\kappa)$). These are genuinely compact
+closed-form expressions in the TKF parameters
+$(\alpha_\dom, \beta_\dom, \gamma_\dom, \kappa_\dom, \ext_\dom)$.
+For $\nfrag > 1$ the inversion is still closed-form (a rational
+function in $\ext^{(\dom)}, \fragdist_\dom, \alpha_\dom, \beta_\dom,
+\gamma_\dom, \kappa_\dom$), via the Kronecker-plus-rank-3 Woodbury
+decomposition of Section~\ref{sec:within-domain-mixdom}: the only
+inversion of dimension exceeding $3 \times 3$ is a single
+$\nfrag \times \nfrag$ inverse $(I_\nfrag - \ext^{(\dom)})^{-1}$ per
+domain, which can itself be written symbolically via the matrix
+adjugate.
+\end{remark}
+
+
+\subsection{Bilinear Factored Form of Adjacency Frequencies}
+
+The Woodbury identity gives the full path-sum matrix in a form that
+makes the adjacency computation practical for any $\ndom, \nfrag$.
+
+\subsubsection{Structure of the path-sum matrix}
+
+Writing $G_\dom = (I - D_\dom)^{-1}$ ($5\nfrag \times 5\nfrag$ per
+domain), the Woodbury expansion gives, for states $s_1$ in
+$(\dom_1, \frag_1)$ and $s_2$ in $(\dom_2, \frag_2)$:
+\[
+[(I - \effT)^{-1}]_{s_1 s_2}
+= \delta_{\dom_1\dom_2}\,[G_{\dom_1}]_{s_1 s_2}
++ [G_{\dom_1}\,\mathbf{e}_{\dom_1}]_{s_1}^\top\,
+  \nonemptytrans_\text{mid}\,K\,
+  [\mathbf{s}_{\dom_2}^\top G_{\dom_2}]_{s_2}
+\]
+where $K = \bigl(I_3 - \sum_\dom \mathbf{s}_\dom^\top G_\dom\, \mathbf{e}_\dom\,
+\nonemptytrans_\text{mid}\bigr)^{-1}$
+is the $3 \times 3$ Woodbury kernel (push-through form), computed once.
+
+\subsubsection{Bilinear form of structural weights}
+
+The structural weight $C^{\alpha\beta}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}$
+decomposes as a within-domain diagonal plus a cross-domain bilinear form:
+\[
+C^{\alpha\beta}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+= \delta_{\dom_1\dom_2}\, c^\alpha_{\dom_1\frag_1\frag_2}
++ \mathbf{a}^{\alpha\top}_{\dom_1\frag_1}\, M^{-1}\, \mathbf{b}^{\beta}_{\dom_2\frag_2}
+\]
+where $\mathbf{a}^\alpha_{\dom\frag}, \mathbf{b}^\beta_{\dom\frag} \in \mathbb{R}^5$
+are per-(domain, fragment-type) vectors derived from $G_\dom$,
+$\mathbf{e}_\dom$, $\mathbf{s}_\dom$, and the emission-type projections,
+and $c^\alpha_{\dom\frag_1\frag_2}$ is the within-domain entry of
+$G_\dom$ between fragment-types $\frag_1$ and $\frag_2$ at emission
+type $\alpha$ (a $\nfrag \times \nfrag$ matrix per domain rather than a
+scalar).
+
+\subsubsection{Closed-form adjacency formula}
+
+Substituting into the adjacency frequency~\eqref{eq:pair-adj} and using
+the per-(domain, fragment-type) class-mixture emissions
+$\phi^\alpha_{\dom\frag}$ from
+Section~\ref{sec:class-mixture-emissions}, the full adjacency table
+takes the form:
+\begin{equation}\label{eq:bilinear-adj}
+f^{\alpha\beta}(\text{chars}_L, \text{chars}_R)
+= \underbrace{
+  \left[\sum_{\dom,\frag} \mathbf{a}^\alpha_{\dom\frag}\,
+        \phi^\alpha_{\dom\frag}(\text{chars}_L)\right]^\top
+  M^{-1}
+  \left[\sum_{\dom,\frag} \mathbf{b}^\beta_{\dom\frag}\,
+        \phi^\beta_{\dom\frag}(\text{chars}_R)\right]
+}_{\text{cross-domain: bilinear in two 5-vectors}}
++ \underbrace{
+  \sum_\dom \sum_{\frag_1,\frag_2}
+      c^\alpha_{\dom\frag_1\frag_2}\,
+      \phi^\alpha_{\dom\frag_1}(\text{chars}_L)\,
+      \phi^\beta_{\dom\frag_2}(\text{chars}_R)
+}_{\text{within-domain: $\nfrag \times \nfrag$ inner sum}}
+\end{equation}
+
+This is algebraic closed form: every quantity appearing---$G_\dom$ entries,
+$\mathbf{a}^\alpha_{\dom\frag}$, $\mathbf{b}^\beta_{\dom\frag}$,
+$c^\alpha_{\dom\frag_1\frag_2}$, $M^{-1}$, and $\phi^\alpha_{\dom\frag}$---is a
+rational function of the model parameters (composed with the matrix
+exponentials $\exp(\revsub^{(\class)}\evoltime)$).
+All inversions reduce to closed-form rational expressions: the only
+matrix inversion of dimension exceeding $3 \times 3$ in the entire
+distillation pipeline is $(I_\nfrag - \ext^{(\dom)})^{-1}$ per domain
+(Section~\ref{sec:within-domain-mixdom}), which is a single
+$\nfrag \times \nfrag$ adjugate-over-determinant. The Woodbury
+correction $M^{-1}$ is a single $3 \times 3$ inversion regardless of
+$\ndom, \nfrag, \nclasses$.
+
+\begin{remark}[Practical computation for $\ndom = \nfrag = \nclasses = 3$]
+For $\ndom = 3, \nfrag = 3, \nclasses = 3$:
+\begin{enumerate}
+\item Precompute $\nclasses = 3$ per-class transition kernels
+  $\exp(\revsub^{(\class)}\evoltime)$.
+\item Precompute 3 within-domain inverses $G_\dom$ (each
+  $15 \times 15$, i.e.\ $5\nfrag = 15$).
+\item Precompute 9 pairs $(\mathbf{a}^\alpha_{\dom\frag},
+  \mathbf{b}^\beta_{\dom\frag})$ for each $(\alpha,\beta)$ pair, plus
+  the within-domain $\nfrag \times \nfrag$ matrices
+  $c^\alpha_{\dom\frag_1\frag_2}$.
+\item Accumulate $\Sigma = \sum_\dom \mathbf{s}_\dom^\top G_\dom \mathbf{e}_\dom$
+  and compute the push-through kernel $K$ (one $3 \times 3$ inversion).
+\item For each character entry: evaluate~\eqref{eq:bilinear-adj} by
+  summing 9 scaled 3-vectors for the left and right factors of the
+  cross-domain term, then a $3 \times 3$ bilinear product, plus a
+  within-domain double sum over $(\frag_1, \frag_2)$.
+\end{enumerate}
+The per-entry cost is $O(\ndom\nfrag + \nclasses)$ multiplications.
+\end{remark}
+
+
+\subsection{Full-Context Distillation: Passthrough Context for Insert and Delete}
+\label{sec:full-context}
+
+In a two-tape transducer, the \emph{state} at any point should encode
+the most recent character on \emph{each} tape:
+\begin{itemize}
+\item After Match$(X,Y)$: context is $(X,Y)$ --- both tapes updated.
+\item After Insert emitting $Y'$: context is $(X, Y')$ --- ancestor context $X$ unchanged
+  (passthrough from prior Match or Delete), descendant updated to $Y'$.
+\item After Delete consuming $X'$: context is $(X', Y)$ --- descendant context $Y$ unchanged
+  (passthrough from prior Match or Insert), ancestor updated to $X'$.
+\end{itemize}
+
+The adjacency frequencies in
+Section~\ref{sec:algebraic-distillation} track only partial context
+for Insert and Delete states: $\phi^{\ins}_{\dom\frag}(Y)
+= \sum_\class \classdist_{\dom\frag\class} \eqm^{(\class)}_Y$
+depends only on the descendant character, and
+$\phi^{\del}_{\dom\frag}(X) = \sum_\class \classdist_{\dom\frag\class}
+\eqm^{(\class)}_X$ depends only on the ancestor character.
+This loses information about which (domain, fragment-type, class)
+generated the passthrough context.
+
+We now show that the full-context adjacency frequencies---with both
+$(X,Y)$ tracked in all states---can be computed in closed algebraic
+form, preserving the Woodbury structure.
+
+\subsubsection{Insert chain Green's function}
+
+Define the \emph{Insert chain} as the sub-process restricted to Insert states
+$\mathcal{I} = \{\mat\ins_{\dom\frag}, \ins\ins_{\dom\frag}
+: \dom \in \ndom, \frag \in \nfrag\}$.
+The restricted transition matrix $T^{\mathcal{II}}_{\text{eff}}$
+(Insert$\to$Insert transitions within $\effT$) has the same
+block-diagonal-plus-low-rank structure as the full $\effT$:
+\[
+T^{\mathcal{II}}_{\text{eff}} = D^{II} + E^{II}\, \nonemptytrans^{II}_{\text{mid}}\, {S^{II}}^\top
+\]
+where $D^{II} = \text{diag}(D^{II}_1, \ldots, D^{II}_\ndom)$
+with each $D^{II}_\dom$ being the within-domain Insert self-loop block
+($2\nfrag \times 2\nfrag$ for $\{\mat\ins_{\dom\frag},
+\ins\ins_{\dom\frag}\}$ over fragment-types),
+and the cross-domain coupling has rank $\leq 2$ through the Insert rows
+of $\nonemptytrans_\bullet$.
+
+The Insert chain Green's function is therefore
+\[
+G^{II} = (I - T^{\mathcal{II}}_{\text{eff}})^{-1}
+\]
+computable via Woodbury with a kernel of dimension $\leq 2$.
+Each within-domain inverse $(I - D^{II}_\dom)^{-1}$ is a
+$2\nfrag \times 2\nfrag$ inversion --- simpler than the
+$5\nfrag \times 5\nfrag$ within-domain block of the full system.
+
+An analogous \emph{Delete chain Green's function}
+$G^{DD} = (I - T^{\mathcal{DD}}_{\text{eff}})^{-1}$ handles the
+descendant passthrough through Delete states, with identical structure.
+
+\subsubsection{Ancestor-conditioned structural weights}
+
+To enter the Insert chain with ancestor context $X$, the process must
+have come from a prior Match or Delete state in some $(\dom_0, \frag_0)$
+that emitted ancestor $X$.
+The match emission satisfies $\sum_Y \phi^{\mat}_{\dom\frag}(X,Y)
+= \phi^{\del}_{\dom\frag}(X)$ (row-stochastic per ancestor), so the
+entry weight from $(\dom_0, \frag_0)$ with ancestor $X$ is proportional
+to $\phi^{\del}_{\dom_0\frag_0}(X)$ for both Match and Delete source
+states.
+
+Define the ancestor-conditioned left vector:
+\[
+\tilde{L}^{\mathcal{I}}_{\dom_1\frag_1}(X) = \sum_{\dom_0,\frag_0}
+  \underbrace{(L_{\mat\mat_{\dom_0\frag_0}} + L_{\mat\del_{\dom_0\frag_0}}
+              + L_{\del\del_{\dom_0\frag_0}})}_{\lambda_{\dom_0\frag_0}}
+  \cdot\; \phi^{\del}_{\dom_0\frag_0}(X)
+  \cdot\; \bigl[\effT_{\text{entry}}\, G^{II}\bigr]_{(\dom_0,\frag_0),(\dom_1,\frag_1)}
+\]
+where $L_s$ are the standard left boundary weights from the full
+path-sum computation, $\lambda_{\dom_0\frag_0}$ collects all
+ancestor-emitting (Match and Delete) boundary contributions for
+$(\dom_0, \frag_0)$, $\effT_{\text{entry}}$ is the entry transition
+from ancestor-emitting states $\{\mat\mat, \mat\del, \del\del\}$ into
+the Insert chain (i.e.\ the $\{M,D\} \to \{I\}$ block of $\effT$),
+and $G^{II}_{(\dom_0,\frag_0),(\dom_1,\frag_1)}$ sums over all
+Insert-chain continuations.
+
+Key observation: $\phi^{\del}_{\dom_0\frag_0}(X)$ factors out
+multiplicatively from the structural sum, preserving the bilinear
+structure.
+
+\subsubsection{Full-context adjacency for Insert-sourced transitions}
+
+The full-context adjacency for Insert$\to$Match is:
+\begin{equation}\label{eq:full-im}
+f^{\mathcal{I}\mathcal{M}}_{\text{full}}(X, Y, X', Y')
+= \sum_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \tilde{L}^{\mathcal{I}}_{\dom_1\frag_1}(X)
+  \cdot \eta^{\mathcal{IM}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \cdot \phi^{\ins}_{\dom_1\frag_1}(Y)
+  \cdot \phi^{\mat}_{\dom_2\frag_2}(X', Y')
+\end{equation}
+where $\eta^{\mathcal{IM}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+= T_{I_{\dom_1\frag_1}, M_{\dom_2\frag_2}} \cdot R_{M_{\dom_2\frag_2}}$
+and $Y$ is the descendant character at the Insert,
+$X$ the passthrough ancestor.
+
+The bilinear factored form (cf.~\eqref{eq:bilinear-adj}) generalizes to:
+\begin{equation}\label{eq:bilinear-full}
+f^{\mathcal{I}\mathcal{M}}_{\text{full}}(X, Y, X', Y')
+= \left[\sum_{\dom,\frag} \tilde{\mathbf{a}}^{\mathcal{I}}_{\dom\frag}(X)\,
+        \phi^{\ins}_{\dom\frag}(Y) \right]^\top
+  K_I
+  \left[\sum_{\dom,\frag} \mathbf{b}^{\mathcal{M}}_{\dom\frag}\,
+        \phi^{\mat}_{\dom\frag}(X', Y')\right]
+  + \sum_{\dom,\frag_1,\frag_2} \text{(diagonal terms)}
+\end{equation}
+where $\tilde{\mathbf{a}}^{\mathcal{I}}_{\dom\frag}(X)$ are modified
+per-(domain, fragment-type) left vectors incorporating the ancestor
+context through $\tilde{L}^{\mathcal{I}}_{\dom\frag}(X)$, and $K_I$ is
+the Woodbury kernel for the Insert-chain correction.
+
+Similarly, for Insert$\to$Insert with ancestor passthrough:
+\[
+f^{\mathcal{I}\mathcal{I}}_{\text{full}}(X, Y, X, Y')
+= \sum_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \tilde{L}^{\mathcal{I}}_{\dom_1\frag_1}(X)
+  \cdot \eta^{\mathcal{II}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \cdot \phi^{\ins}_{\dom_1\frag_1}(Y)
+  \cdot \phi^{\ins}_{\dom_2\frag_2}(Y')
+\]
+where the ancestor $X$ is preserved on both sides (3 effective
+character dimensions, not 4).
+
+By symmetry, the Delete-sourced adjacencies with descendant passthrough are:
+\begin{equation}\label{eq:full-dm}
+f^{\mathcal{D}\mathcal{M}}_{\text{full}}(X, Y, X', Y')
+= \sum_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \tilde{L}^{\mathcal{D}}_{\dom_1\frag_1}(Y)
+  \cdot \eta^{\mathcal{DM}}_{(\dom_1,\frag_1),(\dom_2,\frag_2)}
+  \cdot \phi^{\del}_{\dom_1\frag_1}(X)
+  \cdot \phi^{\mat}_{\dom_2\frag_2}(X', Y')
+\end{equation}
+where $\tilde{L}^{\mathcal{D}}_{\dom_1\frag_1}(Y)$ is the
+descendant-conditioned left vector for the Delete chain, defined
+analogously with $G^{DD}$.
+
+\subsubsection{Computational cost}
+
+The affected adjacency tables gain one character dimension:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Tensor & Original & Full-context & Per-entry cost \\
+\midrule
+$f^{\mathcal{M}\mathcal{M}}$ & $|\alphabet|^4$ & $|\alphabet|^4$ (unchanged) & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{M}\mathcal{I}}$ & $|\alphabet|^3$ & $|\alphabet|^3$ (unchanged) & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{M}\mathcal{D}}$ & $|\alphabet|^3$ & $|\alphabet|^3$ (unchanged) & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{I}\mathcal{M}}$ & $|\alphabet|^3$ & $|\alphabet|^4$ & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{I}\mathcal{I}}$ & $|\alphabet|^2$ & $|\alphabet|^3$ ($X$ preserved) & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{I}\mathcal{D}}$ & $|\alphabet|^2$ & $|\alphabet|^3$ ($X$ preserved, $Y \to X'$) & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{D}\mathcal{M}}$ & $|\alphabet|^3$ & $|\alphabet|^4$ & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{D}\mathcal{D}}$ & $|\alphabet|^2$ & $|\alphabet|^3$ ($Y$ preserved) & $O(\ndom\nfrag + \nclasses)$ \\
+$f^{\mathcal{D}\mathcal{I}}$ & $|\alphabet|^2$ & $|\alphabet|^3$ ($Y$ preserved, $X \to Y'$) & $O(\ndom\nfrag + \nclasses)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The per-entry cost is $O(\ndom\nfrag + \nclasses)$ after Woodbury
+factoring (cf.\ the same per-entry cost for $f^{\mathcal{M}\mathcal{M}}$
+noted in Remark on p.~\pageref{prop:linear}), since the Insert and
+Delete chain Green's functions have the same bilinear decomposition.
+The total cost for the full adjacency table is
+$O((\ndom\nfrag + \nclasses) \cdot |\alphabet|^4)$ --- the same
+asymptotic scaling as the existing match-to-match computation.
+The Woodbury kernel remains $3 \times 3$ for the full system;
+the Insert and Delete chain kernels are $\leq 2 \times 2$.
+All quantities remain closed-form rational functions of the model
+parameters (composed with the $\nclasses$ rate-matrix exponentials).
+
+\begin{remark}[Why the original formulation lost context]
+The emission functions $\phi^{\ins}_{\dom\frag}(Y)$ and
+$\phi^{\del}_{\dom\frag}(X)$ are genuinely single-character: the Insert
+emission does not depend on the ancestor, and vice versa. The lost
+context is not an emission effect but a \emph{transition routing} effect:
+the joint posterior $P((\dom,\frag,\class) \mid X, Y)$ depends on both
+characters, so the passthrough character informs which
+(domain, fragment-type, class) we are in, and hence which transition
+probabilities apply. The correction above recovers this information by
+conditioning the structural weights on the passthrough character.
+\end{remark}
+
+
+\subsection{Domains versus Fragments versus Classes for Adjacency Capture}
+\label{sec:allocation}
+
+The order-1 WFST has $O(|\alphabet|^4)$ free parameters
+(from match-to-match transition weights parameterized by context
+$(X,Y)$ and next pair $(\anctok',\destok')$), while the MixDom model
+has far fewer. We analyse which type of model complexity most
+efficiently captures adjacency structure.
+
+\subsubsection{Adjacency tensor rank}
+
+The match-to-match adjacency table $f^{\mathcal{M}\mathcal{M}}(X,Y,X',Y')$
+is a sum of $(\ndom\nfrag)^2$ structural-weight terms (in the
+(domain, fragment-type)-pair sense), each weighted by a rank-$\nclasses$
+emission factor on each side. To approach saturating the WFST capacity
+($|\alphabet|^4$ entries), the tensor rank must approach $|\alphabet|^2$;
+this is achievable through a combination of $(\ndom, \nfrag, \nclasses)$.
+
+\subsubsection{Domains: independent TKF rates and weights}
+
+Each domain type $\dom$ brings its own $(\alpha_\dom, \beta_\dom,
+\gamma_\dom, \kappa_\dom)$, creating genuinely different:
+\begin{itemize}
+\item $\mat\to\del$ vs.\ $\mat\to\ins$ ratios (different
+  $\kappa_\dom(1-\alpha_\dom)$ vs.\ $\beta_\dom$),
+\item $\waitm$ vs.\ $\waitd$ transition behaviour (different
+  $\beta_\dom$ vs.\ $\gamma_\dom$),
+\item overall indel/match balance.
+\end{itemize}
+These features drive cross-type adjacency diversity in the WFST and
+are not reproducible by fragments or classes alone.
+
+\subsubsection{Fragments: vary intra-fragment transition pattern as well as boundary frequency}
+
+The intra-fragment Markov ext matrix
+$\ext^{(\dom)}_{\srcfrag\destfrag}$ allows transitions \emph{between
+fragment-types within a single fragment}, without invoking the TKF92
+new-fragment branch. These intra-fragment $\srcfrag \to \destfrag$
+transitions at each emitted site can carry persistent emission-class
+context: a chain that prefers one fragment-type tends to stay in that
+fragment-type's class mixture, producing richer M/I/D adjacency
+patterns than fragments without intra-fragment correlation.
+The off-diagonal entries of $\ext^{(\dom)}$ thus contribute genuine new
+$\mat/\ins/\del$ adjacency content; setting them to zero
+(\texttt{--freeze-offdiag-ext} in the fitter) recovers the
+diagonal-extension special case behaviour where fragments only
+modulate boundary frequency, and the $\nfrag = 1$ case collapses
+fragments to a scalar self-extension per domain.
+
+\subsubsection{Classes: emission-mixture diversity, decoupled from structure}
+
+Each site class $\class$ has its own GTR
+$(\exch^{(\class)}, \eqm^{(\class)})$. Classes contribute
+\emph{emission} diversity: the rank-$\nclasses$ class-mixture emission
+$\phi^{\mat,\ins,\del}_{\dom\frag}$ allows the joint match emission
+tensor to deviate from a single GTR's product structure, even within a
+single $(d,f)$. Classes do not contribute to the $\mat/\ins/\del$
+transition pattern (they do not appear in $\effT$ or in any of the
+structural weights $C^{\alpha\beta}$); they affect only the
+character-side of each adjacency frequency. Sharing the class pool
+across $(d,f)$ via $\classdist$ gives a low-parameter way to enrich
+the emission tensor without growing the latent-state space.
+
+\begin{remark}[Parameter allocation]
+For adjacency capture in MixDom:
+\begin{itemize}[nosep]
+\item Domains are essential to enrich the $\mat/\ins/\del$ transition
+  pattern via independent TKF rates.
+\item Fragments enrich the $\mat/\ins/\del$ structure (via the
+  intra-fragment Markov ext) and the boundary frequency
+  (via $\notext^{(\dom)}_\srcfrag$); they also support an additional
+  layer of emission diversity through $\classdist_{\dom\frag\class}$.
+\item Classes enrich emissions only, but cheaply (decoupled from
+  $\ndom, \nfrag$): with $\nclasses$ classes, every $(d,f)$ has access
+  to the full pool via its Dirichlet $\classdist_{\dom\frag\class}$.
+\end{itemize}
+The total adjacency-tensor rank scales as $\ndom \nfrag$
+(structural-weight pairs) $\times \nclasses^2$ (left/right class mixture);
+in practice, allocating the parameter budget across all three axes
+gives the most efficient match to the WFST capacity.
+\end{remark}
+
+
+\subsection{Identifiability}
+\label{sec:identifiability}
+
+Are the MixDom parameters recoverable from the distilled order-1 models?
+
+\paragraph{Generic identifiability (up to standard ambiguities).}
+The distilled WFST provides $O(|\alphabet|^4)$ constraints on the
+MixDom parameters. With $\ndom$ domains, $\nfrag$ fragment types per
+domain, and $\nclasses$ site classes, there are
+$2 + (\ndom-1) + 2\ndom + \ndom\nfrag^2 + \ndom\nfrag(\nclasses-1)
++ \nclasses(|\alphabet|^2 + |\alphabet| - 2)$ free parameters (the
+last term accounts for $\nclasses$ symmetric exchangeability matrices
+and equilibrium distributions). The system is heavily over-determined
+for moderate $(\ndom, \nfrag, \nclasses)$.
+
+The per-domain TKF parameters $(\insrate_\dom\evoltime,
+\delrate_\dom\evoltime, \ext^{(\dom)}_{\srcfrag\destfrag})$ are
+recoverable from the within-(domain, fragment-type) $\mat/\ins/\del$
+transition structure: $\alpha_\dom$ and $\kappa_\dom$ determine
+$\delrate_\dom\evoltime$ and $\insrate_\dom/\delrate_\dom$;
+$\beta_\dom$ provides a redundant check;
+$\ext^{(\dom)}$ separates from $\kappa_\dom$ because intra-fragment
+Markov transitions decompose differently from new-fragment transitions
+(see Section~\ref{sec:count-restoration} of the Maraschino fitter and
+Baum--Welch derivation). The top-level parameters
+$(\insrate_\main\evoltime, \delrate_\main\evoltime)$ are identifiable
+from the inter-domain transition pattern. The per-class GTRs
+$(\exch^{(\class)}, \eqm^{(\class)})$ and per-(domain, fragment-type)
+$\classdist_{\dom\frag\class}$ are jointly identifiable up to label
+permutation of classes, because the WFST context dependence reveals the
+mixture components as the joint posterior shifts across different
+$(X, Y)$ contexts.
+
+\paragraph{Unavoidable ambiguities.}
+\begin{enumerate}
+\item \textbf{Label permutation}: permuting domain labels gives the
+  same model ($\ndom!$-fold), permuting fragment-type labels at fixed
+  domain gives the same model ($\nfrag!^\ndom$-fold), and permuting
+  class labels gives the same model ($\nclasses!$-fold).
+\item \textbf{Rate-time confounding}: only products
+  $\insrate\evoltime, \delrate\evoltime$ are identifiable from
+  pairwise data (a single evolutionary time).
+\item \textbf{Class-domain mixing}: when $\nclasses \geq \ndom\nfrag$,
+  the class structure can absorb domain-level emission differences,
+  creating identifiability issues unless the structural weights
+  $C^{\alpha\beta}$ resolve them.
+\end{enumerate}
+
+\paragraph{Lossy in distribution, injective in parameters.}
+The distilled model captures only pairwise-adjacent correlations;
+the full MixDom has higher-order structure (e.g., runs of characters
+from the same fragment, intra-fragment Markov correlations between
+fragment-types). The distillation map MixDom $\to$ order-1 is
+therefore \emph{lossy} for the sequence distribution but generically
+\emph{injective} for the parameters: one can recover the MixDom
+parameters from the distilled model, even though the distilled model
+cannot reproduce all statistics of the MixDom.
+
+
+\subsection{\texorpdfstring{Scaling to $\ndom, \nfrag, \nclasses$}{Scaling to N, F, C}}
+\label{sec:scaling}
+
+\subsubsection{\texorpdfstring{The top-level null closure does not grow with $\ndom, \nfrag, \nclasses$}{The top-level null closure does not grow with N, F, C}}
+
+The null states $\mnull, \inull, \dnull$ are always exactly three,
+regardless of the latent-state cardinalities. Their transition submatrix
+depends on $\ndom$ only through the scalars
+$\emptyseg_0 = \sum_\dom \domdist_\dom(1 - \kappa_\dom)$ and
+$\emptyseg_\evoltime = \sum_\dom \domdist_\dom(1 - \kappa_\dom)(1 - \beta_\dom)$;
+$\nfrag$ and $\nclasses$ do not appear at this top level.
+The null closure and the effective $5 \times 5$ top-level matrix
+$\nonemptytrans$ are $O(\ndom)$ to compute but $O(1)$ in matrix
+dimension.
+
+\subsubsection{Domain types are drawn i.i.d., not as a Markov chain}
+
+When a new domain begins, its type is drawn independently from
+$\domdist$, regardless of the previous domain's type. This i.i.d.\
+structure means the cross-domain transitions factor as
+$\effT(s, s') = e_\srcdom(s) \times \nonemptytrans_\bullet \times s_\destdom(s')$
+(exit $\times$ top-level $\times$ start), and the cross-domain
+contribution to the full $5\ndom\nfrag \times 5\ndom\nfrag$ transition
+matrix has rank at most 3. Note that this i.i.d.\ property holds at
+the \emph{domain} level only; within a fragment, the fragment-type
+process is a Markov chain on $\nfrag$ states (see
+Section~\ref{sec:nestpairhmm}, Equation~\ref{eq:mixdom_transitions}),
+which is encoded in the within-domain block $D_\dom$ and does not
+break the cross-domain factorisation.
+
+\subsubsection{\texorpdfstring{Woodbury for general $\ndom, \nfrag$}{Woodbury for general N, F}}
+
+The emitting state space has $5\ndom\nfrag$ states.
+The effective transition matrix decomposes as
+\[
+\effT = D + E\, \nonemptytrans_\bullet\, S^\top
+\]
+where $D = \text{diag}(D_1, \ldots, D_\ndom)$ with each $D_\dom$ a
+$5\nfrag \times 5\nfrag$ within-domain block (now domain-specific and,
+for $\nfrag > 1$, with intra-fragment Markov coupling),
+$E \in \mathbb{R}^{5\ndom\nfrag \times 3}$ stacks exit vectors projected
+to $\{\mat,\ins,\del\}$, and $S \in \mathbb{R}^{5\ndom\nfrag \times 3}$
+stacks start vectors projected to $\{\mat,\ins,\del\}$.
+
+The Woodbury identity gives $(I - \effT)^{-1}$ via:
+\begin{enumerate}
+\item $\ndom$ independent $5\nfrag \times 5\nfrag$ inversions
+  $(I - D_\dom)^{-1}$, each evaluated in closed form via the
+  Kronecker-plus-rank-3 inner Woodbury of
+  Section~\ref{sec:within-domain-mixdom}: one $\nfrag \times \nfrag$
+  adjugate $(I_\nfrag - \ext^{(\dom)})^{-1}$ plus a $3 \times 3$ inner
+  kernel per domain. For $\nfrag = 1$ this further collapses to a
+  $3\times 3$ adjugate (closed-form determinant
+  $(1-\ext)(1-\beta)(1-\kappa)$) plus two scalar inversions
+  (Section~\ref{sec:within-domain-inversion}). The total cost is
+  $O(\ndom \nfrag^3)$ per evaluation.
+\item Computing $\sum_\dom \mathbf{s}_\dom^\top G_\dom\, \mathbf{e}_\dom$,
+  a $3 \times 3$ matrix built by summing $\ndom$ contributions:
+  $O(\ndom \nfrag^2)$ work.
+\item One $3 \times 3$ inversion for the Woodbury correction:
+  $O(1)$ work.
+\end{enumerate}
+
+\begin{proposition}[Linear-in-$\ndom$, cubic-in-$\nfrag$, linear-in-$\nclasses$ scaling]
+\label{prop:linear}
+The order-1 distillation computation scales as $O(\ndom \nfrag^3)$
+in within-domain inversions and $O(\nclasses)$ in per-class GTR
+exponentials:
+\begin{itemize}
+\item $O(\ndom)$ to compute $\emptyseg_0, \emptyseg_\evoltime$ and the
+  $5\times 5$ top-level matrix.
+\item $O(\ndom \nfrag^3)$ for within-domain path sums.
+\item $O(\ndom \nfrag^2)$ to accumulate the $3 \times 3$ Woodbury correction.
+\item $O((\ndom\nfrag)^2)$ (domain, fragment-type)-pair terms per
+  adjacency entry (or
+  $O((\ndom\nfrag)^2 |\alphabet|^d \cdot \nclasses)$ for the full
+  adjacency table, with $d \in \{2,3,4\}$ character dimensions
+  depending on state type; see Section~\ref{sec:full-context}).
+\item $O(\nclasses |\alphabet|^3)$ for per-class transition kernels
+  $\exp(\revsub^{(\class)}\evoltime)$.
+\end{itemize}
+The Woodbury kernel is always $3 \times 3$, regardless of the latent
+state cardinalities.
+\end{proposition}
+
+
+\subsection{Summary}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Component & Matrix size & Scaling \\
+\midrule
+Top-level null closure & $3 \times 3$ & $O(1)$ \\
+Top-level eff.\ matrix & $5 \times 5$ & $O(\ndom)$ to compute \\
+Within-domain inversions & $5\nfrag \times 5\nfrag$ each & $O(\ndom\nfrag^3)$ \\
+Woodbury correction & $3 \times 3$ & $O(\ndom\nfrag^2)$ to accumulate \\
+Per-class GTR exponentials & $|\alphabet| \times |\alphabet|$ & $O(\nclasses |\alphabet|^3)$ \\
+(Domain, fragment-type)-pair adjacency terms & --- & $O((\ndom\nfrag)^2 \nclasses)$ per entry \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+The distillation is closed-form for any finite $\ndom, \nfrag, \nclasses$:
+all quantities are rational functions of the model parameters
+(composed with $\nclasses$ exponentials of rate-times-time products).
+The key structural features enabling this are:
+
+\begin{enumerate}
+\item \textbf{Top-level null closure is $O(1)$ in dimension.}
+  The MixDom null states $\mnull, \inull, \dnull$ are always exactly
+  three, regardless of $\ndom, \nfrag, \nclasses$. All dependence on
+  $\ndom$ enters through the scalars $\emptyseg_0, \emptyseg_\evoltime$.
+
+\item \textbf{Cross-domain transitions factor.}
+  The exit-vector $\times$ top-level $\times$ start-vector structure
+  caps the rank of the inter-domain coupling at 3
+  (the $\mat, \ins, \del$ top-level states that couple across domains),
+  enabling Woodbury reduction to a fixed $3 \times 3$ inversion.
+
+\item \textbf{Domain types are i.i.d., not Markov.}
+  If domain type depended on the previous domain (a Markov chain on
+  domain types), the cross-domain block would lose its factored
+  structure and the Woodbury reduction would fail---the full
+  $5\ndom\nfrag \times 5\ndom\nfrag$ inversion would be required,
+  scaling as $O((\ndom\nfrag)^3)$. The domain-level i.i.d.\ mixture
+  is what keeps the cross-domain part linear in $\ndom$. The
+  intra-fragment Markov chain on fragment-types is encoded inside
+  $D_\dom$ and does not break this factorisation.
+
+\item \textbf{Class mixture is bilinear in emissions.}
+  The class index $\class$ enters every emission as a linear sum
+  weighted by $\classdist_{\dom\frag\class}$, never inside the
+  structural weights $C^{\alpha\beta}$. This makes the class mixture
+  a low-rank emission factor that does not interact with the
+  block-diagonal-plus-low-rank structure of the transition matrix.
+\end{enumerate}
+
+\ifdefined\INCLUDEDFROMTKF\else
+\end{document}
+\fi

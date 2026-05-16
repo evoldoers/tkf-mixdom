@@ -1,0 +1,97 @@
+\section{Introduction}
+
+% CTMC models of point substitution are used widely throughout molecular evolution
+
+% One of the most commonly used models is LG08
+% Estimated using Expectation Maximization
+% Sufficient statistics of endpoint-conditioned CTMCs: expected substitution counts & dwell times \cite{HolmesRubin2002}
+
+% Despite importance of indels in molecular evolution, models of indels are less widely used in phylogenetics
+% Canonical indel model is TKF91/TKF92
+% Combines a birth-death process with a CTMC
+% Despite some attention, earlier work did not produce closed-form expectations for indel/birth-death processes \cite{Holmes2005,CrawfordSuchard2012,DossEtAl2013,CrawfordMininSuchard2014}
+
+% The challenge of placing multiple sequence alignment on a sound likelihood-phylogenetics footing has been called ``Statistical Alignment''. \cite{Hein2000}
+% Leading MSA tools such as PRANK \cite{LoytynojaGoldman2008} and MUSCLE \cite{Edgar} use Statistical Alignment-inspired ideas like iterative refinement and consensus over ensembles of trees
+% However, going past inspiration to a rigorous reconciliation of MSA algorithms with phylogenetic models has proceeded more slowly; BAliPhy is a notable contribution \cite{RedelingsSuchard2005}
+
+% In part this is because the models used by Statistical Alignment (TKF91/TKF92) still lack features such as context-dependent indel parameters that have been in tools like CLUSTAL since the 1980s
+% This modeling gap has grown even larger now that protein modeling space has grown to include methods capable of capturing nonlocal/epistatic interactions such as Potts models \cite{DCA} and autoregressive neural models \cite{arDCA}
+
+\section{Results}
+
+% We first embarked on a thorough analysis and characterization of the TKF family of models,
+% in order to develop machinery to fit and apply more elaborate versions of these models
+
+\subsection{The expected indel count and integrated sequence length are expressible in closed form.}
+
+% These results apply more fundamentally to the linear birth-death process with constant immigration:
+% the posterior expectations of the sufficient statistics on an endpoint-conditioned trajectory
+% are obtainable from the Fisher score identity, by differentiating the transition probability.
+% Since the transition probability of the birth-death process is known in closed form \cite{Kendall1948},
+% the sufficient statistics follow.
+% This result turns out to be remarkably simple given past effort expended in analyzing this model \cite{Holmes2005,CrawfordSuchard2012,DossEtAl2013,CrawfordMininSuchard2014}
+
+% An issue that arises with the TKF model in practice is that the expected sequence length is $1/(1-\insrate/\delrate)$
+% Thus, for long sequences, the insertion rate asymptotically approaches the deletion rate
+% This can lead to numerical instabilities when calculating expressions that involve $\delrate-\insrate$ in the denominator
+% As part of our analysis, we systematically derive expressions for relevant TKF
+
+% A direct product of the closed-form expressions for the expected sufficient statistics is fast Expectation Maximization algorithms with exact M-steps
+% We earlier derived the form of this algorithm for general point substitution models \cite{HolmesRubin2002}; in the appendix, we give specific forms of the EM algorithm
+% for a variety of point substitution models encountered in the molecular evolution literature,
+% including the HKY85 and Goldman-Yang models.
+
+% As with the sufficient statistics, the existence of an EM algorithm is of direct relevance to birth-death models,
+% e.g. those used to study gene family evolution \cite{Hahn2005}
+% In the setting of indel models, it yields an expression that is linear in the expected transition counts
+% Thus, in TKF-like models, we can directly convert the Baum-Welch algorithm into rate parameter space
+
+\subsection{Elaborating evolutionary models with hierarchical mixtures increases their explanatory power.}
+
+% Training data/splits: clan-aware PFam
+% Model-fitting: Adam, MixDom Baum-Welch
+
+% SiteMix, FragMix, DomMix
+% Annabel's graphs
+
+\subsection{TKF-based models have interpretable parameters.}
+
+% Bubbleplots of domain rates e.g. for d3f1
+% Interpretation of domain parameters and top-level domains
+
+% Observation that fitting more ragged/gappy alignments leads to higher top-level rates
+
+% Protein structure figures
+
+\subsection{The new evolutionary models produce more accurate sequence alignments than earlier models, and are comparable to leading MSA methods optimized for accuracy}
+
+% Experimental design
+% BAliBase & OxBench SP/TC tables
+% Observation: adding domains only helps alignment accuracy up to two or three domains
+
+% Observation: training by summing over alignments doesn't help test-set alignment likelihood (but does improve test-set sum-over-alignments likelihood).
+% Best alignments from models trained on curated cherries.
+
+% Observation: P(FSA's MSA|FSA's MSA's tree) > P(BaliBase|BaliBase's tree). 
+
+% EXPERIMENT TO TRY: when training, sum over alignments consistent with given matches
+
+% EXPERIMENT TO TRY: NeuralTKF Forward-Backward -> FSA
+
+\subsection{MixDom matches but does not surpass Felsenstein for substitutions with Fitch parsimony for indels}
+
+
+\section{Discussion}
+
+% TKF92 Baum-Welch enables training of other HMM-based models with (rate * time) parameterizations
+
+
+
+\section{Acknowledgements}
+
+% Funding
+
+% Claude
+
+

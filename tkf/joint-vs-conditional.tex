@@ -1,0 +1,78 @@
+% joint-vs-conditional.tex — Joint vs conditional likelihoods for TKF EM
+% To be \input from lhopital-limits.tex
+
+\subsection{Joint vs Conditional Likelihoods}
+\label{sec:joint-vs-conditional}
+
+The TKF91 transition matrix includes factors of $\kappa = \insrate/\delrate$
+and $(1{-}\kappa)$ arising from the geometric$(\kappa)$ prior on
+ancestor length: $\Pr(|\text{anc}| = i) = \kappa^i(1{-}\kappa)$.
+This prior is part of the \emph{joint} likelihood $P(x,y)$
+but can be factored out with respect to the ancestor-length prior to yield an \emph{ancestor length-conditioned} likelihood
+$P_{\mathrm{cond}}(x,y \mid |x|=i)
+= P(x,y) / [\kappa^i(1{-}\kappa)]$.
+
+\paragraph{The four regimes.}
+Of the four combinations of $\kappa < 1$ vs $\kappa = 1$
+and joint vs ancestor length-conditioned, only one is degenerate:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+& $\kappa < 1$ & $\kappa = 1$ \\
+\midrule
+Joint $P(x,y)$ & well-defined & \textbf{degenerate} ($\to 0$) \\
+Ancestor length-conditioned $P_{\mathrm{cond}}$ & well-defined & well-defined \\
+\bottomrule
+\end{tabular}
+\end{center}
+At $\kappa = 1$, the geometric prior places vanishing mass on finite
+sequences, so $P(x,y) \to 0$ and
+$\log P \to -\infty$.
+The ancestor length-conditioned WFST removes the $\kappa$ and $(1{-}\kappa)$
+factors corresponding to the stationary length distribution from the transition matrix, leaving only
+$(\alpha,\beta,\gamma)$-dependent terms.
+These have finite L'H\^opital limits (Sections~\ref{sec:score-limits}--\ref{sec:lhopital-bdi}),
+so $P_{\mathrm{cond}}$ is finite and well-defined even at $\kappa = 1$.
+
+\paragraph{BDI sufficient statistics.}
+The BDI sufficient statistics  $\mathbb{E}[B]$, $\mathbb{E}[D]$,
+$\mathbb{E}[S]$ are most naturally recovered from the ancestor length-conditioned WFST, whose score depends only on the six TKF bridge groups 
+$(\alpha, 1{-}\alpha, \beta, 1{-}\beta, \gamma, 1{-}\gamma)$. In the joint model, additional contributions from the ancestral length prior appear through the
+$\kappa$ and $1{-}\kappa$ factors. These must be included in the M-step when optimizing the full stationary TKF likelihood, but they are conceptually distinct from the bridge statistics themselves.
+
+Equations~(\ref{eq:exposure-tkf})-\ref{eq:deaths-tkf} give the correct expectations for the BDI sufficient statistics
+in terms of the counts $\hat{n}_{ij}$ regardless of whether those counts were computed using the joint Pair HMM or the conditionally-normalized transducer,
+as long as the WFST transition matrix $\tkfwfst$ is used for the counts $\emcount^\xi_{ij} = \xi \partial_\xi \log \tkfwfst_{ij}$
+(e.g. using the tables in Section~\ref{sec:score-table-general} or Section~\ref{sec:score-table-limits}).
+The M-step for the joint likelihood includes additional terms from the $\kappa$ and $1{-}\kappa$ factors, leading to a coupled system of equations that can be solved in closed form (Section~\ref{sec:bw-tkf91}).
+
+\paragraph{Closed-form M-steps.}
+Both formulations yield closed-form M-steps:
+\begin{itemize}
+\item \emph{Ancestor-length conditioned:} pure BDI exponential family.
+  For the conditional model away from the $\kappa=1$ singularity of the joint prior,
+  setting $\partial Q_{\mathrm{cond}}/\partial\insrate = 0$ gives
+  \begin{align}
+  \hat\insrate &= \frac{\max(0,\;\mathbb{E}[B] + \alpha_\insrate - 1)}
+                       {\mathbb{E}[S] + \evoltime + \beta_\insrate}, &
+  \hat\delrate &= \frac{\max(0,\;\mathbb{E}[D] + \alpha_\delrate - 1)}
+                       {\mathbb{E}[S] + \beta_\delrate}
+  \label{eq:mstep-cond}
+  \end{align}
+  where $(\alpha,\beta)$ are Gamma prior parameters.
+
+\item \emph{Joint ($\kappa < 1$):}
+  includes $L \log\kappa + M \log(1{-}\kappa)$.
+  Since, for a single sequence-pair, $L  = i$ (ancestor length, exact) and
+  $M  = 1$ (one End transition, exact),
+  with corresponding accumulated values across multiple sequence-pairs,
+  the optimality conditions
+  $\partial Q/\partial\insrate = 0$ and $\partial Q/\partial\delrate = 0$
+  form a coupled system in $(\insrate,\delrate)$.
+  These can be reduced to a single quadratic equation in $\kappa$ with a closed-form solution, which can be substituted back to get $\hat\insrate$ and $\hat\delrate$,
+  as described in Section~\ref{sec:bw-tkf91}.
+\end{itemize}
+In both cases, the M-step maximizes the correct
+$Q$-function, so EM monotonicity is guaranteed for
+the corresponding tracked objective
+($\log P_{\mathrm{cond}}$ for the ancestor length-conditioned model, $\log P$ for the full joint model).

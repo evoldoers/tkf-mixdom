@@ -1,0 +1,994 @@
+\section{Stochastic Variational Baum--Welch Convergence}
+\label{sec:svb-convergence}
+
+\subsection{Setup}
+
+We consider the idealized infinite-data setting:
+each minibatch of $B$ sequence pairs is drawn i.i.d.\ from the
+true generative model, so there is no model misspecification.
+Stochastic Variational Baum--Welch (SVB) alternates:
+\begin{enumerate}
+\item \textbf{E-step}: Run forward--backward on a minibatch of $B$ pairs,
+  accumulate expected sufficient statistics $\hat T_B$.
+\item \textbf{M-step}: Update parameters $\theta_{k+1} = M(\hat T_B)$
+  using the closed-form M-step.
+\end{enumerate}
+At convergence, the true parameters $\theta^*$ are a fixed point of
+$\theta \mapsto M\bigl(\expect_{\theta}[T]\bigr)$.
+
+\subsection{BDI sufficient statistics}
+
+For a single sequence pair $(x,y)$ with ancestor length $i$, descendant
+length $j$, and evolutionary time $t$, the BDI sufficient statistics are
+$T = (\expect[B \mid x,y],\; \expect[D \mid x,y],\; \expect[S \mid x,y])$,
+recovered via the score function identity.
+The M-step is (Section~\ref{sec:bw-tkf91}):
+\begin{equation}\label{eq:mstep}
+\hat\insrate = \frac{\bar B}{\bar S + t},
+\qquad
+\hat\delrate = \frac{\bar D}{\bar S},
+\end{equation}
+where $\bar B, \bar D, \bar S$ denote averages (or sums) over the minibatch.
+
+\subsection{Variance of Minibatch Estimates}
+
+\subsubsection{Per-pair variance}
+
+Let $\sigma^2_B, \sigma^2_D, \sigma^2_S$ denote the variances of
+$\expect[B \mid x,y]$, $\expect[D \mid x,y]$, $\expect[S \mid x,y]$
+under the data-generating distribution (randomness over $(x,y)$ pairs
+drawn from the model).
+For a minibatch of $B$ independent pairs, the sample means satisfy
+\[
+\Var[\bar B] = \frac{\sigma^2_B}{B}, \qquad
+\Var[\bar D] = \frac{\sigma^2_D}{B}, \qquad
+\Var[\bar S] = \frac{\sigma^2_S}{B}.
+\]
+
+\subsubsection{Parameter variance via the delta method}
+
+By the delta method applied to~\eqref{eq:mstep}, the relative error
+of $\hat\insrate$ after one M-step on a minibatch of size $B$ is
+\begin{equation}\label{eq:delta-lambda}
+\Var[\hat\insrate] / \insrate^2
+\;\approx\;
+\frac{1}{B}
+\left[
+  \frac{\sigma^2_B}{\expect[B]^2}
+  + \frac{\sigma^2_S}{(\expect[S]+t)^2}
+  - \frac{2\,\Cov[B,S]}{\expect[B](\expect[S]+t)}
+\right]
+\equiv \frac{v_\insrate}{B},
+\end{equation}
+and similarly for $\hat\delrate$:
+\begin{equation}\label{eq:delta-mu}
+\Var[\hat\delrate] / \delrate^2
+\;\approx\;
+\frac{1}{B}
+\left[
+  \frac{\sigma^2_D}{\expect[D]^2}
+  + \frac{\sigma^2_S}{\expect[S]^2}
+  - \frac{2\,\Cov[D,S]}{\expect[D]\,\expect[S]}
+\right]
+\equiv \frac{v_\delrate}{B}.
+\end{equation}
+The constants $v_\insrate, v_\delrate$ depend on $(\insrate, \delrate, t)$
+and the sequence length distribution.
+They are the diagonal entries of the inverse Fisher information matrix
+(per observation), expressed in the $(\insrate, \delrate)$ parameterization.
+
+\subsubsection{Scaling of per-pair variance with sequence length}
+
+The dominant source of randomness is the ancestor/descendant length pair $(i,j)$.
+At stationarity with $\kappa = \insrate/\delrate < 1$:
+\begin{itemize}
+\item $\expect[i] = \kappa/(1-\kappa)$, \quad
+  $\Var[i] = \kappa/(1-\kappa)^2$.
+\item $\expect[B \mid i] \approx \insrate\,\expect[S \mid i]$, \quad
+  $\expect[S \mid i] \approx i/({\delrate - \insrate})$ for $t \gg 1/(\delrate-\insrate)$.
+\item The relative variance $v_\insrate$ is $O(1)$ in the number of links
+  (it does \emph{not} decrease as sequences get longer, because the
+  M-step aggregates over the pair, not per-link).
+\end{itemize}
+Thus the per-pair Fisher information is $O(1)$ in sequence length ---
+longer sequences do not help much for indel parameter estimation
+(in contrast to substitution parameters, where Fisher information
+grows linearly with alignment length).
+
+\begin{proposition}[Per-pair Fisher information, long-time limit]
+For $\delta = \delrate - \insrate > 0$ and $t \to \infty$:
+\[
+\expect[B] \to \frac{\kappa}{1-\kappa}, \qquad
+\expect[D] \to \frac{\kappa}{1-\kappa}, \qquad
+\expect[S] \to \frac{2\kappa}{(1-\kappa)\delta},
+\]
+and the coefficient of variation of $\hat\insrate$ from a single pair
+is $O(1)$ (bounded away from zero).
+\end{proposition}
+
+This reflects the fact that, at stationarity, each pair provides a
+single ``observation'' of the BDI process endpoint distribution
+$P(j \mid i)$ --- the information content is fundamentally per-pair,
+not per-residue.
+
+\subsection{Pseudocount representation and its advantages}
+\label{sec:pseudocount-view}
+
+The SVB iterates can be represented equivalently in two ways: as an
+EMA of data-only sufficient statistics $s_k$ with priors $\alpha$
+added inside each M-step, or as an EMA directly in
+\emph{posterior pseudocount} space
+$\tilde{\alpha}_k = s_k + \alpha$.  In the latter view, the update
+rule is
+\begin{equation}\label{eq:ema-pseudocount}
+  \tilde{\alpha}_k
+  \;=\; (1 - \eta_k)\,\tilde{\alpha}_{k-1}
+        + \eta_k\bigl(\alpha + (N/|B|)\,s_{\text{batch}_k}\bigr),
+\end{equation}
+matching~\eqref{eq:svi-update} with the prior $T_0 \equiv \alpha$
+absorbed into the EMA target.  By induction, $\tilde{\alpha}_k = s_k + \alpha$
+at every step given a matched initial state, so the two formulations
+produce identical parameter iterates.
+
+For the Dirichlet-multinomial groups, $\tilde{\alpha}$ is the natural
+parameter of the conjugate posterior; for the BDI / GTR groups it is
+the augmented sufficient-statistic vector at which the regularised
+Q-function is maximised (the underlying priors there are non-conjugate
+regularisers\ifdefined\MIXDOMPAPER ; see Section~\ref{sec:bw-mixdom-priors}\fi).  In either
+case, the closed-form M-step maximises
+\begin{equation}\label{eq:pseudocount-mstep}
+  J(\theta \mid \tilde{\alpha}) \;=\; \tilde{\alpha} \cdot \log \theta - Z(\theta),
+\end{equation}
+where $Z$ is the log-partition function of the family.  For a
+Dirichlet-multinomial component (transitions, mixture weights,
+class pis, classdist), $J = \sum_i (\tilde{\alpha}_i - 1)\log \theta_i$
+up to a constant, with unique maximizer $\theta_i \propto \tilde{\alpha}_i - 1$.
+The BDI rates $(\insrate,\delrate)$ follow the same pattern but the
+joint $J$ couples them through the geometric fragment length prior
+and the M-step is obtained from the quadratic in $\kappa = \insrate/\delrate$
+of~\eqref{eq:kappa-quadratic}.  The SVB iteration thus reduces to
+updating one pytree of pseudocounts per step, with M-step parameters
+computed on demand.
+
+\paragraph{Variance via a single Jacobian.}
+Let $f\colon \tilde{\alpha}\mapsto\theta$ denote the M-step map.  The
+delta method gives
+\begin{equation}\label{eq:delta-pseudocount}
+  \Var[\theta_k]
+  \;\approx\; J_f(\tilde{\alpha}_k)\,\Var[\tilde{\alpha}_k]\,J_f(\tilde{\alpha}_k)^\top.
+\end{equation}
+Equations~\eqref{eq:delta-lambda}--\eqref{eq:delta-mu} are the diagonal
+entries of~\eqref{eq:delta-pseudocount} in the $(\insrate,\delrate)$
+parameterization; in pseudocount form, the same delta method is one
+derivative of $f$ away regardless of parameter group.
+
+\paragraph{Polyak--Ruppert averaging is built in.}
+Expanding~\eqref{eq:ema-pseudocount},
+\[
+  \tilde{\alpha}_K \;=\; \sum_{j=1}^K w_{j,K}
+    \bigl(\alpha + (N/|B|)\, s_{\text{batch}_j}\bigr),
+  \qquad
+  w_{j,K} \;=\; \eta_j \prod_{i>j}^K(1-\eta_i).
+\]
+The pseudocount state is itself a weighted average of batch-level
+pseudocounts, and the M-step applied to this average is the
+Rao--Blackwell improvement over averaging parameter iterates --- which
+matters when $f$ is nonlinear, as for the BDI rate M-step
+(\ifdefined\MIXDOMPAPER\S\ref{sec:bw-mixdom}, \fi eq.~\eqref{eq:kappa-quadratic}).  An
+effective sample size
+\[
+  \mathrm{ESS}_K \;=\;
+  \frac{\bigl(\sum_j w_{j,K}\bigr)^2}{\sum_j w_{j,K}^2}
+\]
+quantifies how ``warmed up'' the EMA is and is strictly less than $K$
+whenever $\eta_k < 1$.  For a parameter group receiving a
+non-negligible contribution in only a fraction $\varepsilon$ of
+batches (a rare domain, a rarely-visited fragment state, a
+rarely-active class), the per-group effective sample size is
+$\varepsilon\,\mathrm{ESS}_K$, not $\mathrm{ESS}_K$ --- exposing the
+rare-parameter bottleneck of \S\ref{sec:expected-stats} as a direct
+quantity rather than an approximation.
+
+\paragraph{Complete-data Fisher information.}
+For a Dirichlet-multinomial component, the Hessian of $J$ at its
+maximum is diagonal in natural-parameter coordinates with
+$[I_{\text{comp}}(\tilde{\alpha})]_{ii} = 1/\tilde{\alpha}_i$.
+Rare categories (small $\tilde{\alpha}_i$) therefore have large
+per-component variance, and the bottleneck for each parameter group
+can be read off directly as $\tilde{\alpha}_i/\mathrm{ESS}$ ---
+a diagnostic in natural-parameter space that replaces the CV-based
+convergence recommendation of item~6 in \S\ref{sec:svb-convergence}.
+
+\paragraph{Practical consequence.}
+An implementation that carries $\tilde{\alpha}_k$ as its primary state
+--- rather than separately tracking $s_k$ and re-adding $\alpha$ in
+each M-step --- makes~\eqref{eq:delta-pseudocount}, the
+Polyak--Ruppert weights, and the per-group Fisher diagnostics all
+computable from the same pytree, with no additional bookkeeping.
+
+\subsection{SVB Convergence Rate}
+
+\subsubsection{Stochastic approximation framework}
+
+SVB is a stochastic fixed-point iteration.
+By the results of Capp\'e \& Moulines (2009), under regularity conditions
+satisfied by exponential families, the parameter iterates $\theta_k$
+satisfy
+\begin{equation}\label{eq:clt}
+\sqrt{K}(\bar\theta_K - \theta^*) \xrightarrow{d} \mathcal{N}(0, \Sigma)
+\end{equation}
+where $\bar\theta_K = \frac{1}{K}\sum_{k=1}^K \theta_k$ is the
+Polyak--Ruppert average and $\Sigma$ depends on the learning rate schedule.
+
+\paragraph{Direct M-step (no averaging).}
+With direct M-step updates (step size 1), the iterate $\theta_K$ has
+variance
+\begin{equation}\label{eq:nonavg}
+\Var[\theta_K] \approx \frac{\Sigma_{\text{per-pair}}}{B}
+\end{equation}
+after convergence of the transient, where $\Sigma_{\text{per-pair}}$
+is the asymptotic covariance of the M-step estimator applied to a
+single pair.
+This does \emph{not} decrease with $K$ --- the iterates fluctuate
+around $\theta^*$ with amplitude $O(1/\sqrt{B})$.
+
+\paragraph{Polyak--Ruppert averaging.}
+Averaging the iterates:
+\begin{equation}\label{eq:avg}
+\Var[\bar\theta_K] \approx \frac{\Sigma_{\text{per-pair}}}{BK}.
+\end{equation}
+This is optimal: the total number of pairs processed is $N = BK$,
+and we achieve variance $\Sigma / N$ regardless of how $N$ is
+split between $B$ and $K$.
+
+\paragraph{Exponential moving average (EMA).}
+In practice, one often uses $\theta_{k+1} = (1-\eta)\theta_k + \eta\, M(\hat T_B)$
+with step size $\eta \in (0,1]$.
+The asymptotic variance is
+\[
+\Var[\theta_\infty] \approx \frac{\eta}{2-\eta} \cdot
+  \frac{\Sigma_{\text{per-pair}}}{B}
+  \approx \frac{\eta\, \Sigma_{\text{per-pair}}}{2B}
+  \quad (\eta \ll 1).
+\]
+This trades convergence speed for lower asymptotic variance.
+
+\subsubsection{Convergence transient}
+
+The EM rate matrix governs the transient.
+For exponential families, the EM convergence rate is
+$\rho = 1 - I_{\text{obs}} / I_{\text{comp}}$,
+where $I_{\text{obs}}$ and $I_{\text{comp}}$ are the observed and
+complete-data Fisher information matrices.
+For BDI, the fraction of missing information is typically moderate
+($\rho \approx 0.3$--$0.7$ for typical protein evolution times
+$t \sim 0.5$--$2$), so the transient dies out in $O(10)$ iterations.
+
+\ifdefined\MIXDOMPAPER
+% MixDom-specific subsections moved to a dedicated appendix; see
+% Appendix~\ref{sec:svb-convergence-mixdom}.
+\fi
+
+\subsection{Practical Recommendations}
+
+\subsubsection{Minibatch size}
+
+For target relative error $\varepsilon$ on indel parameters after $K$ steps
+with Polyak--Ruppert averaging:
+\begin{equation}\label{eq:minibatch}
+BK \geq \frac{v_\theta}{\varepsilon^2},
+\end{equation}
+where $v_\theta \sim O(1)$ is the per-pair relative variance
+from~\eqref{eq:delta-lambda}--\eqref{eq:delta-mu}.
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+Target $\varepsilon$ & $BK$ needed & $B=50, K=?$ & $B=200, K=?$ \\
+\midrule
+0.10 & $\sim 100\,v_\theta$ & 2 & 1 \\
+0.05 & $\sim 400\,v_\theta$ & 8 & 2 \\
+0.01 & $\sim 10{,}000\,v_\theta$ & 200 & 50 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Rule of thumb.}
+Take $v_\theta \approx 5$ as a conservative estimate for typical protein
+BDI parameters ($\kappa \approx 0.9$, $t \approx 1$).
+Then:
+\begin{itemize}
+\item $B \geq 50$ ensures that each M-step estimate has
+  $\lesssim 30\%$ relative error on indel parameters.
+\item $B \geq 200$ brings single-step error below $\sim 15\%$.
+\item For rare domains ($w_d \approx 0.05$), multiply $B$ by $1/w_d = 20$.
+\item After $K$ steps with averaging, total error scales as $1/\sqrt{BK}$.
+\end{itemize}
+
+\subsubsection{Natural gradient}
+
+The BDI complete-data statistics form a curved exponential family
+with natural parameters $(\log\insrate, \log\delrate, -(\insrate+\delrate))$
+and sufficient statistics $(B, D, S)$.
+The natural gradient replaces the M-step update
+$\Delta\theta = -I_F^{-1} \nabla_\theta Q(\theta)$
+where $I_F$ is the Fisher information matrix of the complete-data family.
+
+For the BDI M-step, the closed-form solution~\eqref{eq:mstep} already
+implicitly incorporates the complete-data Fisher information structure.
+Stochastic natural gradient (SNatGrad) would precondition the
+\emph{stochastic} update direction using $I_F^{-1}$, but since
+$\hat\insrate = \bar B / (\bar S + t)$ is already an unbiased estimator
+of $\insrate$ (to first order), the benefit of explicit preconditioning
+is marginal.
+
+\textbf{Recommendation}: Natural gradient is not worth the implementation
+complexity for SVB on TKF-family models.  The closed-form M-step
+already provides the natural parameterization.
+Use Polyak--Ruppert averaging of the M-step outputs instead.
+
+\subsubsection{Summary of recommendations}
+
+\begin{enumerate}
+\item \textbf{Minibatch size}: $B \geq 50$ for general parameters;
+  $B \geq 200$ or use averaging if rare domains ($w_d < 0.1$) are present.
+\item \textbf{Averaging}: Use Polyak--Ruppert averaging of parameter
+  iterates. Total error $\propto 1/\sqrt{BK}$, optimal regardless
+  of $B/K$ split.
+\item \textbf{Step size}: With direct M-step ($\eta = 1$), iterates
+  oscillate with amplitude $O(1/\sqrt{B})$.
+  EMA with $\eta = 2/(k+2)$ (Polyak schedule) achieves $O(1/\sqrt{BK})$.
+\item \textbf{Decoupled updates}: Substitution parameters converge
+  $\sim \bar L$ times faster than indel parameters.
+  Consider accumulating indel statistics over $\sim \bar L / B$ minibatches
+  before updating.
+\item \textbf{Natural gradient}: Not recommended; the closed-form M-step
+  is already natural.
+\item \textbf{Convergence diagnostic}: Monitor the running coefficient
+  of variation of $\hat\insrate_d, \hat\delrate_d$ across minibatches.
+  Convergence when CV $< \varepsilon$.
+\end{enumerate}
+
+\subsection{Bias diagnostics: Hellinger, ESS, and Fisher readouts}
+\label{sec:bias-diagnostics}
+
+The convergence diagnostics above answer ``have the parameter iterates
+stabilised?'' but are silent on a distinct question that arises in
+practice: when validation log-likelihood \emph{regresses} during
+training, is the regression within the noise floor predicted by the
+minibatch variance, or is it evidence of a structural problem
+(class-assignment drift, over-concentration of a mixture component,
+over-fitting of the training likelihood)?  The pseudocount view of
+\S\ref{sec:pseudocount-view} makes several readouts available that are
+cheap to compute from saved checkpoints and sharply discriminate among
+these hypotheses.
+
+\paragraph{Hellinger distance on mixture distributions.}
+For any probability vector $p$ (e.g.\ a row of \texttt{classdist[d, f, :]},
+a fragment-transition row $\ext^{(d)}_{f,\cdot}$, or a domain-weight
+vector), the Hellinger distance
+\[
+  H(p, q) \;=\; \tfrac{1}{\sqrt{2}}\,\|\sqrt{p} - \sqrt{q}\|_2
+  \;\in\; [0, 1]
+\]
+is the natural metric: bounded, symmetric (unlike KL), and
+\emph{locally linear in probability-mass movement}.  A transfer of $\delta$
+mass from one category to another produces $H \approx \sqrt{\delta}/\sqrt{2}$,
+so a 1\% reassignment registers as $H \approx 0.07$ and a clean
+class-swap gives $H = 1$.  The drift hypothesis --- that a mixture
+component is discretely reassigned between iterations $k$ and $k{+}1$
+and that this reassignment accounts for the val-LL regression --- predicts
+one or more iter-to-iter Hellinger values well above the EM-concentration
+noise floor, where the noise floor is empirically $\sim 0.005$ on
+training runs seeded from an informed mixture profile (e.g.\ IQ-TREE's
+C10).  A ``sharp'' drift signature appropriate to a $\sim 10\%$ per-pair
+val-LL regression would be $H > 0.15$ at the responsible iter; a flat
+trajectory at $H \leq 0.02$ throughout the regression window falsifies
+the discrete-drift hypothesis and redirects investigation to continuous
+alternatives (over-fitting of the training likelihood, slow limit
+cycles, or systematic mis-specification).
+
+\paragraph{Effective sample size per parameter group.}
+As derived in \S\ref{sec:pseudocount-view}, the EMA effective sample
+size $\mathrm{ESS}_K = (\sum_j w_{j,K})^2 / \sum_j w_{j,K}^2$ is a first-class
+quantity in pseudocount space, strictly smaller than $K$ whenever
+$\eta_k < 1$.  For a parameter group receiving a non-negligible batch
+contribution in only a fraction $\varepsilon$ of minibatches, the
+\emph{group-specific} effective sample size is $\varepsilon\,\mathrm{ESS}_K$,
+turning the rare-parameter bottleneck of \S\ref{sec:expected-stats} from
+a theoretical concern into a direct quantity that can be logged per iter.
+
+\paragraph{Fisher readout of remaining uncertainty.}
+Combining the two quantities, the per-component posterior uncertainty
+for a Dirichlet-multinomial parameter group is proportional to
+$\tilde{\alpha}_i / \mathrm{ESS}$: rare categories with small posterior
+pseudocount and small per-group ESS are exactly those whose point
+estimates are least certain.  This replaces the CV-of-$\hat\theta$
+heuristic of item~6 above with a reading in natural-parameter space
+and lets one rank parameter groups by residual uncertainty without
+running a second pass of DP.
+
+\paragraph{Suggested dashboard.}
+At minimum, log per iter: (i) $\eta_k$ and $\mathrm{ESS}_k$; (ii) for each
+mixture group (\texttt{classdist}, \texttt{ext} rows, \texttt{dom\_weights}),
+the max Hellinger distance to the previous iter and the entropy of the
+current iterate; (iii) $\|\Delta\tilde{\alpha}_k\|_1 / \|\tilde{\alpha}_k\|_1$
+per parameter group as an $\tilde{\alpha}$-space convergence diagnostic;
+(iv) the Hungarian-matched distance of the current $\mathrm{class\_pis}$ (or
+analogous mixture-profile tensor) to the initial informed seed, as a
+``drift-from-prior'' signature independent of relabelling.  All are
+computable from saved parameters alone; no DP is required.  Taken
+together, these give a rapid read-out on whether a val-LL regression
+reflects minibatch noise, a discrete drift event, or systematic
+over-fitting --- and thus whether the response should be a larger
+minibatch, a frozen-component diagnostic, or a stronger prior.
+
+%% ================================================================
+%% Maraschino Distillation Fitting Analysis
+%% Added 2026-03-29
+%% ================================================================
+
+% \subsection{Maraschino Distillation Fitting}
+% 
+% \subsubsection{Setup}
+% 
+% The Maraschino pipeline estimates MixDom parameters $\theta$ in three stages:
+% \begin{enumerate}
+% \item \textbf{Count}: From $N$ pairwise alignments (extracted as cherries
+%   from phylogenetic trees), count adjacency transitions
+%   $c_{\sigma\sigma'}(a,b,a',b')$ for each transition type
+%   $\sigma \to \sigma'$ (where $\sigma \in \{S,M,I,D,E\}$),
+%   binned by evolutionary time $\tau$ into $T$ bins.
+% \item \textbf{Distill}: Given candidate parameters $\theta$, compute
+%   order-1 adjacency frequencies $f_{\sigma\sigma'}(a,b,a',b' \mid \theta, \tau)$
+%   via algebraic distillation (Woodbury identity), marginalizing over
+%   all latent domain/fragment structure.
+% \item \textbf{Fit}: Maximize the multinomial log-likelihood
+%   \begin{equation}\label{eq:maraschino-ll}
+%     \ell_{\text{Mar}}(\theta) = \sum_{\tau} \sum_{\sigma\sigma'}
+%     \sum_{a,b,a',b'} c_{\sigma\sigma'}(a,b,a',b')
+%     \log p_{\sigma\sigma'}(a',b' \mid a,b;\, \theta,\tau)
+%   \end{equation}
+%   where $p_{\sigma\sigma'}$ are the row-normalized distilled frequencies,
+%   using Adam gradient ascent.
+% \end{enumerate}
+% 
+% \subsubsection{Bias analysis}
+% 
+% \paragraph{Source of bias.}
+% The distilled frequencies $f_{\sigma\sigma'}(\theta,\tau)$ are the
+% \emph{exact} order-1 marginals of the full MixDom Pair HMM --- they
+% are obtained by analytic marginalization over the latent
+% domain/fragment/class structure via the Woodbury identity, not by
+% Monte Carlo or variational approximation.
+% Therefore, the predicted conditional probabilities
+% $p_{\sigma\sigma'}(a',b' \mid a,b;\, \theta,\tau)$ are the \emph{true}
+% order-1 transition probabilities of the MixDom model at parameters $\theta$.
+% 
+% However, the full MixDom model is \emph{not} an order-1 Markov chain:
+% consecutive transitions are correlated through shared latent state
+% (which domain we are in, which fragment class, etc.).
+% The Maraschino loss~\eqref{eq:maraschino-ll} treats each adjacency
+% as an independent draw from the order-1 conditional, ignoring these
+% higher-order correlations.
+% This is a \textbf{composite likelihood} (specifically, a pairwise
+% conditional likelihood), and maximum composite likelihood estimators
+% (MCLEs) are consistent but generally inefficient.
+% 
+% \begin{proposition}[Consistency of Maraschino estimator]
+% Let $\theta^*$ be the true MixDom parameters and let
+% $p^{\text{true}}_{1}(\cdot \mid \theta^*)$ denote the true order-1
+% conditionals.
+% Since the Woodbury distillation computes these \emph{exactly},
+% $\theta^*$ maximizes $\expect[\ell_{\text{Mar}}(\theta)]$ over $\theta$,
+% provided the order-1 marginals identify $\theta$.
+% Thus the Maraschino estimator $\hat\theta_{\text{Mar}}$ is
+% \textbf{consistent} (converges to $\theta^*$ as $N \to \infty$).
+% \end{proposition}
+% 
+% \paragraph{Identifiability caveat.}
+% The order-1 marginals may not distinguish all parameter configurations.
+% For example, two domain types with identical $(\insrate_d, \delrate_d, r_d, \pi_d)$
+% but different weights $v_d$ produce the same order-1 frequencies as a
+% single merged domain.
+% In practice, with enough domains ($N_{\text{dom}} \geq 3$) and
+% distinct substitution models per domain, the order-1 marginals are
+% highly informative and parameter identifiability holds.
+% 
+% \paragraph{Finite-sample bias.}
+% Like any MLE, the Maraschino estimator has $O(1/N)$ finite-sample bias
+% from the curvature of the log-likelihood.
+% This is negligible when $N \gg p$ (number of parameters).
+% For MixDom with $N_{\text{dom}} = 8$ domains, $p \sim 100$ parameters,
+% and typical Pfam training sets with $N \sim 10^4$--$10^6$ pairs, the
+% bias is negligible relative to the sampling variance.
+% 
+% \subsubsection{Variance and efficiency}
+% 
+% \paragraph{Variance of the count tensor.}
+% The total adjacency count $C = \sum c_{\sigma\sigma'}(\cdot)$ is
+% approximately equal to the total number of alignment columns across
+% all $N$ pairs (each column contributes one adjacency to its successor).
+% For typical proteins with mean alignment length $\bar{L} \approx 200$,
+% $C \approx N \bar{L} \approx 200 N$.
+% 
+% The variance of each cell $c_{\sigma\sigma'}(a,b,a',b')$ is
+% multinomial: $\Var[c] = C \cdot p(1-p)$ where $p$ is the true cell
+% probability.  This gives relative error
+% $\text{CV}[c] = \sqrt{(1-p)/(Cp)} \approx 1/\sqrt{Cp}$.
+% 
+% \paragraph{Comparison with the MLE.}
+% The full MLE (Baum--Welch) uses the complete-data likelihood,
+% exploiting the Markov structure of the latent chain.
+% The Maraschino estimator uses only pairwise (order-1) marginals,
+% which is a composite likelihood.
+% By standard results on composite likelihood inference
+% (Varin, Reid \& Firth, 2011):
+% 
+% \begin{equation}\label{eq:godambe}
+%   \Var[\hat\theta_{\text{Mar}}]
+%   = H^{-1} J\, H^{-1}
+%   \;\geq\; I_{\text{obs}}^{-1}
+%   = \Var[\hat\theta_{\text{MLE}}]
+% \end{equation}
+% where $H = -\expect[\nabla^2 \ell_{\text{Mar}}]$ is the Hessian of the
+% composite log-likelihood and $J = \Var[\nabla \ell_{\text{Mar}}]$
+% is the variability matrix (which accounts for the correlation between
+% adjacent transitions that the composite likelihood ignores).
+% The inequality is the Godambe sandwich: the MCLE is never more
+% efficient than the full MLE.
+% 
+% \paragraph{How large is the efficiency loss?}
+% The efficiency ratio $e = |I_{\text{obs}}^{-1}| / |H^{-1} J H^{-1}|$
+% depends on how much information the higher-order (order $\geq 2$)
+% correlations carry about $\theta$.
+% For MixDom:
+% \begin{itemize}
+% \item \textbf{Substitution parameters} ($Q, \pi$): The order-1
+%   marginals $f_{MM}(a,b,a',b')$ already capture most of the substitution
+%   information (each aligned pair contributes independently).
+%   Efficiency loss is minimal ($e \gtrsim 0.9$).
+% \item \textbf{Extension rate $r$}: Determines fragment length
+%   distribution.  Order-1 frequencies capture the MM$\to$MM self-loop
+%   probability, which is the primary signal.  Moderate efficiency
+%   ($e \approx 0.7$--$0.9$).
+% \item \textbf{Indel rates $(\insrate_d, \delrate_d)$}: These are the
+%   hardest.  The transitions M$\to$I, M$\to$D, and I$\to$M carry
+%   information, but the \emph{run length} distribution of insertions
+%   and deletions (order $\geq 2$) also contains information about
+%   $(\insrate_d, \delrate_d)$ that the order-1 model cannot exploit.
+%   Efficiency may be lower ($e \approx 0.5$--$0.8$), particularly
+%   for the ratio $\kappa_d = \insrate_d/\delrate_d$.
+% \item \textbf{Domain weights $v$}: Determined by the mixture structure.
+%   Order-1 frequencies encode this well (the marginal emission
+%   distribution reflects $v$).  Efficiency is high ($e \gtrsim 0.9$).
+% \end{itemize}
+% 
+% \subsection{Effective sample size: Maraschino vs.\ SVB}
+% 
+% \paragraph{The counting advantage.}
+% Maraschino processes all $N$ training pairs in a single batch
+% (the count tensor), while SVB processes $B$ pairs per minibatch.
+% After Polyak--Ruppert averaging over $K$ SVB steps,
+% the effective sample size of SVB is $BK$ pairs.
+% The Maraschino estimator sees all $N$ pairs simultaneously.
+% 
+% For the variance comparison, using~\eqref{eq:avg}
+% and~\eqref{eq:godambe}:
+% \begin{equation}\label{eq:variance-ratio}
+%   \frac{\Var[\hat\theta_{\text{SVB}}]}{\Var[\hat\theta_{\text{Mar}}]}
+%   \;\approx\;
+%   \frac{N}{BK} \cdot \frac{1}{e}
+% \end{equation}
+% where $e \in (0.5, 1.0)$ is the composite-likelihood efficiency factor.
+% Even with the efficiency penalty, Maraschino has lower variance
+% whenever $N/e > BK$, i.e., whenever it has seen substantially more
+% data than SVB.
+% 
+% \paragraph{Wall-clock advantage.}
+% The key computational difference:
+% \begin{itemize}
+% \item \textbf{Maraschino step}: distill MixDom (Woodbury, $O(N_{\text{dom}} \cdot |\mathcal{A}|^2)$
+%   per tau bin), compute loss and gradient.
+%   Cost per step: $\sim 0.1$--$1$ second (independent of $N$,
+%   since counts are pre-aggregated).
+% \item \textbf{SVB step}: forward--backward on $B$ pairs,
+%   $O(B \cdot \bar{L}^2 \cdot (5N_{\text{dom}})^2)$ per step
+%   (2D Pair HMM DP).
+%   Cost per step: $\sim 1$--$60$ seconds depending on $B$ and $\bar{L}$.
+% \end{itemize}
+% The counting phase (stage A) is $O(N \bar{L})$, done once.
+% A typical 1000-step Maraschino fit processes the equivalent of
+% $1000 N$ ``pair-observations'' from the order-1 perspective, while a
+% 1000-step SVB run processes $1000 B$ pairs through the full model.
+% 
+% \subsection{Hybrid Maraschino $\to$ SVB pipeline}
+% 
+% \paragraph{Rationale.}
+% \begin{itemize}
+% \item Maraschino provides a fast, consistent estimator using all
+%   available data, but with some efficiency loss from the composite
+%   likelihood approximation.
+% \item SVB is the full MLE (no approximation gap), but converges slowly
+%   from a random or poor initialization.
+% \item Initializing SVB from the Maraschino estimate places it near
+%   $\theta^*$, eliminating the transient and requiring only a few
+%   iterations to refine.
+% \end{itemize}
+% 
+% \paragraph{Expected convergence.}
+% Let $\hat\theta_{\text{Mar}}$ be the Maraschino estimate with error
+% $\|\hat\theta_{\text{Mar}} - \theta^*\| = O(1/\sqrt{N})$.
+% Starting SVB from $\hat\theta_{\text{Mar}}$:
+% \begin{enumerate}
+% \item The EM transient (Section~3.2) is essentially eliminated, since
+%   $\hat\theta_{\text{Mar}}$ is already within the basin of $\theta^*$.
+%   Without warm start, the transient requires $O(|\log \varepsilon| / |\log \rho|)$
+%   iterations; with warm start, $O(1)$ iterations suffice.
+% \item SVB corrects two sources of suboptimality:
+%   \begin{itemize}
+%   \item The composite-likelihood efficiency gap (factor $1/e$).
+%   \item Any remaining bias from insufficient Adam convergence or
+%     finite learning rate in the Maraschino fit.
+%   \end{itemize}
+% \item After $K_{\text{refine}}$ SVB steps with minibatch $B$, the
+%   total variance is
+%   \begin{equation}\label{eq:hybrid-var}
+%     \Var[\hat\theta_{\text{hybrid}}]
+%     \approx I_{\text{obs}}^{-1} / (BK_{\text{refine}}),
+%   \end{equation}
+%   achieving full MLE efficiency.  The Maraschino initialization
+%   ensures $K_{\text{refine}} \ll K_{\text{cold}}$ (the number of
+%   steps needed from random initialization).
+% \end{enumerate}
+% 
+% \paragraph{How many SVB refinement steps?}
+% The refinement phase needs enough steps for the Polyak average to
+% wash out the Maraschino initialization bias.
+% Since $\hat\theta_{\text{Mar}}$ has error $O(1/\sqrt{N})$, and each
+% SVB step reduces the error by factor $\rho$, we need
+% \[
+%   K_{\text{refine}} \gtrsim \frac{|\log(1/\sqrt{N})|}{|\log \rho|}
+%   \sim \frac{\log N}{2 |\log \rho|}.
+% \]
+% For $N = 10^5$ and $\rho = 0.5$, this is $K_{\text{refine}} \gtrsim 17$
+% steps.  In practice, $K_{\text{refine}} = 50$--$100$ should be ample.
+% 
+% \subsection{Practical recommendations}
+% 
+% \begin{center}
+% \begin{tabular}{lp{6.5cm}l}
+% \toprule
+% Method & When to use & Convergence \\
+% \midrule
+% \textbf{Maraschino only} &
+%   Fast exploration; hyperparameter sweeps over ($N_{\text{dom}}$, $N_{\text{frag}}$,
+%   $N_{\text{class}}$); initial parameter estimates when many model
+%   configurations must be screened. &
+%   $O(1/\sqrt{N})$, minutes \\
+% \textbf{SVB only} &
+%   Small datasets ($N < 1000$) where the full model's higher-order
+%   information matters; when the order-1 approximation is suspected
+%   to be insufficient. &
+%   $O(1/\sqrt{BK})$, hours--days \\
+% \textbf{Hybrid} &
+%   Production training: Maraschino initializes, SVB refines.
+%   Best of both worlds.
+%   Required when indel parameters or rare-domain weights must be
+%   estimated to high precision. &
+%   $O(1/\sqrt{BK})$, faster \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 
+% \paragraph{Recommended workflow.}
+% \begin{enumerate}
+% \item \textbf{Stage A} (count): Extract cherries, count adjacencies,
+%   bin by $\tau$.  Cost: $O(N \bar{L})$, done once.
+% \item \textbf{Stage B} (Maraschino fit): Run Adam for 1000--5000 steps
+%   with L-BFGS refinement.  Takes minutes.  Produces
+%   $\hat\theta_{\text{Mar}}$.
+% \item \textbf{Stage C} (optional SVB refinement): Initialize SVB from
+%   $\hat\theta_{\text{Mar}}$.  Run 50--200 steps with $B \geq 50$.
+%   Use Polyak averaging.  Achieves full MLE efficiency.
+% \item \textbf{Diagnostics}: Compare Maraschino and SVB estimates.
+%   If $\|\hat\theta_{\text{SVB}} - \hat\theta_{\text{Mar}}\| \ll
+%   \|\hat\theta_{\text{Mar}}\|$, the order-1 approximation is adequate
+%   and Stage C can be skipped in future runs with similar data.
+% \end{enumerate}
+% 
+% \paragraph{When is Maraschino alone sufficient?}
+% The composite-likelihood efficiency gap is smallest when:
+% \begin{itemize}
+% \item Domains are well-separated in substitution space (the order-1
+%   frequencies cleanly distinguish domains).
+% \item Fragment extension rates $r_d$ are moderate ($0.3 \leq r_d \leq 0.8$),
+%   so the geometric fragment length distribution is well-characterized
+%   by the order-1 self-loop probability.
+% \item The number of domains $N_{\text{dom}}$ is small ($\leq 10$),
+%   so there are few latent-state correlations to miss.
+% \item Training data is abundant ($N \gg 10^4$ pairs), so the
+%   composite-likelihood variance is dominated by the $1/\sqrt{N}$
+%   scaling rather than the efficiency factor.
+% \end{itemize}
+
+%% ================================================================
+%% Expected Statistics and Linearized Convergence
+%% Added 2026-03-29
+%% ================================================================
+
+\section{Expected Statistics and Linearized Convergence}
+\label{sec:expected-stats}
+
+The preceding sections characterized SVB convergence in terms of
+abstract per-pair variances $\sigma^2_B, \sigma^2_D, \sigma^2_S$.
+We now derive these quantities in closed form at stationarity,
+giving concrete convergence estimates for the BDI parameter group
+of any TKF-family model.\ifdefined\MIXDOMPAPER{}  The corresponding
+specialisation to the MixDom hierarchy of top-level, per-domain, and
+intra-fragment chains is collected in
+Appendix~\ref{sec:svb-convergence-mixdom}.\fi
+
+\subsection{BDI expected statistics at stationarity}
+
+\begin{lemma}[Expected BDI sufficient statistics]
+\label{lem:expected-suffstats}
+Consider a single BDI process with insertion rate $\insrate$,
+deletion rate $\delrate$, $\kappa = \insrate/\delrate < 1$,
+$\delta = \delrate - \insrate > 0$,
+and define $\alpha = e^{-\delrate\evoltime}$,
+$\Phi = 1 - \alpha$.
+For an ancestor--descendant pair $(i,j)$ with ancestor length~$i$
+drawn from the stationary distribution $i \sim \mathrm{Geom}(\kappa)$
+(i.e.\ $P(i) = (1-\kappa)\kappa^i$ for $i = 0,1,2,\ldots$),
+the expected BDI sufficient statistics are:
+\begin{align}
+\expect_\pi[i] &= L \;=\; \frac{\kappa}{1-\kappa}
+\label{eq:stat-L}
+\\[4pt]
+\expect_\pi[S] &= L\,\evoltime
+\label{eq:stat-ES}
+\\[4pt]
+\expect_\pi[B] &= \insrate\,(L + 1)\,\evoltime
+  \;=\; \frac{\insrate\,\evoltime}{1 - \kappa}
+\label{eq:stat-EB}
+\\[4pt]
+\expect_\pi[D] &= \delrate\,L\,\evoltime
+  \;=\; \frac{\delrate\,\kappa\,\evoltime}{1 - \kappa}
+  \;=\; \expect_\pi[B]
+\label{eq:stat-ED}
+\end{align}
+with $M = 1$ (one trajectory endpoint per pair) and $T = \evoltime$
+(total observation time for a single process).
+
+The key intermediate result is: for a BDI process starting from
+$N(0) = i$ mortal links, the expected number at time~$s$ is
+\begin{equation}\label{eq:bdi-mean}
+\expect[N(s) \mid N(0) = i]
+  = i\,e^{-\delta s} + L\,(1 - e^{-\delta s}),
+\end{equation}
+so the time-integrated expected count is
+\begin{equation}\label{eq:time-integrated}
+\expect[S \mid i] = \int_0^\evoltime \expect[N(s) \mid i]\,ds
+  = (i - L)\,\frac{1 - e^{-\delta\evoltime}}{\delta} + L\,\evoltime.
+\end{equation}
+At stationarity, $\expect_\pi[i] = L$, so
+$\expect_\pi[S] = L\,\evoltime$.
+The birth and death expectations follow from
+$\expect[B \mid i] = \insrate\,\expect[S \mid i] + \insrate\,\evoltime$
+(the $\insrate\,\evoltime$ term is the immortal link's contribution)
+and $\expect[D \mid i] = \delrate\,\expect[S \mid i]$.
+The conservation law $\expect_\pi[B] = \expect_\pi[D]$ confirms
+that stationarity is maintained.
+\end{lemma}
+
+\begin{proof}
+Equation~\eqref{eq:bdi-mean} is the standard result for a
+linear birth-death process with immigration at rate~$\insrate$
+and per-capita death rate~$\delrate$.
+The $i$ initial links each survive for $\mathrm{Exp}(\delrate)$ time
+(giving the $i\,e^{-\delta s}$ decay), while the immigration
+generates new links at rate $\insrate$ from the immortal link plus
+the mortal links themselves; the mean converges to the stationary
+value $L = \kappa/(1-\kappa)$ as $s \to \infty$.
+
+Integrating~\eqref{eq:bdi-mean}:
+\begin{align*}
+\expect[S \mid i]
+  &= \int_0^\evoltime \bigl[i\,e^{-\delta s}
+     + L\,(1 - e^{-\delta s})\bigr]\,ds \\
+  &= i\,\frac{1 - e^{-\delta\evoltime}}{\delta}
+     + L\Bigl(\evoltime - \frac{1 - e^{-\delta\evoltime}}{\delta}\Bigr) \\
+  &= (i - L)\,\frac{1 - e^{-\delta\evoltime}}{\delta}
+     + L\,\evoltime.
+\end{align*}
+Taking $\expect_\pi[i] = L$, the $(i-L)$ term vanishes, giving
+$\expect_\pi[S] = L\,\evoltime$.
+
+For births:
+$\expect_\pi[B]
+  = \insrate\,\expect_\pi[S] + \insrate\,\evoltime
+  = \insrate\,(L+1)\,\evoltime
+  = \insrate\,\evoltime/(1-\kappa)$.
+
+For deaths:
+$\expect_\pi[D]
+  = \delrate\,\expect_\pi[S]
+  = \delrate\,L\,\evoltime
+  = \delrate\,\kappa\,\evoltime/(1-\kappa)
+  = \insrate\,\evoltime/(1-\kappa)
+  = \expect_\pi[B]$.
+\end{proof}
+
+\subsection{Per-pair variance of sufficient statistics}
+
+The randomness in $(B, D, S)$ across pairs arises from the randomness
+in the ancestor and descendant lengths $(i, j)$.
+At stationarity, $i \sim \mathrm{Geom}(\kappa)$ with
+$\Var[i] = \kappa/(1-\kappa)^2$.
+
+Since $\expect[S \mid i]$ is linear in~$i$
+(eq.~\eqref{eq:time-integrated}), the variance of $\expect[S \mid i]$
+across pairs is:
+\begin{equation}\label{eq:var-ES-outer}
+\Var_\pi[\expect[S \mid i]]
+  = \left(\frac{1 - e^{-\delta\evoltime}}{\delta}\right)^{\!2}
+    \cdot \frac{\kappa}{(1-\kappa)^2}
+  \;\equiv\; \sigma^2_{S,\text{outer}}.
+\end{equation}
+Similarly, since $\expect[B \mid i] = \insrate\,\expect[S \mid i] + \insrate\,\evoltime$:
+\begin{equation}\label{eq:var-EB-outer}
+\Var_\pi[\expect[B \mid i]]
+  = \insrate^2\,\sigma^2_{S,\text{outer}},
+\end{equation}
+and $\expect[D \mid i] = \delrate\,\expect[S \mid i]$:
+\begin{equation}\label{eq:var-ED-outer}
+\Var_\pi[\expect[D \mid i]]
+  = \delrate^2\,\sigma^2_{S,\text{outer}}.
+\end{equation}
+
+By the law of total variance,
+$\Var_\pi[S] = \Var_\pi[\expect[S \mid i]] + \expect_\pi[\Var[S \mid i]]$.
+The inner variance $\Var[S \mid i]$ captures the randomness of the
+BDI trajectory given a fixed starting state~$i$.
+This is harder to compute in closed form, but for the purpose of
+convergence estimates, the outer variance~\eqref{eq:var-ES-outer}
+provides a \emph{lower bound} on $\Var[S]$ and is the dominant term
+when $\kappa$ is near~1 (long sequences), since both sources of
+variance scale as $O(\kappa/(1-\kappa)^2)$.
+
+The covariance structure is also dominated by the outer term:
+\begin{equation}\label{eq:cov-BS-outer}
+\Cov_\pi[\expect[B \mid i],\, \expect[S \mid i]]
+  = \insrate\,\sigma^2_{S,\text{outer}}.
+\end{equation}
+
+\subsection{Relative error and per-pair coefficients of variation}
+
+Substituting into the delta-method formulas
+\eqref{eq:delta-lambda}--\eqref{eq:delta-mu}
+with $\expect[B] = \insrate\,\evoltime/(1-\kappa)$,
+$\expect[S] = L\,\evoltime$, and the outer-variance approximation:
+
+Define
+\[
+\psi = \frac{1 - e^{-\delta\evoltime}}{\delta\,\evoltime}
+  \;\in\;(0,1)
+\]
+(the ratio of the ``regression to mean'' time scale to the total time).
+Then:
+\begin{align}
+\sigma^2_{S,\text{outer}} &= \psi^2\,\evoltime^2\,\frac{\kappa}{(1-\kappa)^2}
+\label{eq:sigma-S-psi}
+\\[4pt]
+\frac{\sigma^2_{S,\text{outer}}}{\expect_\pi[S]^2}
+  &= \frac{\psi^2}{\kappa\,/(1-\kappa)^2 \cdot \evoltime^2}
+     \cdot \frac{\kappa}{(1-\kappa)^2}
+  \;=\; \frac{\psi^2\,(1-\kappa)^2}{\kappa}
+  \;\cdot\; \frac{1}{1}
+\notag
+\end{align}
+
+The relative variance of $\hat\insrate$ from a single pair becomes
+(using the outer-variance approximation in~\eqref{eq:delta-lambda},
+and noting that the $B$--$S$ covariance
+term partially cancels the $B$ and $S$ terms):
+\begin{equation}\label{eq:v-lambda-closed}
+v_\insrate \;\approx\;
+  \frac{\psi^2\,(1-\kappa)^2}{\kappa}
+  \left[
+    1
+    + \frac{\insrate^2}{(\insrate + 1/\evoltime)^2}
+    - \frac{2\insrate}{\insrate + 1/\evoltime}
+  \right]
+  \;=\;
+  \frac{\psi^2\,(1-\kappa)^2}{\kappa\,(1+\insrate\evoltime)^2}
+\end{equation}
+This uses $\expect[S] + \evoltime = (L+1)\,\evoltime = \evoltime/(1-\kappa)$,
+so $\insrate/(\insrate + 1/\evoltime) = \insrate\evoltime/(1+\insrate\evoltime) = \kappa\delta\evoltime/(\delta + \delta/(\kappa\cdots))$---more
+directly, substitute into~\eqref{eq:delta-lambda}:
+\begin{align*}
+v_\insrate &= \frac{\insrate^2\sigma^2_{S,\text{outer}}}{\expect[B]^2}
+  + \frac{\sigma^2_{S,\text{outer}}}{(\expect[S]+\evoltime)^2}
+  - \frac{2\insrate\sigma^2_{S,\text{outer}}}{\expect[B](\expect[S]+\evoltime)} \\
+  &= \sigma^2_{S,\text{outer}}
+     \left(
+       \frac{\insrate^2(1-\kappa)^2}{\insrate^2\evoltime^2}
+       + \frac{(1-\kappa)^2}{\evoltime^2}
+       - \frac{2\insrate(1-\kappa)^2}{\insrate\evoltime^2}
+     \right) \\
+  &= \frac{\psi^2\kappa}{(1-\kappa)^2}
+     \cdot \frac{(1-\kappa)^2}{\evoltime^2}
+     \cdot \bigl(1 + 1 - 2\bigr) \\
+  &= 0.
+\end{align*}
+The outer-variance contribution to $v_\insrate$ vanishes exactly!
+This is because $\expect[B \mid i] = \insrate\,(\expect[S \mid i] + \evoltime)$,
+so the ratio $\expect[B \mid i]/(\expect[S \mid i] + \evoltime) = \insrate$
+is constant in~$i$---the delta-method perturbation is zero.
+
+This means the \textbf{dominant source of variance in $\hat\insrate$
+is the inner (trajectory) variance}, not the length distribution.
+The per-pair coefficient of variation of $\hat\insrate$ is determined
+by the fluctuations in $(B, D, S)$ \emph{given} the endpoint pair
+$(i, j)$, which depends on the stochastic path structure of the
+BDI process.
+
+\begin{proposition}[Per-pair relative variance from inner fluctuations]
+\label{prop:inner-variance}
+For $\hat\insrate = \bar B / (\bar S + \evoltime)$ estimated from
+a single pair with ancestor length~$i$ drawn from stationarity:
+\begin{equation}\label{eq:v-lambda-inner}
+v_\insrate \;\approx\;
+  \frac{\expect_\pi[\Var[B \mid i, j]]}{\expect_\pi[B]^2}
+  + \frac{\expect_\pi[\Var[S \mid i, j]]}{(\expect_\pi[S] + \evoltime)^2}
+  - \frac{2\,\expect_\pi[\Cov[B, S \mid i, j]]}
+         {\expect_\pi[B]\,(\expect_\pi[S] + \evoltime)}.
+\end{equation}
+The inner variances $\Var[B \mid i,j]$ and $\Var[S \mid i,j]$
+are the posterior variances of the BDI trajectory statistics given
+the observed endpoints.  These are computable from the observed
+Fisher information (Hessian of the log-likelihood), but do not
+simplify to elementary closed forms.
+
+However, we can bound the total per-pair relative variance using
+the observed Fisher information.
+For a single BDI process observed at one timepoint, the
+complete-data Fisher information for $\insrate$ is
+$I_{\text{comp}}(\insrate) = \expect[S + \evoltime]/\insrate^2
+= \evoltime/(\insrate^2(1-\kappa))$,
+and the observed (incomplete-data) information satisfies
+$I_{\text{obs}} \leq I_{\text{comp}}$.
+The per-pair relative variance is
+$v_\insrate \geq 1/(\insrate^2\,I_{\text{obs}}) \geq 1/(\insrate^2\,I_{\text{comp}})$,
+giving:
+\begin{equation}\label{eq:v-lambda-bound}
+v_\insrate \;\geq\; \frac{1-\kappa}{\insrate\,\evoltime}
+  \;=\; \frac{1}{\expect_\pi[B]}.
+\end{equation}
+The per-pair relative variance is at least $1/\expect_\pi[B]$.
+When $\expect_\pi[B]$ is small (few births per pair),
+the relative error is large.
+\end{proposition}
+
+\paragraph{Practical approximation.}
+For moderate times ($\delta\evoltime \sim 1$), the missing-information
+fraction is $\rho \approx 0.3$--$0.7$, so
+$I_{\text{obs}} \approx (1-\rho)\,I_{\text{comp}}$
+and $v_\insrate \approx (1-\kappa)/(\insrate\,\evoltime\,(1-\rho))$.
+Taking $\rho \approx 0.5$ as a rough estimate:
+\begin{equation}\label{eq:v-lambda-approx}
+v_\insrate \;\approx\; \frac{2}{\expect_\pi[B]}
+  \;=\; \frac{2(1-\kappa)}{\insrate\,\evoltime}.
+\end{equation}
+Similarly:
+\begin{equation}\label{eq:v-mu-approx}
+v_\delrate \;\approx\; \frac{2}{\expect_\pi[D]}
+  \;=\; \frac{2(1-\kappa)}{\delrate\,\kappa\,\evoltime}.
+\end{equation}
+
+\ifdefined\MIXDOMPAPER
+% MixDom-specific expected statistics, convergence rate estimates,
+% and the discussion of why top-level indel rates are hardest are
+% collected in Appendix~\ref{sec:svb-convergence-mixdom}.
+\fi

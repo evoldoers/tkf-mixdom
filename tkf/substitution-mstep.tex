@@ -1,0 +1,1125 @@
+% substitution-mstep.tex — Closed-form substitution M-steps for specific models
+% To be \input from tkf.tex
+
+\section{Substitution M-Steps for Specific Models}
+\label{sec:subst-mstep}
+
+This appendix specializes the general GTR substitution M-step
+(Section~\ref{sec:bw-tkf91}) to specific DNA and codon substitution models.
+In each case, we state the rate matrix $\revsub$ in terms of the model
+parameters, derive the closed-form MLE (or MAP) update given the
+bridge expectations $(W_i, U_{ij}, V_i)$,
+and note the spectral structure when it simplifies the
+endpoint-conditioned integrals~\eqref{eq:em-Jkl}.
+
+Throughout, we work with the complete-data log-likelihood~\eqref{eq:ctmc-complete}
+\[
+\ell_2 = \sum_i V'_i \log \eqm_i
+  + \sum_{j>i} (U_{ij} + U_{ji}) \log \exch_{ij}
+  - \sum_{j>i} \exch_{ij}(W_i \eqm_j + W_j \eqm_i)
+\]
+where $V'_i = V_i + \sum_{j \neq i} U_{ji}$,
+under the GTR parameterization $\revsub_{ij} = \exch_{ij} \eqm_j$
+with symmetric exchangeability $\exch_{ij} = \exch_{ji}$.
+
+The indel M-step (quadratic~\eqref{eq:kappa-quadratic} for $\kappa$,
+with L'H\^opital limits in Section~\ref{sec:lhopital})
+is orthogonal and unchanged across all substitution models.
+
+For DNA models ($|\alphabet| = 4$), the bridge-expectation integral
+$I^{ab}_{ij}(\evoltime)$~\eqref{eq:em-integral}
+involves only $4 \times 4 = 16$ matrix entries per endpoint pair,
+and the $J^{kl}(\evoltime)$ matrix~\eqref{eq:em-Jkl}
+is $4 \times 4$,
+making the endpoint-conditioned expectations cheap to compute.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{JC69 (Jukes--Cantor)}
+\label{sec:mstep-jc69}
+
+\paragraph{Rate matrix.}
+All off-diagonal rates are equal:
+$\revsub_{ij} = \rho/3$ for $i \neq j$
+(total rate out of any state is $\rho$).
+Equivalently, $\eqm_i = 1/4$ for all $i$
+and $\exch_{ij} = 4\rho/3$ for all $i \neq j$.
+
+The single free parameter is the overall rate $\rho$.
+
+\paragraph{M-step.}
+By detailed balance,
+$\exch_{ij} = (U_{ij} + U_{ji}) / (W_i \eqm_j + W_j \eqm_i)$
+is the GTR MLE.
+Under JC69, all exchangeabilities are forced equal, so we pool:
+\begin{equation}
+\label{eq:jc69-mstep}
+\hat{\exch} = \frac{\sum_{j>i}(U_{ij} + U_{ji})}
+       {\sum_{j>i}(W_i \eqm_j + W_j \eqm_i)}
+= \frac{U_{\bullet}}{3 W_{\bullet}/4}
+= \frac{4 U_{\bullet}}{3 W_{\bullet}}
+\end{equation}
+where $U_\bullet = \sum_{i \neq j} U_{ij}$ is the total substitution count
+and $W_\bullet = \sum_i W_i$ is the total dwell time.
+(The denominator uses $\sum_{j>i}(W_i/4 + W_j/4) = 3W_\bullet/4$
+since each of the 4 states appears in 3 of the $\binom{4}{2} = 6$ pairs.)
+The overall rate is then $\hat{\rho} = 3\hat{\exch}/4 = U_\bullet / W_\bullet$,
+which is simply the total substitution count divided by total dwell time.
+
+The equilibrium frequencies are fixed: $\hat{\eqm}_i = 1/4$.
+
+\paragraph{Spectral structure.}
+$\symsub = (\rho/3)J - (4\rho/3)\,I$ where $J$ is the $4 \times 4$ all-ones matrix.
+Eigenvalues: $0$ (once, eigenvector $\mathbf{1}/2$) and $-4\rho/3$ (triply degenerate).
+Thus $J^{kl}(\evoltime)$ has only two distinct diagonal values
+($\evoltime$ and $\evoltime e^{-4\rho\evoltime/3}$)
+and the off-diagonal $J^{01}$ term
+$(1 - e^{-4\rho\evoltime/3})/(4\rho/3)$.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{K80 (Kimura 2-Parameter)}
+\label{sec:mstep-k80}
+
+\paragraph{Rate matrix.}
+Equal equilibrium frequencies $\eqm_i = 1/4$.
+Transitions (purine$\leftrightarrow$purine, pyrimidine$\leftrightarrow$pyrimidine)
+occur at rate $\kappa_s$ and transversions at rate $1$ (or vice versa,
+depending on convention).
+Labeling the states A, G, C, T and writing $i \sim j$ for a transition pair:
+\[
+\revsub_{ij} = \begin{cases}
+  \kappa_s / 4 & \text{if } i \sim j \text{ (transition)} \\
+  1/4 & \text{if } i \not\sim j \text{ (transversion)}
+\end{cases}
+\]
+with total rate out of any state $(\kappa_s + 2)/4$.
+The single free parameter beyond rate scaling is $\kappa_s$ (the
+transition/transversion rate ratio).
+
+\paragraph{M-step.}
+Partition the substitution counts into transitions $U_s = \sum_{i \sim j} U_{ij}$
+and transversions $U_v = \sum_{i \not\sim j} U_{ij} = U_\bullet - U_s$.
+Similarly partition the dwell-weighted opportunities.
+Under K80, the exchangeability for transition pairs is $\kappa_s$
+and for transversion pairs is $1$ (up to a common scale).
+The MLE for each group, from the pooled GTR formula:
+\begin{align}
+\hat{\kappa}_s &= \frac{U_s / N_s}{U_v / N_v}
+\label{eq:k80-kappa}
+\end{align}
+where
+$N_s = \sum_{i \sim j, \, i<j} (W_i \eqm_j + W_j \eqm_i)
+     = W_\bullet / 4$
+is the opportunity for transitions
+(2 pairs: A--G and C--T, each contributing $(W_i+W_j)/4$,
+summing to $W_\bullet/4$) and
+$N_v = \sum_{i \not\sim j, \, i<j} (W_i \eqm_j + W_j \eqm_i)
+     = W_\bullet / 2$
+is the opportunity for transversions
+(4 pairs, each state appearing in 2 transversion pairs,
+summing to $2W_\bullet/4 = W_\bullet/2$).
+Simplifying:
+\begin{equation}
+\label{eq:k80-mstep}
+\hat{\kappa}_s = \frac{2\, U_s}{U_v}
+\end{equation}
+Given $\hat{\kappa}_s$, the overall scale $\hat\sigma$ satisfies
+$\hat\sigma(\hat\kappa_s N_s + N_v) = U_\bullet$,
+giving overall rate
+$\hat\rho = \hat\sigma(\hat\kappa_s + 2)/4 = U_\bullet / W_\bullet$.
+
+\paragraph{Spectral structure.}
+Three distinct eigenvalues: $0$, $-(\kappa_s + 1)/2$ (doubly degenerate,
+within-purine and within-pyrimidine contrasts), and $-1$
+(purine-vs-pyrimidine contrast).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{F81 (Felsenstein 1981)}
+\label{sec:mstep-f81}
+
+\paragraph{Rate matrix.}
+Equal exchangeabilities, variable equilibrium:
+$\revsub_{ij} = \rho\, \eqm_j$ for $i \neq j$
+(equivalently, $\exch_{ij} = \rho$ for all $i \neq j$).
+
+\paragraph{M-step.}
+Since $\exch_{ij} = \rho$ is constant across all pairs,
+the exchangeability MLE pools all pairs:
+\begin{equation}
+\label{eq:f81-rho}
+\hat{\rho} = \frac{U_\bullet}{\sum_{j > i}(W_i \eqm_j + W_j \eqm_i)}
+= \frac{U_\bullet}{\sum_i W_i (1 - \eqm_i)}
+\end{equation}
+using the identity
+$\sum_{j>i}(W_i \eqm_j + W_j \eqm_i) = \sum_i W_i \sum_{j \neq i} \eqm_j = \sum_i W_i(1 - \eqm_i)$.
+
+For equilibrium frequencies:
+\begin{equation}
+\label{eq:f81-pi}
+\hat{\eqm}_i = \frac{V'_i}{\sum_j V'_j}
+\end{equation}
+This is the standard empirical-frequency estimator (exact MLE when
+$\exch$ is held fixed; approximate when $\exch$ and $\eqm$ are jointly
+optimized, as discussed in Section~\ref{sec:bw-tkf91}).
+
+In practice, iterate: fix $\hat\eqm$, solve for $\hat\rho$~\eqref{eq:f81-rho},
+update $\hat\eqm$~\eqref{eq:f81-pi}, repeat.
+The decoupling is exact after one iteration when $W_i \propto \eqm_i$
+(which holds approximately for long dwell times).
+
+\paragraph{Spectral structure.}
+$\symsub = \rho(\sqrt{\eqm}\sqrt{\eqm}^\top - I)$
+where $\sqrt{\eqm}$ is the vector with entries $\sqrt{\eqm_i}$.
+Eigenvalues: $0$ (once) and $-\rho$ ($|\alphabet|-1$ times, degenerate).
+The $J^{kl}$ matrix has the same simple structure as JC69.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{HKY85 (Hasegawa--Kishino--Yano)}
+\label{sec:mstep-hky85}
+
+\paragraph{Rate matrix.}
+Variable equilibrium frequencies $\eqm$ and a
+transition/transversion ratio $\kappa_s$:
+\[
+\revsub_{ij} = \begin{cases}
+  \kappa_s\, \eqm_j & \text{if } i \sim j \text{ (transition)} \\
+  \eqm_j & \text{if } i \not\sim j \text{ (transversion)}
+\end{cases}
+\]
+Equivalently, $\exch_{ij} = \kappa_s$ for transition pairs and
+$\exch_{ij} = 1$ for transversion pairs.
+This is K80 + F81: the $\kappa_s$ structure of K80 with the
+variable-$\eqm$ structure of F81.
+
+\paragraph{M-step.}
+Pool exchangeabilities within each class:
+\begin{align}
+\hat{\kappa}_s &= \frac{U_s \,/\, N_s}{U_v \,/\, N_v}
+\label{eq:hky85-kappa}
+\end{align}
+where now (unlike K80) the opportunities depend on $\eqm$:
+\begin{align}
+N_s &= \sum_{i \sim j,\, i < j} (W_i \eqm_j + W_j \eqm_i) \label{eq:hky85-Ns} \\
+N_v &= \sum_{i \not\sim j,\, i < j} (W_i \eqm_j + W_j \eqm_i) \label{eq:hky85-Nv}
+\end{align}
+With $U_s$ and $U_v$ as in K80 (summed over directed transition and
+transversion pairs respectively).
+
+For $\eqm$, use $\hat{\eqm}_i = V'_i / \sum_j V'_j$ as in F81,
+then iterate with $\kappa_s$ if desired.
+
+\paragraph{Spectral structure.}
+Let $\eqm_R = \eqm_A + \eqm_G$ and $\eqm_Y = \eqm_C + \eqm_T$.
+The eigenvalues are
+$0$,
+$-(\eqm_R + \kappa_s \eqm_Y)$ (within-pyrimidine contrast),
+$-(\eqm_Y + \kappa_s \eqm_R)$ (within-purine contrast),
+and $-1$ (purine-vs-pyrimidine contrast).
+Generically four distinct values;
+when $\eqm_R = \eqm_Y = 1/2$ (i.e.\ K80),
+the two within-class eigenvalues merge to $-(\kappa_s + 1)/2$.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{GTR (General Time-Reversible)}
+\label{sec:mstep-gtr}
+
+For completeness, we restate the general case from
+Section~\ref{sec:bw-tkf91}.
+
+\paragraph{Rate matrix.}
+$\revsub_{ij} = \exch_{ij}\,\eqm_j$ with $\exch_{ij} = \exch_{ji} \geq 0$
+for $i \neq j$.
+For DNA, $\exch$ has 6 free parameters (upper triangle)
+and $\eqm$ has 3 free parameters (4 frequencies summing to 1).
+
+\paragraph{M-step.}
+Fixing $\eqm$:
+\begin{equation}
+\label{eq:gtr-Q}
+\hat{\exch}_{ij} = \frac{U_{ij} + U_{ji}}{W_i \eqm_j + W_j \eqm_i}
+\end{equation}
+Fixing $\exch$, the $\eqm$ update requires solving a nonlinear system
+(Section~\ref{sec:bw-tkf91}).
+In practice, set $\hat{\eqm}_i \propto V'_i$
+and iterate with~\eqref{eq:gtr-Q}.
+
+\paragraph{Spectral structure.}
+$\symsub_{ij} = \exch_{ij}\sqrt{\eqm_i \eqm_j}$ is real symmetric
+with eigenvalues $0 = \xi^{(0)} > \xi^{(1)} \geq \cdots \geq \xi^{(|\alphabet|-1)}$
+(generically all distinct for DNA).
+No further simplification beyond the general formulas~\eqref{eq:em-Jkl}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{GY94 (Goldman--Yang Codon Model)}
+\label{sec:mstep-gy94}
+
+\paragraph{Rate matrix.}
+The state space is the 61 sense codons ($|\alphabet| = 61$,
+excluding stop codons).
+The instantaneous rate from codon $i$ to codon $j$ is:
+\[
+\revsub_{ij} = \begin{cases}
+  0 & \text{if $i$ and $j$ differ at more than one position} \\
+  \eqm_j & \text{if synonymous transversion} \\
+  \kappa_s\, \eqm_j & \text{if synonymous transition} \\
+  \omega\, \eqm_j & \text{if nonsynonymous transversion} \\
+  \omega\, \kappa_s\, \eqm_j & \text{if nonsynonymous transition}
+\end{cases}
+\]
+where $\omega$ is the nonsynonymous/synonymous rate ratio (dN/dS),
+$\kappa_s$ is the transition/transversion ratio,
+and $\eqm_j$ is the equilibrium frequency of codon $j$.
+This is a reversible model with exchangeability
+\[
+\exch_{ij} = \begin{cases}
+  0 & \text{(multi-nucleotide change)} \\
+  1 & \text{(synonymous transversion)} \\
+  \kappa_s & \text{(synonymous transition)} \\
+  \omega & \text{(nonsynonymous transversion)} \\
+  \omega\kappa_s & \text{(nonsynonymous transition)}
+\end{cases}
+\]
+
+\paragraph{M-step.}
+Partition the substitution counts into four classes indexed by
+(synonymous/nonsynonymous) $\times$ (transition/transversion):
+\begin{align*}
+U_{S,s} &= \text{total synonymous transition counts} &
+U_{S,v} &= \text{total synonymous transversion counts} \\
+U_{N,s} &= \text{total nonsynonymous transition counts} &
+U_{N,v} &= \text{total nonsynonymous transversion counts}
+\end{align*}
+and the corresponding dwell-weighted opportunities $N_{S,s}, N_{S,v}, N_{N,s}, N_{N,v}$
+defined analogously to~\eqref{eq:hky85-Ns}--\eqref{eq:hky85-Nv}
+but summing over single-nucleotide codon pairs in each class.
+
+The exchangeabilities are $\exch = 1$ (synonymous transversion),
+$\kappa_s$ (synonymous transition),
+$\omega$ (nonsynonymous transversion),
+$\omega\kappa_s$ (nonsynonymous transition).
+The complete-data log-likelihood for $(\omega, \kappa_s)$,
+with $\eqm$ fixed, is:
+\begin{align*}
+\ell_2(\omega,\kappa_s) &=
+  U_{S,v}\log 1 + U_{S,s}\log\kappa_s + U_{N,v}\log\omega + U_{N,s}\log(\omega\kappa_s) \\
+  &\quad - N_{S,v} - \kappa_s N_{S,s} - \omega N_{N,v} - \omega\kappa_s N_{N,s}
+\end{align*}
+Setting $\partial\ell_2/\partial\kappa_s = 0$ and $\partial\ell_2/\partial\omega = 0$:
+\begin{align}
+\frac{U_{S,s} + U_{N,s}}{\kappa_s} &= N_{S,s} + \omega\, N_{N,s} \label{eq:gy94-kappa-eq} \\
+\frac{U_{N,v} + U_{N,s}}{\omega} &= N_{N,v} + \kappa_s\, N_{N,s} \label{eq:gy94-omega-eq}
+\end{align}
+These are two equations in two unknowns. Substituting~\eqref{eq:gy94-omega-eq}
+into~\eqref{eq:gy94-kappa-eq} to eliminate $\omega$:
+\[
+\omega = \frac{U_{N,v} + U_{N,s}}{N_{N,v} + \kappa_s N_{N,s}}
+\]
+\[
+\frac{U_{S,s} + U_{N,s}}{\kappa_s} = N_{S,s} + \frac{(U_{N,v} + U_{N,s})\, N_{N,s}}{N_{N,v} + \kappa_s N_{N,s}}
+\]
+Multiplying both sides by $\kappa_s(N_{N,v} + \kappa_s N_{N,s})$ and rearranging:
+\begin{equation}
+\label{eq:gy94-kappa-quad}
+N_{S,s}\, N_{N,s}\;\kappa_s^2
++ \bigl(N_{S,s}\, N_{N,v} + (U_{N,v} - U_{S,s})\,N_{N,s}\bigr)\;\kappa_s
+- (U_{S,s}+U_{N,s})\, N_{N,v} = 0
+\end{equation}
+The positive root gives $\hat{\kappa}_s$,
+and then
+\begin{equation}
+\label{eq:gy94-omega}
+\hat{\omega} = \frac{U_{N,v} + U_{N,s}}{N_{N,v} + \hat{\kappa}_s\, N_{N,s}}
+\end{equation}
+
+The codon equilibrium frequencies $\eqm$ are estimated as
+$\hat{\eqm}_j \propto V'_j$.
+
+\paragraph{Spectral structure.}
+For 61 sense codons, the symmetrized rate matrix is $61 \times 61$
+with at most 61 distinct eigenvalues.
+No closed-form eigendecomposition is known in general for
+arbitrary $\eqm$.
+When $\eqm$ factors as $\eqm_{abc} = \eqm^{(1)}_a \eqm^{(2)}_b \eqm^{(3)}_c$
+(the F3x4 model), the symmetrized matrix is a sum of Kronecker products
+and its eigenvectors factor as tensor products of $4\times 4$ matrices,
+reducing the eigendecomposition to three $4\times 4$ problems.
+In practice, for the full GY94, numerical eigendecomposition of the
+$61 \times 61$ symmetric matrix is inexpensive ($O(61^3) \approx 2 \times 10^5$ flops)
+and need only be performed once per M-step.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Summary and Practical Notes}
+\label{sec:subst-mstep-summary}
+
+\begin{center}
+\begin{tabular}{lccl}
+\toprule
+Model & Free params & $\eqm$ & M-step for exchangeability \\
+\midrule
+JC69 & 1 ($\rho$) & fixed $1/4$ & $\hat\rho = U_\bullet/W_\bullet$ \\
+K80 & 1 ($\kappa_s$) & fixed $1/4$ & $\hat\kappa_s = 2U_s/U_v$ \\
+F81 & 4 ($\rho, \eqm$) & $V'_i/\sum V'_j$ & $\hat\rho = U_\bullet / \sum_i W_i(1-\eqm_i)$ \\
+HKY85 & 5 ($\kappa_s, \eqm$) & $V'_i/\sum V'_j$ & $\hat\kappa_s = (U_s/N_s)/(U_v/N_v)$ \\
+GTR & 9 ($\exch, \eqm$) & $V'_i/\sum V'_j$ & $\hat\exch_{ij} = (U_{ij}+U_{ji})/(W_i\eqm_j+W_j\eqm_i)$ \\
+GY94 & 62 ($\omega,\kappa_s,\eqm$) & $V'_j/\sum V'_k$ & quadratic in $\kappa_s$~\eqref{eq:gy94-kappa-quad} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For all models above, the indel M-step is identical: solve
+the $\kappa$ quadratic~\eqref{eq:kappa-quadratic} for
+$(\insrate, \delrate)$.
+The substitution and indel parameter blocks decouple
+completely in the M-step (they share no sufficient statistics).
+
+\paragraph{MAP estimates.}
+To obtain MAP estimates,
+augment the sufficient statistics before applying the MLE formulas:
+$U_{ij} \to U_{ij} + \alpha_\exch - 1$,
+$W_i \to W_i + \beta_\exch$,
+$V_i \to V_i + \alpha_\eqm - 1$\ifdefined\MIXDOMPAPER ,
+as in Section~\ref{sec:bw-mixdom}\fi.
+The independent Gamma$(\alpha_\exch,\beta_\exch)$ priors on each
+$\exch_{ij}$ together with a Dirichlet on $\eqm$ are conjugate to the
+\emph{irreversible} CTMC complete-data likelihood (independent
+$\revsub_{ij}$) but not to the reversible GTR
+parameterization---the symmetric coupling $\exch_{ij} = \exch_{ji}$
+together with the requirement that the joint complete-data likelihood
+include the stationary draw $X(0) \sim \eqm$ means the proper
+conjugate prior is the cycle-corrected edge-flow density of
+Diaconis and Rolles~\cite{DiaconisRolles2006}, with a Kirchhoff
+matrix-tree determinant accounting for the cycle structure of the
+state graph.\ifdefined\MIXDOMPAPER{}  See the discussion in Section~\ref{sec:bw-mixdom-priors}
+for the form of the Diaconis--Rolles prior and its modification to
+incorporate the initial-state contribution.\fi  The simpler
+Gamma${}\times{}$Dirichlet pseudocounts used here are non-conjugate
+regularizers and remain perfectly valid for MAP, with the closed-form
+augmented M-step above; we adopt them throughout for simplicity.
+
+\paragraph{Degenerate eigenvalues.}
+Models with symmetry (JC69, K80, F81) have degenerate eigenvalues
+in $\symsub$, which means the $J^{kl}(\evoltime)$ matrix has
+repeated diagonal entries.
+This reduces the number of distinct $J$ values that must be computed,
+but requires care to use the $\xi^{(k)} = \xi^{(l)}$ branch
+($J^{kl} = \evoltime\, e^{\xi^{(k)}\evoltime}$)
+rather than the difference quotient,
+which is a removable $0/0$ singularity.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Reversible Mixture with Per-Component GTR}
+\label{sec:mstep-mixture}
+
+We now consider a $C$-component reversible mixture in which each
+component is a full GTR model with its own exchangeability matrix
+$\exch^{(c)}$ and equilibrium distribution $\eqm^{(c)}$:
+\begin{equation}\label{eq:mixture-Q}
+\revsub^{(c)}_{ij} = \exch^{(c)}_{ij}\,\eqm^{(c)}_j
+\quad (i \neq j),
+\qquad c \in \{1,\dots,C\}.
+\end{equation}
+Each site is assigned (latently) to one component, and conditional
+on $c$, the site evolves under the reversible CTMC with rate
+matrix~$\revsub^{(c)}$.
+\ifdefined\MIXDOMPAPER This is the parameterisation used by the per-(domain, fragment-type)
+site-class emissions of MixDom (Section~\ref{sec:bw-mixdom}), where
+$c$ is the site-class drawn independently at each position from
+$\classdist_{\dom\frag}$.\else This is the parameterisation used by per-site-class emissions in
+mixture-of-CTMC models, where $c$ is the latent site class drawn
+independently at each position from a per-site Dirichlet.\fi
+Because each component is an independent GTR model, the overall
+rate scale is absorbed into $\exch^{(c)}$ itself and no separate
+rate multiplier is needed; this makes the parameterisation a
+strict generalisation of per-domain GTR (the per-domain GTR case
+is recovered when $\classdist_{\dom\frag,c} = \mathbf{1}[c = \dom]$)
+and of the
+discrete-gamma rate-across-sites model~\cite{Yang1994a}.
+
+\paragraph{E-step counts.}
+The component assignment is latent. From the standard E-step,
+each branch produces an endpoint pair $(a,b)$ with marginal posterior
+weight $w_{ab}$; conditional on $(a,b)$ at a site with prior class
+distribution $P(c \mid \text{site}) = \classdist_c$, the
+component posterior is
+\begin{equation}\label{eq:mix-post}
+P(c \mid a,b,\evoltime,\text{site})
+  = \frac{\classdist_c\,\eqm^{(c)}_a\,M^{(c)}_{ab}(\evoltime)}
+         {\sum_{c'} \classdist_{c'}\,\eqm^{(c')}_a\,M^{(c')}_{ab}(\evoltime)},
+\end{equation}
+with $M^{(c)}(\evoltime) = \exp(\revsub^{(c)}\evoltime)$.
+Per-component bridge-expectation sufficient statistics are then
+accumulated by weighting the standard
+expressions~\eqref{eq:em-counts}--\eqref{eq:em-dwell} by~\eqref{eq:mix-post}:
+\begin{align}
+V^{(c)}_i &= \textstyle\sum_{\text{starts}} w_a\,
+   P(c\mid a,\cdot)\,\mathbf{1}[X(0)=i] \label{eq:mix-V}\\
+U^{(c)}_{ij} &= \textstyle\sum_{\text{branches}} w_{ab}\,
+   P(c\mid a,b,\evoltime,\cdot)\,
+   \emcount^U_{ij}\!\bigl(a,b,\evoltime;\,\revsub^{(c)}\bigr) \label{eq:mix-U}\\
+W^{(c)}_i &= \textstyle\sum_{\text{branches}} w_{ab}\,
+   P(c\mid a,b,\evoltime,\cdot)\,
+   \emcount^W_i\!\bigl(a,b,\evoltime;\,\revsub^{(c)}\bigr) \label{eq:mix-W}
+\end{align}
+and we write $V'^{(c)}_i = V^{(c)}_i + \sum_{j \neq i} U^{(c)}_{ji}$ as before.
+Writing $U^{(c)}_\bullet = \sum_{i\neq j} U^{(c)}_{ij}$ for the
+total per-component substitution count.
+
+\paragraph{Complete-data log-likelihood.}
+Because each class is an independent GTR model under this
+parameterisation, the complete-data log-likelihood
+decomposes over classes:
+\begin{equation}\label{eq:mix-loglik}
+\ell_2(\{\exch^{(c)}\},\{\eqm^{(c)}\}) = \sum_c \ell_2^{(c)},
+\end{equation}
+\begin{align}
+\ell_2^{(c)}
+&= \sum_i V'^{(c)}_i \log \eqm^{(c)}_i
++ \sum_{j>i}\bigl(U^{(c)}_{ij}+U^{(c)}_{ji}\bigr)\log \exch^{(c)}_{ij}
+\notag\\
+&\quad - \sum_{j>i} \exch^{(c)}_{ij}
+   \bigl(W^{(c)}_i \eqm^{(c)}_j + W^{(c)}_j \eqm^{(c)}_i\bigr).
+\label{eq:mix-loglik-c}
+\end{align}
+
+\paragraph{Identifiability.}
+No gauge to fix: the rate scale of class $c$ lives inside
+$\exch^{(c)}$, and the $\{\exch^{(c)}\}$ are uncoupled in both
+\eqref{eq:mixture-Q} and~\eqref{eq:mix-loglik-c}.
+Every class can be updated independently.
+
+\paragraph{Per-class GTR M-step.}
+Since $\ell_2$ decomposes class by class, the update for class $c$ is
+exactly the GTR M-step of Section~\ref{sec:bw-tkf91} applied to that
+class's sufficient statistics.
+Differentiating~\eqref{eq:mix-loglik-c} w.r.t.\ $\exch^{(c)}_{ij}$:
+\[
+\frac{\partial \ell_2^{(c)}}{\partial \exch^{(c)}_{ij}}
+= \frac{U^{(c)}_{ij}+U^{(c)}_{ji}}{\exch^{(c)}_{ij}}
+- \bigl(W^{(c)}_i \eqm^{(c)}_j + W^{(c)}_j \eqm^{(c)}_i\bigr) = 0,
+\]
+giving the closed-form update
+\begin{equation}\label{eq:mix-S-update}
+\hat\exch^{(c)}_{ij}
+= \frac{U^{(c)}_{ij} + U^{(c)}_{ji}}
+       {W^{(c)}_i \eqm^{(c)}_j + W^{(c)}_j \eqm^{(c)}_i}.
+\end{equation}
+The equilibrium update uses the empirical-frequency approximation
+\begin{equation}\label{eq:mix-pi-update}
+\hat\eqm^{(c)}_i \propto V'^{(c)}_i,
+\end{equation}
+which is exact when $\exch^{(c)}_{ij} W^{(c)}_j$ is independent of
+$i$ (F81 limit) and approximate otherwise, identical to
+Section~\ref{sec:bw-tkf91}.
+No alternation or projection is needed; one pass through each class
+completes the M-step.
+
+\paragraph{Connection to standard models.}
+With $C=1$, \eqref{eq:mix-S-update}--\eqref{eq:mix-pi-update} reduce
+exactly to the GTR M-step~\eqref{eq:gtr-Q}.
+With $\classdist_{\dom\frag,c} = \mathbf{1}[c=\dom]$ so each domain
+uses its own dedicated class, the model is the per-domain GTR
+($\exch^{(\dom)}$) special case; the per-class M-step here reduces to
+the per-domain M-step of Section~\ref{sec:bw-tkf91} applied once per
+domain.
+With $\eqm^{(c)} \equiv \eqm$ and $\exch^{(c)} = \gamma_c\,\exch$ for
+some shared $\exch$, the model is the discrete-gamma rate
+model~\cite{Yang1994a}; a constrained M-step that enforces
+$\exch^{(c)} \propto \exch$ recovers the shared-exchangeability case
+as a special case.
+Free-rate variants~\cite{Susko2018} are the shared-$\exch$ /
+free-$\gamma_c$ special case.
+
+\paragraph{MAP estimates.}
+Per-class regularising priors apply independently to each class.
+A Dirichlet pseudocount $\alpha^{(c)}_i$ is added to each
+$V^{(c)}_i$, and a Gamma$(a_S, b_S)$ prior on each
+$\exch^{(c)}_{ij}$ (e.g.\ calibrated to LG via
+$a_S = b_S\,\exch^{\mathrm{LG}}_{ij}$) adds $a_S-1$ to the numerator
+and $b_S$ to the denominator of~\eqref{eq:mix-S-update}.
+As above, this independent-Gamma${}\times{}$Dirichlet structure is
+conjugate only in the irreversible parameterization; it is a
+non-conjugate regularizer for the reversible GTR mixture component,
+with the proper conjugate being a per-class Diaconis--Rolles
+prior~\cite{DiaconisRolles2006}.  We use the simpler form here for
+the same reasons as the single-component case\ifdefined\MIXDOMPAPER{}
+(Section~\ref{sec:bw-mixdom-priors})\fi.
+The MAP objective
+\begin{equation}\label{eq:mix-map-obj}
+\mathcal{L} = \ell_2
+  + \sum_{c,i}(\alpha^{(c)}_i - 1)\log\eqm^{(c)}_i
+  + \sum_{c,j>i}\bigl[(a_S - 1)\log\exch^{(c)}_{ij}
+          - b_S \exch^{(c)}_{ij}\bigr]
+\end{equation}
+decomposes across classes and has a \emph{unique} joint maximum
+at
+\begin{equation}\label{eq:mix-map-S}
+\hat\exch^{(c)}_{ij}
+= \frac{U^{(c)}_{ij}+U^{(c)}_{ji} + a_S - 1}
+       {W^{(c)}_i \eqm^{(c)}_j + W^{(c)}_j \eqm^{(c)}_i + b_S},
+\end{equation}
+with the $\eqm^{(c)}$ update obtained by the same bisection as
+Section~\ref{sec:bw-tkf91}.
+Each class is a standalone GTR M-step; no cross-class coupling.
+
+\paragraph{Hyperparameter sizing under SVI.}
+Under SVI-BW~(\ref{eq:svi-update}) the EMA sufficient statistics are
+scaled to the full-dataset size~$N$, so prior pseudocounts must
+live on the same scale to retain their relative weight.
+Parameterising by \emph{effective sample size},
+set $\alpha^{(c)}_i = N_\pi\,\eqm^{\mathrm{LG}}_i$
+and $b_S = N_S$ with $a_S = N_S\,\exch^{\mathrm{LG}}_{ij}$.
+Defaults $N_\pi, N_S \sim 10^2\text{--}10^3$
+(data-independent) give priors that vanish in the data limit
+but identify the posterior in small batches.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Rate Rescaling: M-Step for a Global Scalar Multiplier}
+\label{sec:mstep-rescaling}
+
+In some training scenarios the relative pattern of substitution rates
+is known (e.g.\ from a previously-estimated GTR matrix or from an
+external published matrix such as LG) and only the overall \emph{rate}
+needs to adapt to the current data.  Concretely, we hold both the
+exchangeability matrix~$\exch$ \emph{and} the equilibrium
+distribution~$\eqm$ fixed, and seek a single scalar multiplier
+$\sigma > 0$ such that the rescaled rate matrix
+\begin{equation}\label{eq:rescale-Q}
+\revsub^{\mathrm{new}}_{ij} = \sigma\,\exch_{ij}\,\eqm_j
+\quad (i \neq j)
+\end{equation}
+maximises the complete-data log-likelihood~$\ell_2$.
+Equivalently, the new exchangeability is
+$\exch^{\mathrm{new}}_{ij} = \sigma\,\exch_{ij}$,
+so all relative exchangeabilities are preserved and only the overall
+tempo of the model changes.
+
+\paragraph{Closed-form $\sigma$.}
+Substituting $\exch_{ij} \to \sigma\exch_{ij}$ into the
+GTR complete-data log-likelihood,
+\[
+\ell_2(\sigma) = \mathrm{const}
+  + \log\sigma\;\sum_{j>i}(U_{ij} + U_{ji})
+  - \sigma \sum_{j>i}\exch_{ij}\bigl(W_i\eqm_j + W_j\eqm_i\bigr).
+\]
+The terms not involving $\sigma$ (the $V'_i\log\eqm_i$ part and
+$\sum_{j>i}(U_{ij}+U_{ji})\log\exch_{ij}$) are constants under
+rescaling.  Differentiating and setting to zero yields the unique
+maximiser
+\begin{equation}\label{eq:rescale-sigma}
+\hat\sigma = \frac{U_\bullet}{D},
+\qquad
+U_\bullet = \sum_{i\neq j} U_{ij},
+\qquad
+D = \sum_{j>i}\exch_{ij}\bigl(W_i\eqm_j + W_j\eqm_i\bigr),
+\end{equation}
+where $U_\bullet$ is the total expected substitution count and $D$ is
+the total dwell-weighted opportunity for substitution under the fixed
+shape $(\exch, \eqm)$.  The objective is strictly concave in $\sigma$
+on $(0, \infty)$ (the Hessian $-U_\bullet/\sigma^2 < 0$), so
+\eqref{eq:rescale-sigma} is the global maximiser.
+
+\paragraph{Mixture form (per-class).}
+Applied class by class to the reversible mixture of
+Section~\ref{sec:mstep-mixture}, each class $c$ has its own scalar
+$\sigma_c$ updated independently from its own per-class statistics:
+\begin{equation}\label{eq:rescale-sigma-c}
+\hat\sigma_c
+= \frac{U^{(c)}_\bullet}{D^{(c)}},
+\qquad
+D^{(c)} = \sum_{j>i}\exch^{(c)}_{ij}
+   \bigl(W^{(c)}_i \eqm^{(c)}_j + W^{(c)}_j \eqm^{(c)}_i\bigr).
+\end{equation}
+The shapes $\exch^{(c)}$ and $\eqm^{(c)}$ are held at their current
+values and only the per-class rate scale $\sigma_c$ moves; the
+class-decomposition~\eqref{eq:mix-loglik} ensures classes do not couple.
+A common-rate variant (a single shared $\hat\sigma$ across all classes)
+is recovered by pooling: $\hat\sigma = \sum_c U^{(c)}_\bullet
+/ \sum_c D^{(c)}$.  The per-class form~\eqref{eq:rescale-sigma-c}
+attains a strictly higher $\ell_2$ unless all $\sigma_c$ already coincide.
+
+\paragraph{Aggregation of counts.}
+The only sufficient statistics required are
+$U^{(c)}_\bullet = \sum_{i\neq j} U^{(c)}_{ij}$ (a scalar per class)
+and the dwell--frequency contraction~$D^{(c)}$, which is itself a
+scalar inner product of the fixed quantity
+$\exch^{(c)}_{ij}(W^{(c)}_i \eqm^{(c)}_j + W^{(c)}_j \eqm^{(c)}_i)$
+against the per-pair count.  Both are linear in the underlying
+per-pair $(W, U)$ statistics, so under SVI-BW they accumulate via the
+same EMA used for the standard M-step (no special handling).
+
+\paragraph{MAP estimate.}
+With a Gamma$(a_\sigma, b_\sigma)$ prior on $\sigma$, the augmented
+M-step is
+\begin{equation}\label{eq:rescale-map}
+\hat\sigma = \frac{U_\bullet + a_\sigma - 1}{D + b_\sigma}.
+\end{equation}
+The Gamma prior on the global rate is conjugate (the model is linear
+in $\sigma$), in contrast to the non-conjugate prior on
+the full-shape M-step.  In the rate-rescaling regime the standard
+$(N_\pi, N_S)$ pseudocounts on $(\exch, \eqm)$ are inactive (those
+parameters are frozen); $(a_\sigma, b_\sigma)$ centred at $\sigma = 1$
+(e.g.\ $a_\sigma = b_\sigma = N_\sigma$ for some effective sample size
+$N_\sigma$) regularises the rate towards the current frozen scale.
+
+\paragraph{When to use.}
+Rate rescaling is a useful intermediate regime between fully-frozen
+substitution parameters (no M-step) and the full-shape mixture M-step
+of Section~\ref{sec:mstep-mixture}.  It is particularly natural when
+warm-starting from a published matrix and one wishes to absorb a
+calibration drift in the time units of the data \emph{without}
+re-estimating the relative chemistry.  In an alternating schedule
+(e.g.\ alternate $\sigma_c$ updates with tied-$\eqm$
+\eqref{eq:tied-pi-pi-update} updates) the rescaling step
+contributes a single guaranteed $\ell_2$ ascent per class per
+iteration, and the alternation does not destabilise the joint
+objective because each step is an exact maximisation in its own
+coordinate.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Joint Rate Rescaling and Equilibrium}
+\label{sec:mstep-rescaling-pi}
+
+A natural extension of the rate-rescaling regime
+(Section~\ref{sec:mstep-rescaling}) frees the equilibrium
+distribution~$\eqm$ jointly with the scale~$\sigma$ while keeping the
+exchangeability shape $\exch$ fixed.  This matches the substitution
+degrees of freedom of a Maraschino-style fit with
+\verb|--freeze-class-S-shape| (per-class $\sigma_c$ and $\eqm^{(c)}$
+free, $\exch^{(c)}$ shape locked at LG), and is the natural
+SVI--BW counterpart when warm-starting from such a fit: the previous
+\verb|rescaling-rates| mode artificially froze $\eqm^{(c)}$ at the
+warm-start values, dropping $A-1$ degrees of freedom per class.
+
+\paragraph{Joint complete-data log-likelihood.}
+With $\revsub_{ij} = \sigma\,\exch_{ij}\,\eqm_j$ and $\exch$ frozen,
+the complete-data log-likelihood as a function of $(\sigma, \eqm)$ is
+\begin{equation}\label{eq:rescale-pi-ll}
+\ell_2(\sigma, \eqm) =
+   \sum_i V'_i \log \eqm_i + U_\bullet \log \sigma
+   - \sigma \sum_{j>i} \exch_{ij}\bigl(W_i \eqm_j + W_j \eqm_i\bigr)
+   + \mathrm{const},
+\end{equation}
+where the constant collects the frozen $\sum_{j>i}(U_{ij}+U_{ji})\log\exch_{ij}$
+term.  Using $\exch_{ij} = \exch_{ji}$ and $\exch_{ii} = 0$, the dwell
+penalty contracts as
+\[
+\sum_{j>i}\exch_{ij}\bigl(W_i\eqm_j + W_j\eqm_i\bigr)
+= \sum_b \eqm_b\,r_b,
+\qquad
+r_b := \sum_{a\neq b} \exch_{ab} W_a = (\exch W)_b,
+\]
+so $r_b$ depends only on the frozen quantities $(\exch, W)$ and is
+constant under variation of $(\sigma, \eqm)$.  Equation
+\eqref{eq:rescale-pi-ll} simplifies to
+\begin{equation}\label{eq:rescale-pi-ll-simple}
+\ell_2(\sigma, \eqm) =
+   \sum_b V'_b \log \eqm_b + U_\bullet \log \sigma
+   - \sigma\,\mathbf{r}^\top \eqm + \mathrm{const}.
+\end{equation}
+
+\paragraph{Stationary conditions.}
+Lagrangian for $\sum_b \eqm_b = 1$ with multiplier $\lambda$:
+\[
+\mathcal{L}(\sigma,\eqm,\lambda)
+= \ell_2(\sigma,\eqm) - \lambda\Bigl(\sum_b \eqm_b - 1\Bigr).
+\]
+The first-order conditions are
+\begin{align}
+\frac{\partial \mathcal{L}}{\partial \sigma}
+   &= \frac{U_\bullet}{\sigma} - \mathbf{r}^\top\eqm = 0
+   \;\Longrightarrow\;
+   \sigma = \frac{U_\bullet}{\mathbf{r}^\top\eqm},
+   \label{eq:rescale-pi-foc-sigma}\\[2pt]
+\frac{\partial \mathcal{L}}{\partial \eqm_b}
+   &= \frac{V'_b}{\eqm_b} - \sigma r_b - \lambda = 0
+   \;\Longrightarrow\;
+   \eqm_b = \frac{V'_b}{\lambda + \sigma r_b}.
+   \label{eq:rescale-pi-foc-pi}
+\end{align}
+
+\paragraph{The Lagrange multiplier is fixed.}
+A clean structural property obtains by multiplying
+\eqref{eq:rescale-pi-foc-pi} through by $\eqm_b$ and summing:
+\[
+\sum_b V'_b = \lambda \sum_b \eqm_b + \sigma\, \mathbf{r}^\top \eqm
+= \lambda + \sigma\,\mathbf{r}^\top\eqm.
+\]
+The $\sigma$-FOC \eqref{eq:rescale-pi-foc-sigma} sets
+$\sigma\,\mathbf{r}^\top\eqm = U_\bullet$, so
+\[
+N \;=\; \lambda + U_\bullet,
+\qquad N := \sum_b V'_b = V_\bullet + U_\bullet,
+\]
+which gives
+\begin{equation}\label{eq:rescale-pi-lambda}
+\boxed{\;\lambda \;=\; V_\bullet,\;}
+\end{equation}
+\emph{independent of $\sigma$}: the multiplier is fully determined by
+the boundary count $V_\bullet = \sum_i V_i$.
+
+\paragraph{Closed-form $\eqm(\sigma)$ and 1-D root in $\sigma$.}
+Substituting~\eqref{eq:rescale-pi-lambda}
+into~\eqref{eq:rescale-pi-foc-pi},
+\begin{equation}\label{eq:rescale-pi-pi-of-sigma}
+\hat\eqm_b(\sigma) = \frac{V'_b}{V_\bullet + \sigma\, r_b}.
+\end{equation}
+Note $\sum_b \hat\eqm_b(\sigma) = 1$ at $\sigma$ satisfying the
+$\sigma$-FOC, automatically.  Plugging back into the
+$\sigma$-FOC \eqref{eq:rescale-pi-foc-sigma}, $\sigma$ satisfies the
+single one-dimensional equation
+\begin{equation}\label{eq:rescale-pi-sigma-eq}
+g(\sigma) := \sum_b \frac{\sigma\, r_b\, V'_b}{V_\bullet + \sigma\, r_b}
+\;-\; U_\bullet \;=\; 0,
+\qquad \sigma > 0.
+\end{equation}
+
+\paragraph{Existence and uniqueness.}
+$g$ is well-defined and smooth for $\sigma > 0$ (denominators are
+positive when $V_\bullet > 0$ or $r_b > 0$).  Boundary behaviour:
+\[
+g(0) = -U_\bullet \le 0,
+\qquad
+g(\sigma) \xrightarrow[\sigma\to\infty]{} \sum_b V'_b - U_\bullet
+= V_\bullet \ge 0,
+\]
+and the derivative is strictly positive,
+\[
+g'(\sigma) = \sum_b \frac{r_b V'_b\, V_\bullet}{(V_\bullet + \sigma r_b)^2} > 0
+\quad\text{whenever some } r_b V'_b > 0.
+\]
+Hence $g$ is strictly increasing and crosses zero exactly once at a
+unique $\hat\sigma > 0$ (provided $V_\bullet > 0$ and $U_\bullet > 0$;
+otherwise the boundary $\hat\sigma = 0$ or $\hat\sigma \to \infty$ is
+the maximiser and the regime is degenerate).  The joint stationary
+point $(\hat\sigma, \hat\eqm)$ is thus globally unique on the simplex.
+
+\paragraph{Numerical solution: 1-D Newton.}
+$g$ is monotone with a closed-form derivative, so a few Newton steps
+on $\log\sigma$ (or bisection in $\sigma$) starting from the warm
+$\sigma_{\mathrm{old}}$ converges to machine precision in $\le 10$
+iterations.  Once $\hat\sigma$ is found, $\hat\eqm$ follows from
+\eqref{eq:rescale-pi-pi-of-sigma}.
+
+\paragraph{Equivalent: coordinate ascent.}
+Both individual updates~\eqref{eq:rescale-pi-foc-sigma} and
+\eqref{eq:rescale-pi-foc-pi} are exact closed-form maximisations of
+$\ell_2$ in their own coordinate (for fixed value of the other),
+so alternating
+\begin{align*}
+\sigma &\leftarrow U_\bullet \,/\, (\mathbf{r}^\top \eqm),\\
+\eqm_b &\leftarrow V'_b \,/\, (V_\bullet + \sigma\, r_b)
+\quad (\text{automatically normalised once $\lambda = V_\bullet$ holds})
+\end{align*}
+gives a monotone $\ell_2$ ascent and converges to the unique fixed
+point identified above.  In code, $\sim 5$ alternation rounds
+typically suffice; the 1-D Newton on \eqref{eq:rescale-pi-sigma-eq} is
+slightly faster and gives the same answer.
+
+\paragraph{Mixture form (per-class).}
+Applied class by class to the reversible mixture of
+Section~\ref{sec:mstep-mixture}, each class $c$ has its own pair
+$(\sigma_c, \eqm^{(c)})$ updated independently from its own per-class
+sufficient statistics $(W^{(c)}, U^{(c)}, V^{(c)})$ and its own fixed
+$\exch^{(c)}$ shape:
+\begin{equation}\label{eq:rescale-pi-class}
+\hat\sigma_c\;\text{solves}\;
+\sum_b \frac{\hat\sigma_c\, r^{(c)}_b\, V'^{(c)}_b}
+            {V_\bullet^{(c)} + \hat\sigma_c\, r^{(c)}_b}
+= U_\bullet^{(c)},
+\qquad
+\hat\eqm^{(c)}_b = \frac{V'^{(c)}_b}{V_\bullet^{(c)} + \hat\sigma_c\, r^{(c)}_b},
+\end{equation}
+with $r^{(c)}_b = \sum_{a\neq b}\exch^{(c)}_{ab} W^{(c)}_a$.  Classes
+do not couple, by the same class-decomposition~\eqref{eq:mix-loglik}
+that justifies per-class M-steps in the standard mixture regime.
+
+\paragraph{Aggregation of counts.}
+The required sufficient statistics per class are
+$(U_\bullet^{(c)}, V_\bullet^{(c)}, V'^{(c)}, r^{(c)})$.  All are
+linear contractions of the underlying per-pair $(W, U, V)$ statistics
+against the fixed quantities $(\exch^{(c)}, V_\bullet^{(c)} = $ count
+of $V$ entries$)$, so under SVI--BW they accumulate via the same EMA
+used for the standard M-step (no special handling).
+
+\paragraph{Reduction to pure rescaling.}
+Setting $\eqm = \eqm_{\mathrm{old}}$ in \eqref{eq:rescale-pi-foc-sigma}
+recovers the closed form $\hat\sigma = U_\bullet / D$ of
+\eqref{eq:rescale-sigma}.  The joint mode strictly dominates pure
+rescaling whenever $\hat\eqm \neq \eqm_{\mathrm{old}}$ at the joint
+optimum (i.e.\ whenever the Maraschino-fit warm $\eqm$ is not exactly
+the M-step optimum given the current $W, U, V$); in practice the gain
+is largest immediately after a warm start that fixed $\eqm$ away from
+its joint optimum.
+
+\paragraph{When to use.}
+Use the joint $(\sigma, \eqm)$ rescaling when warm-starting from a
+fit that already learnt per-class $(\sigma_c, \eqm^{(c)})$ but the
+SVI--BW M-step should keep updating both with new evidence.  Use the
+pure $\sigma$-only rescaling when the warm $\eqm^{(c)}$ should be
+treated as a strong prior or when one wishes to attribute any
+substitution-rate drift purely to the time scale.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Tied Equilibria across Class Blocks}
+\label{sec:mstep-tied-pi}
+
+A second restricted regime ties the equilibrium distribution
+$\eqm^{(c)}$ across blocks of site classes while leaving
+exchangeabilities $\exch^{(c)}$ free.  Partition the $C$ classes
+$\{1,\dots,C\}$ into $B = C / N_{\mathrm{tied}}$ disjoint blocks
+$\mathcal{B}_1,\dots,\mathcal{B}_B$ each of size $N_{\mathrm{tied}}$
+(we require $N_{\mathrm{tied}} \mid C$).  Within each block~$b$ all
+classes share a common equilibrium distribution
+\begin{equation}\label{eq:tied-pi-tying}
+\eqm^{(c)} \equiv \tilde\eqm^{(b)}
+\quad \text{for all } c \in \mathcal{B}_b.
+\end{equation}
+
+\paragraph{Block-pooled complete-data log-likelihood.}
+Substituting~\eqref{eq:tied-pi-tying} into~\eqref{eq:mix-loglik}, the
+log-likelihood decomposes across blocks rather than across individual
+classes:
+\begin{equation}\label{eq:tied-pi-loglik}
+\ell_2 = \sum_{b=1}^{B} \ell_2^{(b)},
+\end{equation}
+\begin{align}
+\ell_2^{(b)} &=
+   \sum_i \tilde V'^{(b)}_i \log \tilde\eqm^{(b)}_i
+   \;+\; \sum_{c\in\mathcal{B}_b}\sum_{j>i}
+        \bigl(U^{(c)}_{ij}+U^{(c)}_{ji}\bigr)\log\exch^{(c)}_{ij}
+   \notag\\
+&\quad - \sum_{c\in\mathcal{B}_b}\sum_{j>i}
+   \exch^{(c)}_{ij}\,
+   \bigl(W^{(c)}_i\,\tilde\eqm^{(b)}_j
+        + W^{(c)}_j\,\tilde\eqm^{(b)}_i\bigr),
+\label{eq:tied-pi-loglik-b}
+\end{align}
+with the pooled equilibrium-character count
+\begin{equation}\label{eq:tied-pi-Vprime}
+\tilde V'^{(b)}_i = \sum_{c\in\mathcal{B}_b} V'^{(c)}_i.
+\end{equation}
+The exchangeability parts~$\exch^{(c)}$ remain class-specific; only
+the equilibrium term pools.
+
+\paragraph{Block M-step.}
+Within block~$b$, alternate between the per-class $\exch^{(c)}$ update
+(holding $\tilde\eqm^{(b)}$ fixed) and the pooled $\tilde\eqm^{(b)}$
+update (holding all $\exch^{(c)}, c\in\mathcal{B}_b$ fixed).
+The $\exch$-step uses the standard mixture
+formula~\eqref{eq:mix-S-update} with the shared $\tilde\eqm^{(b)}$:
+\begin{equation}\label{eq:tied-pi-S-update}
+\hat\exch^{(c)}_{ij}
+= \frac{U^{(c)}_{ij}+U^{(c)}_{ji}}
+       {W^{(c)}_i\,\tilde\eqm^{(b)}_j
+       + W^{(c)}_j\,\tilde\eqm^{(b)}_i}
+\quad (c\in\mathcal{B}_b).
+\end{equation}
+The $\tilde\eqm^{(b)}$-step is the same Lagrange-multiplier solve as
+the unconstrained mixture M-step, but with pooled coefficients.
+Differentiating~\eqref{eq:tied-pi-loglik-b}:
+\begin{equation}\label{eq:tied-pi-pi-update}
+\tilde\eqm^{(b)}_i
+= \frac{\tilde V'^{(b)}_i}{\tilde c^{(b)}_i - \eta},
+\qquad
+\tilde c^{(b)}_i
+= \sum_{c\in\mathcal{B}_b}\sum_{j\neq i}\exch^{(c)}_{ij}\,W^{(c)}_j,
+\end{equation}
+with $\eta$ found by 1D bisection from
+$\sum_i \tilde V'^{(b)}_i / (\tilde c^{(b)}_i - \eta) = 1$, exactly as
+in Section~\ref{sec:bw-tkf91}.  Each coordinate update is an exact
+maximiser within its coordinate; the joint objective on
+$(\exch^{(\cdot)}, \tilde\eqm^{(b)})$ is strictly concave on
+$\mathbb{R}_+^{|\mathcal{B}_b| \cdot \binom{|\alphabet|}{2}}
+   \times \Delta^{|\alphabet|-1}$ (the latter the simplex), so the
+coordinate ascent converges to the unique block MLE.
+
+\paragraph{Connection to standard models.}
+With $N_{\mathrm{tied}} = 1$ (one class per block) the tying is
+trivial and~\eqref{eq:tied-pi-pi-update} reduces to the per-class
+Lagrange solve of Section~\ref{sec:mstep-mixture}.
+With $N_{\mathrm{tied}} = C$ (one block containing all classes) all
+classes share a single $\tilde\eqm$ — the discrete-rate-classes
+parameterisation of~\cite{Yang1994a} when the $\exch^{(c)}$ are also
+proportional to a shared shape.
+For intermediate $N_{\mathrm{tied}}$ the tying captures shared
+equilibrium chemistry across classes that nonetheless differ in their
+exchangeability (and hence in their substitution \emph{pattern} and
+\emph{rate}), without forcing every class to maintain its own
+equilibrium estimate.
+
+\paragraph{Pseudocounts.}
+The LG-informed Dirichlet pseudocount on~$\tilde\eqm^{(b)}$ adds
+$N_\pi\,\eqm^{\mathrm{LG}}_i$ to $\tilde V'^{(b)}_i$ once per block
+(not once per class within the block); the per-class
+Gamma$(a_S, b_S)$ pseudocount on~$\exch^{(c)}_{ij}$ enters the
+class-specific update~\eqref{eq:tied-pi-S-update} unchanged.
+
+\paragraph{Combination with rate rescaling.}
+Tied-$\eqm$ and rate rescaling can also be \emph{combined} within a
+single M-step: each class has its own scalar $\sigma_c$ but classes
+within a block share the equilibrium $\tilde\eqm^{(b)}$.  The
+coordinate-ascent factorisation does dispatch in that joint regime;
+see Section~\ref{sec:mstep-tied-pi-rescaling}.  The frozen-$\eqm$
+mode (which fixes $\eqm^{(c)}$ at its initialisation, with no M-step
+update) remains an alternative restriction.  Alternation
+\emph{across} M-steps (rate rescaling on odd iterations, tied-$\eqm$
+on even iterations) is valid in addition because each step is an
+unconditional ascent on the joint $\ell_2$.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Tied Equilibria with Per-Class Rate Rescaling}
+\label{sec:mstep-tied-pi-rescaling}
+
+The two restrictions of Sections~\ref{sec:mstep-rescaling} and
+\ref{sec:mstep-tied-pi} can be applied jointly to the same mixture
+M-step: each class~$c$ in block~$\mathcal{B}_b$ has its own
+\emph{scalar} rate multiplier $\sigma_c$, with the exchangeability
+shape $\exch^{(c)}$ frozen, while all classes within the block share
+a common equilibrium $\tilde\eqm^{(b)}$.  This matches the
+substitution degrees of freedom of a Maraschino-style fit with
+\verb|--freeze-class-S-shape| under a block-tied
+\verb|class_pi| constraint and is strictly more constrained than the
+joint $(\sigma_c, \eqm^{(c)})$ M-step of
+Section~\ref{sec:mstep-rescaling-pi}.
+
+\paragraph{Block-pooled complete-data log-likelihood.}
+With $\revsub^{(c)}_{ij} = \sigma_c\,\exch^{(c)}_{ij}\,\tilde\eqm^{(b)}_j$
+for $c \in \mathcal{B}_b$ (with $\exch^{(c)}$ frozen), the per-block
+log-likelihood is
+\begin{equation}\label{eq:tpr-ll}
+\ell_2^{(b)}(\{\sigma_c\}_{c\in\mathcal{B}_b}, \tilde\eqm^{(b)}) =
+   \sum_b' \tilde V'^{(b)}_{b'} \log\tilde\eqm^{(b)}_{b'}
+   + \sum_{c\in\mathcal{B}_b}\Bigl[ U^{(c)}_\bullet \log\sigma_c
+       - \sigma_c\, \mathbf{r}^{(c)\top} \tilde\eqm^{(b)} \Bigr]
+   + \mathrm{const},
+\end{equation}
+where the constant collects $\sum_c \sum_{j>i}(U^{(c)}_{ij}+U^{(c)}_{ji})
+\log\exch^{(c)}_{ij}$ (frozen),
+$\tilde V'^{(b)}_{b'} = \sum_{c\in\mathcal{B}_b} V'^{(c)}_{b'}$
+is the block-pooled boundary count, and
+$r^{(c)}_{b'} = \sum_{a\neq b'} \exch^{(c)}_{a,b'} W^{(c)}_a$
+depends only on the frozen $(\exch^{(c)}, W^{(c)})$.
+
+\paragraph{Stationary conditions.}
+Lagrangian for $\sum_{b'}\tilde\eqm^{(b)}_{b'} = 1$ with multiplier
+$\lambda^{(b)}$:
+\begin{align}
+\frac{\partial}{\partial \sigma_c}
+   &= \frac{U^{(c)}_\bullet}{\sigma_c}
+        - \mathbf{r}^{(c)\top}\tilde\eqm^{(b)} = 0
+   \;\Longrightarrow\;
+   \sigma_c = \frac{U^{(c)}_\bullet}
+                   {\mathbf{r}^{(c)\top}\tilde\eqm^{(b)}},
+   \label{eq:tpr-foc-sigma}\\[2pt]
+\frac{\partial}{\partial \tilde\eqm^{(b)}_{b'}}
+   &= \frac{\tilde V'^{(b)}_{b'}}{\tilde\eqm^{(b)}_{b'}}
+        - \sum_{c\in\mathcal{B}_b} \sigma_c\,r^{(c)}_{b'}
+        - \lambda^{(b)} = 0
+   \;\Longrightarrow\;
+   \tilde\eqm^{(b)}_{b'} = \frac{\tilde V'^{(b)}_{b'}}
+       {\lambda^{(b)} + \sum_{c\in\mathcal{B}_b} \sigma_c r^{(c)}_{b'}}.
+   \label{eq:tpr-foc-pi}
+\end{align}
+
+\paragraph{Block Lagrange multiplier is fixed.}
+Multiplying~\eqref{eq:tpr-foc-pi} by $\tilde\eqm^{(b)}_{b'}$ and
+summing over $b'$,
+\[
+\sum_{b'} \tilde V'^{(b)}_{b'}
+= \lambda^{(b)} + \sum_{c\in\mathcal{B}_b} \sigma_c\,
+     \mathbf{r}^{(c)\top}\tilde\eqm^{(b)}.
+\]
+Substituting~\eqref{eq:tpr-foc-sigma} into the right-hand side
+collapses the $\sigma_c$-dependent term to $\sum_c U^{(c)}_\bullet$,
+giving
+\begin{equation}\label{eq:tpr-lambda}
+\boxed{\;\lambda^{(b)} \;=\; \tilde V_\bullet^{(b)},\;}
+\qquad
+\tilde V_\bullet^{(b)} := \sum_{c\in\mathcal{B}_b} V_\bullet^{(c)}
+= \sum_{c\in\mathcal{B}_b}\sum_i V^{(c)}_i,
+\end{equation}
+generalising the single-class result~\eqref{eq:rescale-pi-lambda}.
+The multiplier is fully determined by the block-pooled boundary
+count.
+
+\paragraph{Closed-form coupled updates.}
+Substituting~\eqref{eq:tpr-lambda} into~\eqref{eq:tpr-foc-pi},
+\begin{equation}\label{eq:tpr-pi-update}
+\hat{\tilde\eqm}^{(b)}_{b'} = \frac{\tilde V'^{(b)}_{b'}}
+   {\tilde V_\bullet^{(b)}
+    + \sum_{c\in\mathcal{B}_b} \sigma_c\, r^{(c)}_{b'}}.
+\end{equation}
+Equation~\eqref{eq:tpr-pi-update} together with
+\eqref{eq:tpr-foc-sigma} forms a closed nonlinear system in the
+$|\mathcal{B}_b|+A$ unknowns $(\{\sigma_c\}, \tilde\eqm^{(b)})$ per
+block.  Two practical solvers, both monotone in $\ell_2^{(b)}$:
+
+\begin{enumerate}
+\item \emph{Coordinate ascent.}  Alternate
+  $\sigma_c \leftarrow U^{(c)}_\bullet / (\mathbf{r}^{(c)\top}\tilde\eqm^{(b)})$
+  for each $c \in \mathcal{B}_b$ and
+  $\tilde\eqm^{(b)} \leftarrow \tilde V'^{(b)} \,/\,
+  (\tilde V_\bullet^{(b)} + \sum_c \sigma_c r^{(c)})$ (componentwise),
+  with a final renormalisation safety guard.  Each update is the
+  exact closed-form maximiser in its own coordinate; convergence to
+  the unique block-optimum follows in $\sim 5\text{--}20$ rounds.
+\item \emph{Substitute and root-find.}  Eliminate $\sigma_c$ from
+  \eqref{eq:tpr-pi-update} via~\eqref{eq:tpr-foc-sigma}; the result is
+  a vector fixed-point equation in $\tilde\eqm^{(b)} \in \Delta^{A-1}$
+  alone.  When $|\mathcal{B}_b|$ is small (typical: 2--5), the
+  resulting low-dimensional system is amenable to a damped Newton
+  iteration on the $A-1$ free $\tilde\eqm$ components; in practice
+  coordinate ascent is faster and simpler.
+\end{enumerate}
+Both solvers reach the same fixed point because $\ell_2^{(b)}$ is
+strictly concave in each block of variables given the others (the
+$\log$ terms ensure positivity through the FOCs).
+
+\paragraph{Mixture-wide M-step.}
+The blocks decouple in the same way the classes do under
+Section~\ref{sec:mstep-tied-pi}: the joint
+$\ell_2 = \sum_b \ell_2^{(b)}$ separates over $b$, so each block can
+be solved independently.
+
+\paragraph{Aggregation of counts.}
+Per block, the required sufficient statistics are the per-class
+$(U^{(c)}_\bullet, V'^{(c)}, r^{(c)})$ for $c \in \mathcal{B}_b$ plus
+the block totals $\tilde V'^{(b)}, \tilde V_\bullet^{(b)}$.  All are
+linear in $(W, U, V)$ and accumulate via the same EMA used by the
+standard M-step.
+
+\paragraph{Reduction to special cases.}
+Setting $|\mathcal{B}_b| = 1$ (each class its own block) recovers
+the joint $(\sigma_c, \eqm^{(c)})$ M-step of
+Section~\ref{sec:mstep-rescaling-pi}; setting all $\sigma_c = 1$
+(no rate rescaling within block) recovers a degenerate version of
+the tied-$\eqm$ M-step with frozen exchangeabilities; freezing
+$\tilde\eqm^{(b)}$ at its current value recovers the rate-only
+rescaling of Section~\ref{sec:mstep-rescaling}.  Strict dominance
+holds in both directions: this regime improves on
+Section~\ref{sec:mstep-rescaling} by adding the $\eqm$ degree of
+freedom and improves on Section~\ref{sec:mstep-tied-pi} (with
+$\exch^{(c)}$ frozen at LG) by adding per-class $\sigma_c$.
+
+\paragraph{When to use.}
+Use this regime when the warm-start fit (e.g.\ Maraschino with
+\verb|--freeze-class-S-shape|) ties classes into blocks with shared
+equilibrium chemistry but distinct rates, and the SVI--BW M-step
+should preserve that tying while continuing to update both
+$(\sigma_c, \tilde\eqm^{(b)})$ from new evidence.  The block tying
+is a strong inductive bias when the number of classes per block is
+small relative to $A$ and the per-class equilibrium counts
+$V'^{(c)}$ would otherwise be too sparse to estimate
+$\eqm^{(c)}$ reliably.
+

@@ -1,0 +1,28 @@
+{
+  "benchmark": "BAliBASE 3 (bali3pdbm)",
+  "model": "TKF92 mixture (K=1) family-level posteriors",
+  "mixture_ckpt": "pfam/tkf92_K1_train.npz",
+  "anchor_json": "/home/yam/tkf-mixdom/python/experiments/tkf92_fitted_params.json",
+  "n_outer_rounds": 0,
+  "approach": 1,
+  "pair_selection": "full",
+  "label": "tkf92_mix1_a1",
+  "n_families": 1,
+  "partial": true,
+  "results": [
+    {
+      "family": "BB11018",
+      "n_seqs": 12,
+      "n_pairs": 66,
+      "msa_length": 1308,
+      "sp": 0.914368403132448,
+      "tc": 0.7415730337078652,
+      "time": 6427.255242347717,
+      "R_family": [
+        1.0
+      ],
+      "tau_pair_mean": 1.9357402423542693,
+      "tau_pair_max": 2.226136471763409
+    }
+  ]
+}

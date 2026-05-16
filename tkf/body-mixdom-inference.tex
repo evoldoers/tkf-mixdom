@@ -1,0 +1,311 @@
+\section{Selected Inference Algorithms for MixDom}
+
+\subsection{Fast Statistical Alignment (FSA)}
+\label{sec:fsa}
+
+Given a set of sequences and a phylogenetic tree with branch-specific pair HMMs
+(TKF92, MixDom, or distilled order-1 transducers),
+we construct a multiple sequence alignment using the
+\emph{sequence annealing} approach of \cite{BradleyEtAl2009},
+to which we refer the reader for a full description of the algorithm.
+
+Briefly, the method proceeds as follows.
+For each pair of sequences $(x,y)$ in a selected subset
+(either all $\binom{N}{2}$ pairs or an $O(N \log N)$ Erd\H{o}s--R\'enyi sample),
+we compute pairwise residue alignment posteriors $P(x_i \sim y_j)$
+by running the Forward-Backward algorithm on the pair HMM at an
+optimized evolutionary time $\hat{\tau}$.
+The time $\hat{\tau}$ is found by Newton--Raphson optimization
+of the expected log-likelihood (the ``NR step''):
+\begin{align}
+\hat{\tau} &= \operatorname*{argmax}_\tau \; \mathbb{E}_{P(\pi | x,y,\tau_0)} \bigl[ \log P(x,y,\pi \mid \tau) \bigr]
+\label{eq:fsa-nr}
+\end{align}
+where $\pi$ ranges over alignment paths and $\tau_0$ is an initial estimate.
+This expectation is computed from Forward-Backward expected counts
+at $\tau_0$, and typically converges in 3--5 Newton steps.
+(This time-maximization differs slightly from the approach of \cite{BradleyEtAl2009}
+which attempts to optimize all model parameters via unregularized EM for every pair,
+and consequently must terminate the EM recursion early to avoid instability.)
+
+The pairwise posteriors are then assembled into a multiple alignment
+by the greedy sequence annealing procedure of \cite{BradleyEtAl2009},
+which iteratively merges alignment columns to maximize a sum-of-pairs
+posterior objective.
+
+
+\subsection{Beam Search Ancestral Sequence Reconstruction (BeamASR)}
+\label{sec:beam-ancestor}
+
+We now describe an alternative progressive reconstruction method
+that finds the maximum-likelihood ancestral sequence at each internal node
+by beam search, without materializing the full composite automaton.
+
+At each internal node $v$ with children $l,r$ and observed descendant sequences
+$c_l, c_r$, we seek
+\begin{align}
+\hat{a}_v &= \operatorname*{argmax}_{a} \bigl[ \log P(a, c_l \mid B_l) + \log P(a, c_r \mid B_r) - \log P(a \mid R) \bigr]
+\label{eq:beam-ancestor}
+\end{align}
+where $P(a, c_k \mid B_k)$ is the pair HMM forward probability on branch $k$
+and $P(a \mid R)$ is the singlet probability under the root generator,
+subtracted to avoid double-counting the prior on~$a$.
+
+\subsubsection{Incremental forward profiles}
+
+Since the branches are conditionally independent given the ancestor,
+we can evaluate~(\ref{eq:beam-ancestor}) by maintaining
+\emph{incremental forward profiles}: for each branch $k$, a 1D forward table
+$F_k[i, q]$ giving the log-probability that descendant positions $1,\ldots,i$
+have been emitted and the branch machine is in state $q$,
+given ancestor positions $1,\ldots,j$ processed so far.
+
+Each ancestor character extends both profiles independently in $O(L_k)$ time
+per branch, where $L_k = |c_k|$.
+
+\subsubsection{Beam search}
+
+The ancestor sequence $\hat{a}_v$ is built left-to-right by beam search.
+At each position $j$, the beam maintains $B$ candidate partial ancestors.
+For each candidate and each alphabet character $\sigma$:
+\begin{enumerate}
+\item Extend both branch profiles by one ancestor character $\sigma$,
+  comprising a \emph{match/delete phase} (the ancestor emits $\sigma$,
+  descendant positions advance via M or D transitions)
+  and an \emph{insertion phase} (descendant-only insertions following the
+  ancestor emission).
+\item Update the singlet forward score for $\sigma$.
+\item Score the extension:
+  $\Delta(j, \sigma) = \Delta F_{l} + \Delta F_{r} - \Delta_{\mathrm{singlet}}$.
+\end{enumerate}
+The top $B$ extensions (by cumulative score) are retained.
+Total cost per node is $O(K \cdot B \cdot A \cdot (L_l + L_r))$
+where $K = |\hat{a}_v|$ and $A$ is the alphabet size.
+
+\subsubsection{Insertion phase via associative scan}
+
+The insertion recurrence within each branch profile has the form
+\begin{align}
+x_{i+1} &= \operatorname{logsumexp}\bigl(A_{II} \, x_i,\; b_i\bigr) + e_i
+\label{eq:insert-recurrence}
+\end{align}
+where $A_{II}$ is the I-to-I log-transition submatrix, $b_i$ collects
+transitions into insertion states from M and D, and $e_i$ is the emission score.
+This is a log-semiring affine recurrence, parallelizable via
+an associative scan with operator
+\[
+(A_1, b_1) \oplus (A_2, b_2) = (A_2 \otimes A_1,\; \operatorname{logsumexp}(A_2 \, b_1,\; b_2))
+\]
+where $\otimes$ denotes log-semiring matrix multiplication.
+This reduces the insertion phase from $O(L)$ sequential depth to $O(\log L)$.
+
+\subsubsection{Supported model types}
+
+The beam search interface is generic over the pair HMM used on each branch:
+\begin{enumerate}
+\item \textbf{TKF92} --- order-0, 5-state pair HMM (the standard model).
+\item \textbf{MixDom} --- the full latent-state pair HMM (Section~\ref{sec:nestpairhmm})
+  with $2 + 5NK$ states; latent-state correlations are marginalized
+  in the forward pass without distillation.
+%\item \textbf{Distilled order-1 transducer} --- an order-1 context-dependent
+%  transducer (Section~\ref{sec:order1trans}), expanded to a standard pair HMM
+%  with $O(A)$ states per structural state.
+\end{enumerate}
+
+
+%\subsection{Variational ancestral reconstruction (VarAnc)}
+% \label{sec:varanc}
+% 
+% Given an MSA with known gap structure---i.e., for each internal node $v$ and MSA column $c$,
+% we know whether $v$ is present (ungapped) or absent (gapped)---but unknown ancestral residue
+% identities, we optimize a variational lower bound (ELBO) on the marginal likelihood.
+% Our approach is a ``product of trees'' structured variational
+% approximation~\cite{JojicEtAl2004}, adapted to the order-1 WFST framework.
+% 
+% \subsubsection{Model structure}
+% 
+% The joint distribution over observed leaf sequences $\mathbf{y}$
+% and ancestral sequences $\mathbf{a}$ factorizes over tree edges.
+% With the alignment structure fixed, the log-likelihood decomposes into
+% contributions from consecutive alignment-column pairs along each edge $e = (u,v)$:
+% \begin{align}
+% \log P(\mathbf{y}, \mathbf{a})
+%  &= \sum_{e \in \mathrm{edges}} \sum_{k=1}^{K_e}
+%     \log w_e\!\bigl(\mathrm{type}_{k-1},\, \mathrm{type}_k,\, \mathrm{ctx}_{k-1},\, \mathrm{ctx}_k\bigr)
+% \label{eq:lik-edges}
+% \end{align}
+% where $w_e$ is the order-1 WFST transition weight on edge $e$
+% (depending on the previous and current column types and context characters).
+% The first and last columns contribute start ($\sta$) and end ($\fin$) transition factors.
+% 
+% The key computational challenge is that the order-1 transitions couple
+% adjacent alignment columns: the WFST weight at column $c$ depends on the
+% ancestral and descendant characters at both column $c$ and its predecessor.
+% This makes the full graphical model a tree (phylogeny) $\times$ chain (sequence)
+% grid with undirected cycles, and exact inference is intractable.
+% 
+% \subsubsection{Product-of-trees variational distribution}
+% 
+% Following~\cite{JojicEtAl2004}, we factorize the variational posterior
+% over MSA columns while retaining the full tree joint at each column:
+% \begin{align}
+% q(\mathbf{a}) &= \prod_{c=1}^{L} q_c\!\bigl(\mathbf{h}_c\bigr)
+% \label{eq:var-q-pot}
+% \end{align}
+% where $\mathbf{h}_c = \{a_{v,c} : v \in \mathrm{ungapped}(c)\}$ denotes the set of
+% all ancestral characters at MSA column $c$,
+% and each $q_c$ is a tree-structured distribution over the characters at the
+% internal nodes that are ungapped at column $c$.
+% Leaf characters are observed (clamped).
+% 
+% This approximation decouples columns in $q$ but preserves the
+% full parent-child correlation structure within each column.
+% In particular, the pairwise joint marginal
+% $q_c^{(u,v)}(a_u, a_v)$ on each tree edge is available exactly from
+% the Felsenstein peeling/unpeeling pass used to represent $q_c$
+% (Section~\ref{sec:felsenstein-update}).
+% 
+% \subsubsection{Free energy and ELBO}
+% 
+% The evidence lower bound is
+% \begin{align}
+% \mathcal{L}(q) &= \mathbb{E}_q\bigl[\log P(\mathbf{y}, \mathbf{a})\bigr] + H(q)
+%   \;\geq\; \log P(\mathbf{y})
+% \label{eq:elbo}
+% \end{align}
+% where $H(q) = -\sum_c \sum_{\mathbf{h}_c} q_c(\mathbf{h}_c) \log q_c(\mathbf{h}_c)$
+% is the entropy of the product-of-trees distribution.
+% Since each $q_c$ is tree-structured, its entropy decomposes as
+% \begin{align}
+% H(q_c) &= \sum_{v \in \mathrm{ungapped}(c)} H\!\bigl(q_c^{(v)}\bigr)
+%   - \sum_{e = (u,v)} \mathrm{MI}_c(u, v)
+% \label{eq:tree-entropy}
+% \end{align}
+% where $H(q_c^{(v)})$ is the marginal entropy at node $v$ and
+% $\mathrm{MI}_c(u,v)$ is the mutual information between parent $u$ and child $v$
+% at column $c$, both computable from the Felsenstein marginals.
+
+\subsubsection{Potentials from neighboring columns}
+
+The inter-column coupling enters through the order-1 WFST transitions.
+For each edge $e = (u,v)$ and MSA column $c$ where $e$ has an event of type $\tau_c$,
+let $c^-$ denote the predecessor column (the previous column where $e$ had an event)
+and $c^+$ the successor column.
+The \emph{potential} at column $c$ for edge $e$ receives two contributions:
+
+\paragraph{As-child term (from $c^-$).}
+The transition from column $c^-$ to $c$ on edge $e$ depends on the
+characters at both columns. Using the pairwise marginal from $q_{c^-}$:
+\begin{align}
+\log \phi_e^{\mathrm{child}}(a_{u,c}, a_{v,c})
+ &= \sum_{a', b'} q_{c^-}^{(u,v)}(a', b')\;
+    \log w_e(\tau_{c^-\!}, \tau_c, a', b', a_{u,c}, a_{v,c})
+\label{eq:pot-child}
+\end{align}
+where the sum over $(a', b')$ uses the \emph{joint} pairwise marginal
+$q_{c^-}^{(u,v)}(a', b')$---not the product of independent marginals.
+This is the key advantage over mean-field:
+the within-tree parent-child correlation at the predecessor column is
+preserved exactly.
+
+\paragraph{As-parent term (from $c^+$).}
+Symmetrically, column $c$ acts as the predecessor for column $c^+$:
+\begin{align}
+\log \phi_e^{\mathrm{parent}}(a_{u,c}, a_{v,c})
+ &= \sum_{a'', b''} q_{c^+}^{(u,v)}(a'', b'')\;
+    \log w_e(\tau_c, \tau_{c^+\!}, a_{u,c}, a_{v,c}, a'', b'')
+\label{eq:pot-parent}
+\end{align}
+
+For insert transitions (only the descendant is present at $c$),
+the potential reduces to a per-node function $\psi_v(a_{v,c})$.
+For delete transitions (only the ancestor is present), it becomes $\psi_u(a_{u,c})$.
+For match transitions, it contributes a per-edge potential $\phi_e(a_{u,c}, a_{v,c})$.
+The start and end transitions contribute analogous per-node or per-edge terms.
+
+\subsubsection{Felsenstein coordinate ascent}
+\label{sec:felsenstein-update}
+
+Each coordinate ascent step updates $q_c$ for a single MSA column $c$,
+holding all other columns fixed.
+We accumulate, for each edge $e$ and node $v$ in the tree at column $c$:
+\begin{itemize}
+\item Per-edge log-potentials
+  $\log \phi_e(a_u, a_v) = \log \phi_e^{\mathrm{child}} + \log \phi_e^{\mathrm{parent}}$
+  (for match transitions where both endpoints are present).
+\item Per-node log-potentials
+  $\log \psi_v(a_v)$ (from insert/delete transitions on incident edges,
+  plus the root prior $\log \pi(a)$ at the root node).
+\end{itemize}
+
+The optimal $q_c$, given the potentials, is the Gibbs distribution on the
+tree at column $c$:
+\begin{align}
+q_c(\mathbf{h}_c) &\propto \prod_v \psi_v(a_v) \prod_{e=(u,v)} \phi_e(a_u, a_v)
+  \prod_{\ell \in \mathrm{leaves}} \delta(a_\ell = y_\ell)
+\label{eq:q-gibbs}
+\end{align}
+
+Since this is a tree-structured MRF, the normalizing constant and all
+node and edge marginals can be computed \emph{exactly} by Felsenstein
+peeling (postorder) and unpeeling (preorder) in $O(|E| \cdot |\alphabet|^2)$ time.
+
+\paragraph{Peeling (postorder).}
+For each node $v$ in postorder, compute the conditional likelihood:
+\begin{align}
+\mathrm{CL}_v(a) &= \psi_v(a) \prod_{\mathrm{children}\; c}
+  \Bigl[\sum_{a_c} \phi_{(v,c)}(a, a_c)\; \mathrm{CL}_c(a_c)\Bigr]
+\label{eq:peel}
+\end{align}
+with $\mathrm{CL}_\ell(a) = \delta(a = y_\ell)$ for observed leaves.
+The log-partition function is $\log Z_c = \log \sum_a \pi(a)\, \mathrm{CL}_{\mathrm{root}}(a)$.
+
+\paragraph{Unpeeling (preorder).}
+Propagate top-down to obtain the posterior marginal at each node:
+\begin{align}
+q_c^{(v)}(a) &\propto \mathrm{CL}_v(a) \cdot \mathrm{msg}_{\mathrm{parent} \to v}(a)
+\label{eq:unpeel-marginal}
+\end{align}
+and the pairwise marginal on each edge:
+\begin{align}
+q_c^{(u,v)}(a_u, a_v)
+ &\propto \mathrm{msg}_{\mathrm{above}\,u}(a_u) \cdot \phi_{(u,v)}(a_u, a_v) \cdot \mathrm{CL}_v(a_v)
+\label{eq:unpeel-pair}
+\end{align}
+where the ``message from above $u$'' combines the top-down message to $u$
+with $u$'s conditional likelihood excluding child $v$.
+
+\paragraph{Sweep.}
+One iteration sweeps through all MSA columns $c = 1, \ldots, L$:
+for each column, recompute the potentials from the current neighbor marginals,
+run peeling/unpeeling, and store the updated node and edge marginals.
+The sweep order is left-to-right; the ``as-child'' potentials use the
+just-updated predecessor marginals, while the ``as-parent'' potentials
+use stale successor marginals from the previous iteration.
+
+\subsubsection{Properties}
+
+The product-of-trees approximation enjoys the same monotonic convergence
+guarantee as mean-field coordinate ascent (each column update minimizes
+the free energy in its coordinate), with the additional guarantee that
+the ELBO is at least as tight as the fully-factored mean-field bound.
+This follows because the product-of-trees family \emph{contains} the
+mean-field family as a special case (where each $q_c$ is itself fully factored).
+
+\paragraph{Computational cost.}
+The dominant cost per sweep is the potential computation:
+$O(|E| \cdot L \cdot |\alphabet|^4)$ for Match$\to$Match transitions
+(contracting the $(|\alphabet|, |\alphabet|)$ pairwise marginal against the
+$(|\alphabet|, |\alphabet|, |\alphabet|, |\alphabet|)$ WFST tensor).
+The Felsenstein passes add $O(|E| \cdot L \cdot |\alphabet|^2)$, which is subdominant.
+
+
+\subsection{Phylogenetic Hidden Markov Model (PhyloHMM)}
+
+If the top-level indel rates in MixDom are low, and the ancestral presence/absence
+fully specified by the MSA, the phylogenetic likelihood calculation and ancestral reconstruction
+problems admit systematic approximation by a generalized Phylo-HMM,
+yielding $O(L^2)$-complexity versions of the Forward and Forward-Backward algorithms.
+This approach is described in Section~\ref{sec:partition-recon}.
+
+

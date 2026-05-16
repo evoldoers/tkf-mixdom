@@ -1,0 +1,835 @@
+% varanc-presence-mixdom.tex — Reduced-tuple variational MixDom
+% ancestral state inference (presence + (domain, fragchar) only).
+% To be \input from tkf.tex.
+
+\section{Mixture-of-trees variational MixDom ancestral inference}
+\label{sec:varanc-presence-mixdom}
+
+This appendix generalises the variational ancestral-presence
+reconstruction of Section~\ref{sec:varanc-presence} from the
+TKF92-conditional-WFST-as-MaxEnt-GGI approximation to the labelled
+MixDom model, with two further simplifications relative to a fully
+labelled treatment:
+\begin{itemize}[nosep]
+\item the per-character substitution class $c$ is integrated out at
+the model level via the per-column prior $\classdist_{f, c}$
+(rather than carried as a variational latent);
+\item the fragchar-boundary indicator $g$ and domain-end indicator
+$e$ are absorbed into a \emph{reduced} per-character WFST kernel that
+sums over the implicit fragment/domain bookkeeping at each step
+(rather than tracked explicitly in the variational state).
+\end{itemize}
+The variational state per (internal node, MSA column) is therefore
+$\{N, D\} \cup \{(d, f)\}$, $|\mathcal{Z}| = N_{\text{dom}} N_{\text{fr}} + 2$
+— a $(4 N_{\text{cl}})\times$ reduction over the fully-labelled state
+space. Three concrete payoffs:
+(i) the variational bound is \emph{strictly tighter} than the
+fully-labelled ELBO at any non-Bayes-optimal class posterior, because
+the analytic marginalisation of $c$ and $(g, e)$ replaces two Jensen
+inequalities with equalities;
+(ii) the labelled-variant cross-column hard-zero structural
+constraint disappears, so per-column factorised $q^{(\tau)}$ is
+adequate (the column-Markov-chain upgrade is no longer required);
+(iii) per-branch evaluation is roughly
+$|\mathcal{T}^{\text{lab}}|^2 / |\mathcal{T}|^2$-times cheaper.
+
+The bound is $\log p(\text{MSA} \mid \parsetree, \theta) \geq
+\log \tilde{p}(\text{MSA} \mid \parsetree, \theta) \geq
+\mathcal{L}[q]$, in the same restricted-model sense as
+appendix~\ref{sec:varanc-presence}; the
+restriction-gap ($q$-independent) and variational-gap (KL)
+decomposition carries over.
+
+\subsection{Setting and reduced state space}
+\label{sec:varanc-mixdom-setting}
+
+Fix a rooted phylogeny $\parsetree$ with internal-node set
+$\mathcal{I}$, leaf set $\mathcal{L}$, and branch lengths
+$\branchlen_e$ on each edge $e$. The MSA has $L$ columns; each leaf
+$v \in \mathcal{L}$ has an observed presence indicator
+$X^v_n \in \{0, 1\}$ and (when present) a residue
+$\anctok^v_n \in \alphabet$.
+
+The per-(node, column) variational state space is
+\begin{equation}
+\label{eq:Z-mixdom}
+\mathcal{Z} \;=\; \{N, D\} \cup \mathcal{T},
+\qquad
+\mathcal{T} \;=\; [N_{\text{dom}}] \times [N_{\text{fr}}].
+\end{equation}
+A tuple-valued state $\tau = (d, f) \in \mathcal{T}$ encodes only the
+column's domain $d$ and fragchar $f$; the per-character class $c$ is
+marginalised at the model level (Section~\ref{sec:varanc-mixdom-substitution})
+and the fragchar-boundary / domain-end indicators $(g, e)$ are
+absorbed into the reduced WFST kernel
+(Section~\ref{sec:varanc-mixdom-reduced-wfst}).
+
+The presence indicator at internal node $v$, column $n$ is
+$X^v_n = \mathbb{1}\{Z^v_n \in \mathcal{T}\}$. Leaf states are
+partially clamped: $X^v_n = 0$ pins $Z^v_n \in \{N, D\}$;
+$X^v_n = 1$ pins $Z^v_n \in \mathcal{T}$ (consistent with the
+column-wide tuple $\tau_n$ — see below).
+
+\subsection{Restricted generative model}
+\label{sec:varanc-mixdom-restricted}
+
+Following Section~\ref{sec:varanc-presence-restricted}, the model
+joint over MSA columns and internal-node states is
+\begin{equation}
+\label{eq:joint-mixdom}
+p(\text{MSA},\, \{Z^v\}_{v \in \mathcal{I}} \mid \parsetree, \theta)
+\;=\; p_{\text{singlet}}^{\text{red}}(Z^{\text{root}})
+\,\prod_{(v \to w) \in \parsetree}
+   \hat{P}^{\text{WFST}}\!(Z^w \mid Z^v, \branchlen_{vw}, \theta)
+\,\prod_{n: \mathcal{F}_n \neq \emptyset}
+   L^{(\text{sub}),\text{tot}}_n(f_n; \mathcal{F}_n),
+\end{equation}
+where $\mathcal{F}_n$ is the Fitch-parsimony subtree of column $n$,
+$L^{(\text{sub}),\text{tot}}_n(f; \mathcal{F}_n)$ is the
+class-marginalised Felsenstein column-substitution likelihood under
+fragchar $f$ (Section~\ref{sec:varanc-mixdom-substitution}), and
+$p_{\text{singlet}}^{\text{red}}, \hat{P}^{\text{WFST}}$ are the
+\emph{reduced} singlet HMM and WFST defined on $(d, f)$ alone
+(Section~\ref{sec:varanc-mixdom-reduced-wfst}). As in the simple
+case we marginalise~\eqref{eq:joint-mixdom} over internal patterns
+supported on the $L$ observed columns to obtain
+$\tilde{p}(\text{MSA} \mid \parsetree, \theta) \le
+p(\text{MSA} \mid \parsetree, \theta)$ (with the same ghost-column
+caveat), and bound the latter from below.
+
+\subsection{Variational family}
+\label{sec:varanc-mixdom-q}
+
+The variational $q$ factorises over MSA columns,
+$q(\{Z^v_n\}) = \prod_{n=1}^L q_n$, and within each column,
+\begin{equation}
+\label{eq:q-mixdom-factor}
+q_n \;=\; q_n^{(\tau)}(\tau_n) \cdot
+          q_n^{(\pi|\tau)}\!\big(\{Z^v_n\}_{v \in \mathcal{I}} \,\big|\, \tau_n\big),
+\end{equation}
+where $q_n^{(\tau)}$ is a free categorical over $\mathcal{T}$ on the
+column-wide tuple, and $q_n^{(\pi|\tau)}$ is the same 3-state
+irreversible tree-structured graphical model of
+Section~\ref{sec:varanc-presence-q} (with $\state{P} \equiv \tau_n$).
+By construction $q$ assigns zero mass to within-column configurations
+in which Present nodes carry differing tuples — the column has one
+$(d, f)$, full stop. The cross-column structural-label constraints
+that forced a column-Markov chain in the labelled formulation
+\emph{vanish} under reduction
+(Section~\ref{sec:varanc-mixdom-cross-column-vanishes}).
+
+\paragraph{Free parameter count.}
+Per column: $|\mathcal{T}| - 1 = N_{\text{dom}} N_{\text{fr}} - 1$
+free parameters in $q_n^{(\tau)}$, plus
+$2 |\mathcal{E}|$ in the inner 3-state graphical model
+(as in Section~\ref{sec:varanc-presence-special-cases}), plus 2 for
+the inner root distribution. For typical
+$(N_{\text{dom}}, N_{\text{fr}}) = (3, 2)$ that is 5 tuple
+parameters per column, vs $4 N_{\text{cl}} N_{\text{fr}} N_{\text{dom}} - 1$
+in the labelled formulation (e.g.\ 239 for $N_{\text{cl}} = 10$) and
+$\sim |\mathcal{T}|^2$ in the labelled column-Markov upgrade
+($\sim 6 \times 10^4$).
+
+\subsection{\texorpdfstring{Reduced WFST: marginalising $(g, e)$ and the class $c$}{Reduced WFST: marginalising (g, e) and the class c}}
+\label{sec:varanc-mixdom-reduced-wfst}
+
+The reduced per-character WFST kernel is
+\begin{equation}
+\label{eq:reduced-WFST}
+\hat{T}_{ss'}\!\big((d, f), (d', f');\, \branchlen, \theta\big),
+\qquad s, s' \in \{\sta, \mat, \ins, \del, \fin\},
+\end{equation}
+obtained by marginalising the labelled-MixDom WFST
+$T^{\text{lab}}_{ss'}((c, f, g, d, e), (c', f', g', d', e');
+\branchlen, \theta)$ over $(c, c', g, e, g', e')$ at each end. The
+reduced state space is $\{\sta, \fin\} \cup \{(s, d, f) :
+s \in \{\mat, \ins, \del\}\}$ — i.e.\
+$3 N_{\text{dom}} N_{\text{fr}} + 2$ states.
+
+\paragraph{Routes from $(d, f)$ to $(d', f')$.}
+Under the labelled MixDom model, the per-character labelled
+transition $(d, f) \to (d', f')$ admits up to three latent routes,
+indexed by the value of $(g, e)$ at the source position:
+\begin{enumerate}[nosep, label=R\arabic*.]
+\item \emph{Intra-fragment fragchar transition} ($g = 0$): the
+current character is not the last of its fragment, and the next
+character stays in the same fragment with fragchar transitioning
+$f \to f'$ via $\ext^{(d)}_{f, f'}$. Restricted to $d' = d$.
+\item \emph{New fragment, same domain} ($g = 1, e = 0$): the
+current fragment terminates ($\notext^{(d)}_f$) and the same domain
+starts a new fragment ($\kappa_d$) with first fragchar drawn from
+$\fragdist_{d, f'}$. Restricted to $d' = d$.
+\item \emph{New domain} ($g = 1, e = 1$): the current fragment
+terminates, the current domain ends ($1{-}\kappa_d$), and (after
+possibly skipping geometrically-many empty domains) a new domain
+$d'$ begins with its first fragment's first fragchar drawn from
+$\fragdist_{d', f'}$. Available for any $d'$, including the
+self-recurrence $d' = d$.
+\end{enumerate}
+
+For $d' \neq d$ only R3 is enabled, so the source's $(g, e) = (1, 1)$
+is uniquely determined by the transition. For $d' = d$, multiple
+routes contribute and the latent $(g, e)$ at the source carries a
+non-trivial posterior over routes given the observed transition.
+The diagonal-extension special case ($\ext^{(d)}_{f, f'} = \ext_f
+\delta_{f, f'}$) suppresses R1 whenever $f' \neq f$, but R2 and R3
+still mix for any $(d, f) \to (d, f')$, so the route-sum machinery
+introduced below is required even there. With a general off-diagonal
+$\ext^{(d)}$ matrix, R1 admits $f' \neq f$ transitions, so
+the route-sum acquires a third contributing term.
+
+The per-route singlet contribution, accounting for the joint prior
+on $(g, e)$ at the source and the singlet emission of the next
+character, is:
+\begin{align}
+\label{eq:omega-routes}
+\omega^{(R1)}_{(d, f) \to (d', f')}
+&= \delta_{d, d'}\,\ext^{(d)}_{f, f'}, \\
+\omega^{(R2)}_{(d, f) \to (d', f')}
+&= \delta_{d, d'}\,\notext^{(d)}_f\,\kappa_d\,\fragdist_{d, f'}, \\
+\omega^{(R3)}_{(d, f) \to (d', f')}
+&= \frac{\notext^{(d)}_f\,(1-\kappa_d)\,\kappa_\main\,\domdist_{d'}\,\kappa_{d'}\,\fragdist_{d', f'}}{1-\zeta},
+\end{align}
+where $\zeta = \kappa_\main \sum_{d''} \domdist_{d''}(1-\kappa_{d''})$
+is the empty-domain renormalisation
+(equation~\eqref{eq:singlet-end-domain}). Each $\omega^{(r)}$
+factorises as $P((g, e) = (g_r, e_r) \mid (d, f)) \cdot
+P_{\text{singlet}}((d', f') \mid (d, f), g_r, e_r)$, so summing
+over routes recovers the marginal singlet emission probability:
+\begin{equation}
+\label{eq:omega}
+\omega^{(d, f, d', f')}
+\;=\; \sum_r \omega^{(r)}_{(d, f) \to (d', f')}
+\;=\; \delta_{d, d'}\!\Big[\ext^{(d)}_{f, f'}
+                          + \notext^{(d)}_f\,\kappa_d\,\fragdist_{d, f'}\Big]
+\;+\; \frac{\notext^{(d)}_f\,(1-\kappa_d)\,\kappa_\main\,\domdist_{d'}\,\kappa_{d'}\,\fragdist_{d', f'}}{1-\zeta}.
+\end{equation}
+
+\paragraph{Marginalisation of $c$.}
+The class $c$ at column $n$ is generated once per column by
+$\classdist_{f_n, \cdot}$ at column birth and governs the
+substitution likelihood across all branches. The labelled WFST's
+indel block is class-independent, so $\sum_c \classdist_{f, c} = 1$
+trivially. Class-marginalisation of $\hat{T}$ has no residue at the
+indel level; it is handled separately in the substitution term
+(Section~\ref{sec:varanc-mixdom-substitution}).
+
+\subsubsection{Step-by-step derivation of the reduced kernel}
+\label{sec:varanc-mixdom-derivation}
+
+The route-sum~\eqref{eq:T-hat} is not stipulated; it follows from
+two facts about the labelled MixDom model. We state and prove
+both.
+
+\paragraph{Notation.} Write $Z_n = (d_n, f_n, g_n, e_n)$ for the
+labelled chain state at position $n$ (dropping $c_n$, which is
+class-independent for the indel block) and $\tau_n = (d_n, f_n)$
+for the reduced state. Let $\sigma$ denote the labelled singlet
+HMM transition kernel of mixdom-wfst.tex
+Section~\ref{sec:labeled-singlet}, and let $T^{\text{lab}}_{ss'}$
+denote the labelled conditional WFST kernel of
+Section~\ref{sec:labeled-wfst}. The labelled per-character Pair HMM
+joint factorises as
+\begin{equation}
+\label{eq:pair-fact}
+P\big((s', Z') \mid (s, Z)\big)
+\;=\; T^{\text{lab}}_{ss'}\!\big(Z, Z'\big)\,
+      \sigma\!\big(Z' \mid Z\big),
+\end{equation}
+i.e.\ the WFST conditional weight times the singlet emission
+weight; this is the construction of mixdom-wfst.tex
+Section~\ref{sec:labeled-wfst} (\textit{Singlet} $\circ$ \textit{WFST}
+$=$ \textit{Pair HMM}).
+
+\paragraph{Singlet-table convention.}
+Throughout the proof we use the singlet HMM table at
+mixdom-wfst.tex line~165--170 with the following normalisation
+(consistent with the joint-contribution language at line~187--189
+and the marginalisation check at line~228--237). Two structural
+facts about the labelled MixDom chain underpin this:
+\begin{enumerate}[nosep, label=(\alph*)]
+\item \emph{$e$ is fragment-level.} The domain-end indicator $e$
+is constant for all characters within a single fragment (it
+records whether the current fragment is the last in its domain,
+which is set when the fragment begins and does not change as the
+fragment extends). Hence within-fragment transitions ($g{=}0$
+rows) have $e' = e$ implicitly, and a single ``$g{=}0$ row''
+covers all source $e$ values without depending on $e$.
+\item \emph{Destination indicators $(g', e')$ are summed implicitly.}
+The destination $(g', e')$ in each row is treated as a free index
+ranging over $\{0, 1\}^2$, with the implicit prior
+$\pi(g', e' \mid d', f')$ to be applied separately if a
+finer-grained joint over destination indicators is needed.
+\end{enumerate}
+Under these conventions, the table entry $\widetilde\sigma$ for a
+given source-row $(d, f, g, e)$ and destination structural state
+$(d', f')$ is the joint
+\[
+\widetilde\sigma((d, f, g, e) \to (d', f'))
+\;=\; \pi(g, e \mid d, f)\,\cdot\,\sigma_{\text{cond}}((d', f')
+\mid (d, f, g, e)),
+\]
+where $\sigma_{\text{cond}}$ is the source-conditional next-character
+emission probability and $\pi(g, e \mid d, f)$ is the source-row
+marginal. As a sanity check: summing each row of the table over
+$(d', f')$ recovers exactly $\pi(g, e \mid d, f)$, which sums in turn
+to~1 over the three rows (with termination column included).
+For the $g{=}0$ row: $\sum_{f'} \ext^{(d)}_{f, f'} = 1{-}\notext^{(d)}_f
+= \pi(g{=}0 \mid d, f)$. For the $g{=}1, e{=}0$ row:
+$\sum_{f'} \notext^{(d)}_f \kappa_d \fragdist_{d, f'} = \notext^{(d)}_f
+\kappa_d = \pi(g{=}1, e{=}0 \mid d, f)$. For the $g{=}1, e{=}1$ row,
+mixdom-wfst.tex line~228--237 verifies the row sum (over destinations
+plus termination) equals $\notext^{(d)}_f (1{-}\kappa_d)
+= \pi(g{=}1, e{=}1 \mid d, f)$.
+
+\paragraph{Lemma 1 (Conditional independence of $(g, e)$).}
+\emph{Under the labelled MixDom singlet construction, $(g_n, e_n)
+\perp \{Z_k : k < n\} \mid (d_n, f_n)$ for every $n \geq 1$, with}
+\begin{align}
+\label{eq:ge-prior}
+\pi(g{=}0 \mid d, f) &= 1 - \notext^{(d)}_f, \\
+\pi(g{=}1, e{=}0 \mid d, f) &= \notext^{(d)}_f \,\kappa_d, \\
+\pi(g{=}1, e{=}1 \mid d, f) &= \notext^{(d)}_f\,(1 - \kappa_d).
+\end{align}
+
+\emph{Proof.} By the singlet-table convention above, the
+labelled-chain joint factorises position-by-position as
+\[
+P(Z_n \mid Z_{n-1}) = P(d_n, f_n \mid Z_{n-1}) \cdot \pi(g_n, e_n \mid d_n, f_n),
+\]
+because the table entry at position $n$ has the destination prior
+$\pi(g_n, e_n \mid d_n, f_n)$ as an explicit multiplicative factor
+(line~187--189 of mixdom-wfst.tex), independent of $Z_{n-1}$
+beyond what flows through $(d_n, f_n)$. Marginalising the chain
+joint over $Z_{1:n-1}$ at fixed $(d_n, f_n)$ leaves the
+$\pi(g_n, e_n \mid d_n, f_n)$ factor untouched, establishing
+$P(g_n, e_n \mid d_n, f_n, Z_{1:n-1}) = \pi(g_n, e_n \mid d_n, f_n)$.
+Substituting the explicit Bernoulli forms
+($g_n \sim \text{Bern}(\notext^{(d_n)}_{f_n})$ and, given $g_n = 1$,
+$e_n \sim \text{Bern}(1 - \kappa_{d_n})$, with $e_n$ at $g_n = 0$
+folded into the joint as the residual~$\notext^{(d)}_f$ row)
+gives~\eqref{eq:ge-prior}. \qedhere
+
+\paragraph{Lemma 2 (Singlet route-decomposition).}
+\emph{The marginal singlet emission $\omega^{(d, f, d', f')} :=
+\sum_{g, e, g', e'} \widetilde\sigma((d, f, g, e) \to (d', f', g', e'))$
+decomposes as $\omega = \omega^{(R1)} + \omega^{(R2)} + \omega^{(R3)}$,
+with the per-route weights of eq.~\eqref{eq:omega-routes}.}
+
+\emph{Proof.} The singlet table mixdom-wfst.tex line~165--170
+partitions the source $(g, e)$ values into three rows:
+\begin{itemize}[nosep]
+\item Row $g{=}0$ (combining all source $e$ values, since the
+$g{=}0$ row weight does not depend on source $e$): table entry
+$\widetilde\sigma_{R1} = \ext^{(d)}_{f, f'}$ for destination
+$(d, f', g', e')$ summed over destination indicators.
+\item Row $g{=}1, e{=}0$: $\widetilde\sigma_{R2} = \notext^{(d)}_f
+\kappa_d \fragdist_{d, f'}$.
+\item Row $g{=}1, e{=}1$: $\widetilde\sigma_{R3} = \notext^{(d)}_f
+(1{-}\kappa_d) \kappa_\main \domdist_{d'} \kappa_{d'} \fragdist_{d', f'}
+/ (1{-}\zeta)$.
+\end{itemize}
+By the singlet-table convention, each row is the \emph{joint}
+contribution including the source-$(g, e)$ prior; in particular
+$\widetilde\sigma_{R1} = \pi(g{=}0 \mid d, f) \cdot
+\sigma_{\text{cond}}((d, f', g'{=}\cdot, e'{=}\cdot) \mid (d, f,
+g{=}0, e))$ summed over destination $(g', e')$. Thus
+$\omega^{(r)} = \widetilde\sigma_r$ directly: the row weight already
+equals the route contribution to the marginal singlet emission, so
+no separate ``prior cancellation'' step is needed --- the source
+prior was baked in from the start. Summing the three rows gives
+$\omega^{(d, f, d', f')}$ in~\eqref{eq:omega}. The fact that
+each row has support only on destinations consistent with its
+route is by inspection of the singlet table. \qedhere
+
+\paragraph{Proposition (Reduced kernel).}
+\emph{The reduced per-character marginal Pair HMM kernel,
+$\hat T_{ss'}((d, f), (d', f')) := \sum_{g, e, g', e'} \pi(g, e \mid d, f)
+\cdot P((s', d', f', g', e') \mid (s, d, f, g, e))$,
+satisfies the route-sum~\eqref{eq:T-hat}.}
+
+\emph{Proof.} Substitute the Pair HMM factorisation
+\eqref{eq:pair-fact}, and replace
+$\pi(g, e \mid d, f) \cdot \sigma_{\text{cond}}(\cdots)
+= \widetilde\sigma(\cdots)$ via the singlet-table convention:
+\begin{align*}
+\hat T_{ss'}((d, f), (d', f'))
+&= \sum_{g, e, g', e'} \pi(g, e \mid d, f)\,
+   T^{\text{lab}}_{ss'}\!\big((d, f, g, e), (d', f', g', e')\big)\,
+   \sigma_{\text{cond}}\!\big((d', f', g', e') \mid (d, f, g, e)\big) \\
+&= \sum_{g, e, g', e'}
+   T^{\text{lab}}_{ss'}\!\big((d, f, g, e), (d', f', g', e')\big)\,
+   \widetilde\sigma((d, f, g, e) \to (d', f', g', e')).
+\end{align*}
+By Lemma~2, $\widetilde\sigma$ has support partitioned into the
+three routes $R1, R2, R3$, each with a unique source $(g_r, e_r)$.
+The labelled WFST entry for fixed source $(g_r, e_r)$ and
+structural transition $(s, s')$ depends on the destination
+$(g', e')$ in only two ways: (i)~the label-preservation constraint
+on $\mat$ (which forces $g' = g_{r,\text{dest}}$ and $e' = e_{r,\text{dest}}$
+where the destination-side $(g_r, e_r)$ are determined by the route
+and the destination structural label, trivialising the destination
+sum); and (ii)~for $\ins$, the destination prior on $(g', e')$ at
+the new $(d', f')$ is folded into the WFST as a $\pi(g', e' \mid d',
+f')$ factor (mixdom-wfst.tex eq.~\eqref{eq:wfst-weight-principle}
+gives the WFST = Pair~HMM/singlet division explicitly). In both
+cases the $(g', e')$ summation cleanly factors out:
+\[
+\sum_{g', e'} T^{\text{lab}}_{ss'}((d, f, g_r, e_r),
+(d', f', g', e'))\,\pi(g', e' \mid d', f')^{-1}\,\pi(g', e' \mid d',
+f') = \tilde T^{\text{lab}, (r)}_{ss'}((d, f), (d', f'))
+\]
+(the inverse-prior in the WFST cancels the prior in
+$\widetilde\sigma$'s destination factor; for $\mat$ the inverse
+prior is trivially~1 because of label preservation). Combining
+with the source weights $\widetilde\sigma_r$ summed over destinations
+giving $\omega^{(r)}$ from Lemma~2, we obtain eq.~\eqref{eq:T-hat}.
+\qedhere
+
+\paragraph{Corollary (Markov property of reduced chain).}
+\emph{The marginal chain in $(d, f)$ obtained by summing $(g, e)$
+out of the labelled singlet chain is exactly Markov, with
+per-step kernel $\hat T_{\sta s}$ at the reduced state space.}
+
+\emph{Proof.} We show $P(\tau_n \mid \tau_{1:n-1}) = P(\tau_n \mid
+\tau_{n-1})$ for all $n \geq 2$, which is the defining property of
+a Markov chain. By the singlet's chain factorisation, $P(\tau_n
+\mid Z_{1:n-1}) = \sigma_{\text{cond, marg}}(\tau_n \mid Z_{n-1})$,
+which depends on $Z_{n-1} = (\tau_{n-1}, g_{n-1}, e_{n-1})$.
+Marginalising $(g_{n-1}, e_{n-1})$ against its conditional
+distribution given $\tau_{1:n-1}$:
+\[
+P(\tau_n \mid \tau_{1:n-1}) = \sum_{g_{n-1}, e_{n-1}}
+   P(g_{n-1}, e_{n-1} \mid \tau_{1:n-1})\,
+   \sigma_{\text{cond, marg}}(\tau_n \mid \tau_{n-1}, g_{n-1}, e_{n-1}).
+\]
+By Lemma~1 (Markov property of $(g, e)$), $P(g_{n-1}, e_{n-1} \mid
+\tau_{1:n-1}) = \pi(g_{n-1}, e_{n-1} \mid \tau_{n-1})$, depending
+only on $\tau_{n-1}$. Substituting:
+\[
+P(\tau_n \mid \tau_{1:n-1}) = \sum_{g_{n-1}, e_{n-1}}
+   \pi(g_{n-1}, e_{n-1} \mid \tau_{n-1})\,
+   \sigma_{\text{cond, marg}}(\tau_n \mid \tau_{n-1}, g_{n-1}, e_{n-1})
+\]
+which is $\hat T_{\sta s}$ (eq.~\eqref{eq:T-hat} for the $s = s' = $
+trivial-transition case, i.e.\ depending only on $(\tau_{n-1},
+\tau_n)$). This depends only on $\tau_{n-1}$, establishing the
+Markov property. The product factorisation $P(\tau_1, \ldots,
+\tau_L) = \prod_n \hat T(\tau_{n-1}, \tau_n)$ follows by chain
+rule. \qedhere
+
+\paragraph{Caveats.} Two technical conditions buried in the proof
+deserve explicit flagging:
+\begin{enumerate}[nosep]
+\item \emph{Independence of WFST weights from destination $(g', e')$:}
+the labelled WFST entries $T^{\text{lab}}_{ss'}((d, f, g, e),
+(d', f', g', e'))$ depend on the structural transition type
+($\mat$/$\ins$/$\del$ at both ends) and on
+the source $(g, e)$ via the case split into mid-fragment /
+fragment-boundary / domain-boundary, but they do not depend on
+the destination $(g', e')$ except through the trivial label-preservation
+($\mat$ requires matching labels) constraint already implicit in
+$T^{\text{lab}}$. This is by inspection of the labelled WFST tables
+of mixdom-wfst.tex Section~\ref{sec:labeled-wfst}.
+\item \emph{Boundary entries:} the proof above covers
+non-boundary positions $1 \leq n \leq L$ with $(s, s') \in \{\mat,
+\ins, \del\}$. The $\sta$ and $\fin$ row/column entries of $\hat T$
+require separate derivation because the $\sta$ source has no
+preceding $(g, e)$ to enumerate routes over, and the $\fin$
+destination requires the singlet's termination weight rather than a
+next-character emission. These are flagged as
+Section~\ref{sec:varanc-mixdom-open-issues}, item~I.2.
+\end{enumerate}
+
+\paragraph{Markov property of the reduced chain (consequence).}
+The latent $(g, e)$ at position $n$ depends only on $(d_n, f_n)$
+and the model parameters (Lemma~1). Consequently, summing out
+$(g, e)$ at each position yields a marginal chain in $(d, f)$ that
+remains \emph{exactly Markov}, with per-step transition kernel
+$\hat T$ defined below. This justifies the path-LL formulation in
+Section~\ref{sec:varanc-mixdom-pathLL} as exact (not a
+mean-field approximation) under the reduced state space.
+
+\paragraph{Reduced kernel as a route-sum.}
+Combining the route enumeration with the labelled WFST entries
+gives the reduced per-character kernel as a sum of route
+contributions:
+\begin{equation}
+\label{eq:T-hat}
+\boxed{\;
+\hat{T}_{ss'}\!\big((d, f), (d', f');\, \branchlen, \theta\big)
+\;=\; \sum_{r \in \mathcal{R}((d, f), (d', f'))}
+   \omega^{(r)}_{(d, f) \to (d', f')}\,
+   \tilde{T}^{\text{lab}, (r)}_{ss'}\!\big((d, f), (d', f');\, \branchlen, \theta\big),
+\;}
+\end{equation}
+with route set $\mathcal{R}((d, f), (d', f')) = \{R3\}$ for
+$d' \neq d$ and $\{R1, R2, R3\}$ for $d' = d$, and per-route
+labelled WFST entry
+\begin{equation}
+\label{eq:tilde-T-lab-r}
+\tilde{T}^{\text{lab}, (r)}_{ss'}\!\big((d, f), (d', f');\, \branchlen, \theta\big)
+\;=\; \sum_{g', e'} T^{\text{lab}}_{ss'}\!\big((d, f, g_r, e_r), (d', f', g', e');\, \branchlen, \theta\big),
+\end{equation}
+where $T^{\text{lab}}$ is the \emph{conditional} labelled WFST of
+Section~\ref{sec:labeled-wfst}, defined as the labelled Pair HMM
+joint divided by the labelled singlet emission, and
+$(g_r, e_r)$ is the source $(g, e)$ for route $r$:
+$(g_{R1}, e_{R1}) = (0, e)$ for any $e$ (since within-fragment
+transitions do not constrain $e$; the labelled-singlet table at
+mixdom-wfst.tex line~165 treats $e$ as a free variable in the
+$g{=}0$ row, so we adopt $(0, 0)$ as the canonical representative);
+$(g_{R2}, e_{R2}) = (1, 0)$; and $(g_{R3}, e_{R3}) = (1, 1)$.
+The product $\omega^{(r)} \cdot \tilde{T}^{\text{lab}, (r)}_{ss'}$
+then equals the per-route contribution to the labelled Pair HMM
+joint $(d, f) \to (d', f')$ summed over destination indicators
+$(g', e')$, so summing over routes recovers the marginal Pair HMM
+joint at the reduced state space; division of $T^{\text{lab}}$
+by the singlet was applied per-route inside $\omega^{(r)}$ to
+avoid double-counting.
+
+\paragraph{When the route-sum collapses.}
+The previously-claimed factorisation $\hat T = \omega \cdot
+\tilde T^{\text{lab}}$ holds only if, for the given $(s, s')$, the
+labelled WFST entry $\tilde T^{\text{lab}, (r)}_{ss'}$ is independent
+of $r$ across the enabled routes. This essentially never happens for
+the indel block. For $\mat\to\mat$, the
+per-route conditional WFST weights (Pair HMM joint divided by the
+route's singlet emission) are
+\[
+W^{(R1)}_{\mat\mat} = 1, \qquad
+W^{(R2)}_{\mat\mat} = (1{-}\beta_d)\alpha_d, \qquad
+W^{(R3)}_{\mat\mat} \;\propto\; \tau^{(d)}_{\mat,\fin}\,
+   \nonemptytrans^{[d \to d']}_{\mat,\mat}\,\tau^{(d')}_{\sta,\mat},
+\]
+where $W^{(R3)}_{\mat\mat}$ involves the destination-domain-specific
+top-level effective transition (in the implementation,
+\texttt{T\_exit\_k}; structurally, $\nonemptytrans^{[d\to d']}_{\mat,\mat}$
+is the destination-typed version of the empty-domain-summed top-level
+$\mat\to\mat$ kernel, with the $\domdist_{d'}$ and other normalisation
+factors absorbed --- see Section~\ref{sec:wfst-simplify}).
+The three weights are distinct in general:
+R1 carries no separate BDI factor because in-fragment extension is
+generated by the singlet alone (the descendant character matches
+trivially via fragment continuation); R2 carries the standard
+new-fragment match factor $(1{-}\beta_d)\alpha_d$ (the singlet's
+$\kappa_d$ cancels into $\tau^{(d)}_{\mat,\mat} = (1{-}\beta_d)\alpha_d\kappa_d$);
+R3 carries the cross-domain entry weight, involving both the source
+domain's exit $\tau^{(d)}_{\mat,\fin} = (1{-}\beta_d)(1{-}\kappa_d)$
+and the destination domain's TKF92 entry
+$\tau^{(d')}_{\sta,\mat} = (1{-}\beta_{d'})\alpha_{d'}\kappa_{d'}$.
+Hence the route-sum genuinely cannot be collapsed to a single
+labelled-WFST entry for any $(d, f) \to (d', f')$ transition that
+admits more than one route, which includes every same-domain
+transition $(d, f) \to (d, f')$.
+
+The reduced kernel is no more row-stochastic than the labelled one
+was --- both are conditional transducers --- but the
+input-conditional normalisation of the transducer is preserved by
+the route-sum marginalisation.
+
+\paragraph{Numerical verification.}
+The route-sum
+\eqref{eq:T-hat} has been verified at $t = 0.1$ on a
+$(N_\text{dom}, N_\text{fr}) = (2, 2)$ instance (random parameters,
+fixed seed) by reconstructing every $\mat\!\to\!\mat$ entry of the
+Pair HMM as $\sum_r \omega^{(r)}\,W^{(r)}_{\mat\mat}$ and comparing
+against the corresponding entry of \texttt{build\_nested\_trans}; the
+maximum absolute discrepancy across the 16-entry $\mat\!\to\!\mat$
+block is $1.1 \times 10^{-16}$, i.e.\ floating-point noise. The
+script is at \texttt{python/verify\_reduced\_wfst\_routes.py}. The
+previous $t = 0$ check did not test the inter-route discrepancy in
+$W^{(r)}_{ss'}$ because at $t = 0$ the WFST collapses to (near-)identity
+and all routes coincide trivially.
+
+\subsection{Per-branch path log-likelihood}
+\label{sec:varanc-mixdom-pathLL}
+
+Read parent and child labelled states column-by-column on branch
+$v \to w$ to obtain the joint sequence
+$(Z^v_n, Z^w_n)_{n=1}^L$. By the same-tuple invariant of $q_n$, only
+five joint configurations carry positive variational mass, mapping
+to WFST states as in equation~\eqref{eq:state-map} (with $\tau$ now
+in the reduced $\mathcal{T}$):
+\begin{equation}
+\label{eq:state-map-mixdom-reduced}
+S_n =
+\begin{cases}
+\mat & (Z^v_n, Z^w_n) = (\tau, \tau), \\
+\del & (Z^v_n, Z^w_n) = (\tau, \state{D}), \\
+\ins & (Z^v_n, Z^w_n) = (\state{N}, \tau), \\
+\mathsf{Ig} & (Z^v_n, Z^w_n) \in \{(\state{N},\state{N}), (\state{D}, \state{D})\}.
+\end{cases}
+\end{equation}
+With sentinels $S_0 = \sta$, $S_{L+1} = \fin$, the strip-Ignore
+reduction of equation~\eqref{eq:branch-LL} carries over:
+\begin{equation}
+\label{eq:branch-LL-mixdom-reduced}
+\log P\!\big(X^w \mid X^v, \branchlen, \theta\big)
+\;=\; \sum_{N=1}^{L+1} \delta(S_N \neq \mathsf{Ig})
+       \sum_{M=0}^{N-1} \delta(S_M \neq \mathsf{Ig})
+         \log \hat{T}_{S_M S_N}\!\big(\tau_{n(M)},\, \tau_{n(N)};\, \branchlen, \theta\big)
+         \prod_{K=M+1}^{N-1} \delta(S_K = \mathsf{Ig}),
+\end{equation}
+with the reduced WFST $\hat{T}$ from
+equation~\eqref{eq:T-hat} replacing the labelled $T^{\text{lab}}$.
+Tuples are now in $\mathcal{T} = [N_{\text{dom}}] \times [N_{\text{fr}}]$.
+
+\subsection{\texorpdfstring{Per-column expected indel log-likelihood under $q$}{Per-column expected indel log-likelihood under q}}
+\label{sec:varanc-mixdom-elbo-indel}
+
+The variational column-state probabilities $P^{v\to w}_q(S_n = s)$
+depend only on the presence/absence pattern through the inner
+$q_n^{(\pi|\tau)}$ (which is $\tau$-independent in our factorisation),
+so the same belief-propagation machinery from the simple case
+(equation~\eqref{eq:column-state-probs}) computes them.
+
+The per-branch expected indel log-likelihood factorises as
+\begin{equation}
+\label{eq:E-branch-LL-mixdom-reduced}
+\expect_q\!\big[\log P(X^w \mid X^v, \branchlen, \theta)\big]
+= \sum_{s, s'} \sum_{\tau, \tau' \in \mathcal{T}}
+   W^{(v\to w)}_{ss', \tau\tau'}\,
+   \log \hat{T}_{ss'}\!\big(\tau, \tau';\, \branchlen, \theta\big),
+\end{equation}
+with the reduced expected transition counts
+\begin{equation}
+\label{eq:W-pair-mixdom-reduced}
+W^{(v\to w)}_{ss', \tau\tau'}
+\;=\; \sum_{N=1}^{L+1}\!\sum_{M=0}^{N-1}
+   q^{(\tau)}_{n(M)}(\tau)\, q^{(\tau)}_{n(N)}(\tau')\,
+   P^{v\to w}_{q,M}(s)\, P^{v\to w}_{q,N}(s')
+   \prod_{K=M+1}^{N-1} P^{v\to w}_{q,K}(\mathsf{Ig}),
+\end{equation}
+where the per-column factorisation of $q^{(\tau)}$ has reduced the
+pairwise tuple weight to a product of per-column marginals (no chain
+forward-backward needed). The cumulant trick of
+Section~\ref{sec:varanc-presence-cumulant} lifts unchanged to the
+inner $K$-product, with stable computation in
+$O(L \cdot |s|^2 \cdot |\mathcal{T}|^2)$ per branch via the
+running-logaddexp prefix on $\log P^{v\to w}_q(\mathsf{Ig})$. For
+$(N_{\text{dom}}, N_{\text{fr}}) = (3, 2)$ this gives
+$|\mathcal{T}|^2 = 36$ — versus $|\mathcal{T}^{\text{lab}}|^2 = 57600$
+in the labelled variant ($\sim 1600\times$ cheaper per branch).
+
+\subsection{Per-column expected substitution log-likelihood}
+\label{sec:varanc-mixdom-substitution}
+
+For each column $n$, define the \emph{Fitch subtree} $\mathcal{F}_n
+\subseteq \parsetree$ as the smallest connected subtree containing
+all leaves $v$ with $X^v_n = 1$. By stationarity and reversibility of
+the substitution model, only nodes inside $\mathcal{F}_n$ contribute
+to the substitution likelihood; nodes outside are treated as missing
+data and absorbed into normalisation. The Fitch subtree is determined
+by the leaf data alone, independently of $q$ and $\tau$.
+
+Because $c$ is a per-column model latent (one class per column,
+governing all branches at that column), the column-substitution
+likelihood under fragchar $f$ marginalises $c$ at the model level:
+\begin{equation}
+\label{eq:L-sub-total}
+L^{(\text{sub}), \text{tot}}_n(f; \mathcal{F}_n)
+\;=\; \sum_{c=1}^{N_{\text{cl}}} \classdist_{f, c}\,
+       L^{(\text{sub})}_n(c; \mathcal{F}_n),
+\end{equation}
+with
+\begin{equation}
+\label{eq:L-sub-mixdom}
+L^{(\text{sub})}_n(c; \mathcal{F}_n)
+= \sum_{a \in \alphabet} \eqm^{(c)}_a\,\beta_n^{r_n}(a; c)
+\end{equation}
+the standard Felsenstein up-pass likelihood at column $n$ on
+$\mathcal{F}_n$ under class-$c$'s rate matrix $\revsub^{(c)}$ and
+stationary $\eqm^{(c)}$ ($r_n$ is the Fitch-determined root of
+$\mathcal{F}_n$, $\beta_n^v(a; c)$ the standard Felsenstein
+up-message). The expected substitution
+log-likelihood under $q$ involves only the fragchar marginal
+$q_n^{(f)}(f) = \sum_d q_n^{(\tau)}(d, f)$:
+\begin{equation}
+\label{eq:E-sub-mixdom-reduced}
+\boxed{\;
+\expect_{q_n^{(\tau)}}\!\big[\log L^{(\text{sub}), \text{tot}}_n(f_n; \mathcal{F}_n)\big]
+\;=\; \sum_{f=1}^{N_{\text{fr}}} q_n^{(f)}(f)\,
+      \log\!\Big[\sum_c \classdist_{f, c}\,
+                  L^{(\text{sub})}_n(c; \mathcal{F}_n)\Big].
+\;}
+\end{equation}
+The presence factor $q_n^{(\pi|\tau)}$ does not enter — the
+substitution likelihood is fully determined by the (data-determined)
+Fitch subtree and the (variational-determined) fragchar marginal.
+
+\paragraph{Why $\log\sum_c \classdist L$, not $\sum_c \classdist \log L$.}
+This is the proper integration over the per-column class prior. A
+labelled-variant counterpart that carried $c$ as a variational latent
+would give $\sum_c q^{(c)}_n(c) \log L^{(\text{sub})}_n(c)$; by Jensen's inequality
+$\log \sum_c p_c L_c \geq \sum_c p_c \log L_c$ with $p_c =
+\classdist_{f, c}$, equality holding only when
+$q^{(c)}_n$ is at the Bayes-optimal class posterior
+$q^*(c) \propto \classdist_{f, c} L^{(\text{sub})}_n(c)$.
+The reduction analytically marginalises $c$ at the place where the
+labelled formulation left an inequality, so the reduced ELBO is at
+least as tight as the labelled ELBO and strictly tighter for any
+$q^{(c)}$ off the Bayes-optimal class posterior.
+
+\paragraph{Numerical implementation.}
+$\log L^{(\text{sub}), \text{tot}}_n(f)$ is computed in log-space:
+\begin{equation}
+\log L^{(\text{sub}), \text{tot}}_n(f)
+\;=\; \mathrm{logsumexp}_c\!\big(\log \classdist_{f, c}
+                                   + \log L^{(\text{sub})}_n(c; \mathcal{F}_n)\big),
+\end{equation}
+with the expected log under $q_n^{(f)}$ a simple weighted sum.
+
+\subsection{ELBO}
+\label{sec:varanc-mixdom-elbo}
+
+Combining the four contributions:
+\begin{equation}
+\label{eq:elbo-mixdom-reduced}
+\boxed{\;\;
+\log p(\text{MSA} \mid \parsetree, \theta)
+\;\geq\;
+\log \tilde{p}(\text{MSA} \mid \parsetree, \theta)
+\;\geq\;
+\mathcal{L}[q],
+\;\;}
+\end{equation}
+with
+\begin{equation}
+\label{eq:elbo-mixdom-reduced-detail}
+\mathcal{L}[q]
+= \expect_q\!\big[\log p_{\text{singlet}}^{\text{red}}(Z^{\text{root}})\big]
++ \sum_{(v\to w) \in \parsetree}
+   \expect_q\!\big[\log \hat{P}^{\text{WFST}}\!(Z^w \mid Z^v, \branchlen_{vw}, \theta)\big]
++ \sum_{n=1}^L \sum_f q_n^{(f)}(f)\,\log L^{(\text{sub}), \text{tot}}_n(f; \mathcal{F}_n)
++ H[q].
+\end{equation}
+The first two terms use the reduced singlet HMM (defined on
+$\mathcal{T} = [N_{\text{dom}}] \times [N_{\text{fr}}]$ with the
+singlet kernel $\omega$ from equation~\eqref{eq:omega}) and the
+reduced WFST $\hat{T}$ from
+equation~\eqref{eq:T-hat}. The third is the marginalised substitution
+term~\eqref{eq:E-sub-mixdom-reduced}.
+
+\paragraph{Entropy decomposition.}
+\begin{equation}
+\label{eq:entropy-mixdom-reduced}
+H[q]
+= \sum_{n=1}^L H[q_n^{(\tau)}] \;+\; \sum_{n=1}^L H[q_n^{(\pi|\tau)} \mid \text{MSA}],
+\end{equation}
+with $H[q_n^{(\tau)}]$ the simple categorical entropy
+(closed-form, $|\mathcal{T}| - 1$ free parameters per column) and
+$H[q_n^{(\pi|\tau)} \mid \text{MSA}]$ the leaf-conditioned entropy of
+the simple-case 3-state graphical model
+(equations~\eqref{eq:entropy} and~\eqref{eq:cross-entropy-decomp} of
+Section~\ref{sec:varanc-presence-elbo-derivation}, with the same
+$\log Z_q$ correction).
+
+\paragraph{Bound interpretation.}
+Identical to equation~\eqref{eq:gap-decomp}: the bound is on
+$\log p$ with gap = $q$-independent restriction-gap (ghost-column
+histories) + variational KL. The reduction $(c, g, e)$-collapse
+introduces no additional restriction gap; the analytic
+marginalisations are exact at the model level, replacing two
+labelled-variant Jensen inequalities with equalities and yielding a
+strictly tighter bound at the same variational optimum.
+
+\subsection{Cross-column constraint vanishes}
+\label{sec:varanc-mixdom-cross-column-vanishes}
+
+The labelled-variant cross-column constraint (Section M.8 of the
+labelled draft) forced $q^{(\tau)}$ to be a column-Markov chain to
+avoid hard-zero violations of structural rules
+($d_{n+1} = d_n$ when $e_n = 0$, etc.). Under the
+$(g, e)$-marginalisation those rules disappear: every entry of
+$\omega^{(d, f, d', f')}$ is positive (assuming irreducibility of
+$\ext^{(d)}$ and positivity of $\domdist, \fragdist, \notext^{(d)},
+\kappa_{\main}, \kappa_{\dom}$), so no $(\tau_n, \tau_{n+1})$ pair
+is hard-zero in $\hat{T}$ either. Per-column factorised
+$q^{(\tau)}(\tau_1, \ldots, \tau_L) = \prod_n q^{(\tau)}_n(\tau_n)$
+puts positive mass everywhere on the model's support and
+$\mathbb{E}_q[\log p]$ is finite for any positive $q$.
+
+A column-Markov $q^{(\tau)}$ remains an \emph{optional refinement} —
+the true posterior on column-tuples is correlated across columns
+even after $(g, e)$-marginalisation (the singlet kernel is genuinely
+Markov on $(d, f)$ via $\omega$) — but the per-column factorised
+$q^{(\tau)}$ is sufficient for $\mathcal{L}[q]$ to be a finite
+proper bound, eliminating the $|\mathcal{T}|^2$ tuple-Markov
+parameters per column-pair that the labelled variant required.
+
+\subsection{Special cases and recovery}
+\label{sec:varanc-mixdom-reduced-special-cases}
+
+\paragraph{Recovery of simple TreeVarAnc.}
+Setting $|\mathcal{T}| = 1$ (single domain, single fragchar) collapses
+$\hat{T}$ to the GGI-approximation WFST
+$\tkfwfst'$ of Section~\ref{sec:tkf92-wfst} and renders the
+substitution term constant, recovering Section~\ref{sec:varanc-presence}
+verbatim.
+
+\paragraph{Single-class limit.}
+Setting $\classdist_{f, c} = \delta_{c, c_0}$ for a fixed class $c_0$
+gives $L^{(\text{sub}), \text{tot}}_n(f) = L^{(\text{sub})}_n(c_0;
+\mathcal{F}_n)$, and the substitution term reduces to the standard
+Felsenstein log-likelihood under class $c_0$.
+
+\paragraph{Single-fragchar-per-domain limit.}
+$N_{\text{fr}} = 1$ collapses $\ext^{(d)}$ to a scalar self-loop, the
+within-domain fragchar Markov reduces to a geometric extension, and
+the reduced model recovers a simpler scalar-extension form.
+
+\paragraph{Fragment-boundary inference caveat.}
+Were the labelled $g$ indicator a deterministic function of
+consecutive fragchar transitions ($g_n = \delta(f_n \neq f_{n+1})$
+within the same domain --- the special case where intra-fragment
+fragchar transitions are forbidden), the variational marginal would
+identify fragment boundaries directly. Under the reduced formulation
+the variational marginal $q_n^{(\tau)}(d, f)$ at each column gives
+the ancestral $(d, f)$ directly, but does \emph{not} uniquely identify
+``fragment boundaries'' in that restrictive sense: a fragchar
+transition $(d, f) \to (d, f')$ with $f' \neq f$ in the inferred
+ancestral trajectory may be either a within-fragment Markov move or
+a new-fragment start, depending on the latent route. For ancestral
+$(d, f)$
+inference at observed columns this distinction is irrelevant. For
+downstream tasks that need fragment boundaries explicitly, one
+option is to augment $q^{(\tau)}$ post-hoc with a
+fragment-boundary indicator inferred from the route posterior over
+each $(d, f) \to (d, f')$ transition --- but this is a derived
+quantity rather than an independent variational latent.
+
+\subsection{Open issues}
+\label{sec:varanc-mixdom-open-issues}
+
+Two points warrant explicit verification before relying on the
+construction quantitatively (a third was resolved by numerical
+verification at $t=0$, see Section~\ref{sec:varanc-mixdom-reduced-wfst}).
+
+\paragraph{(I.1) $\hat{T}$ row-sum identity.}
+The reduced WFST $\hat{T}$ inherits the labelled WFST's
+input-conditional normalisation by construction
+(Section~\ref{sec:varanc-mixdom-reduced-wfst}), but we have not
+explicitly verified the row-sum identity. A small numerical check is
+recommended: for $(N_{\text{dom}}, N_{\text{fr}}) \in \{(2, 2),
+(3, 2)\}$, build $\hat{T}$ from the labelled $T^{\text{lab}}$ and
+verify that composition with the reduced singlet HMM on $(d, f)$
+yields the same column-marginal Pair HMM probabilities as the
+labelled construction.
+
+\paragraph{(I.2) Start/end-row boundary effects.}
+Boundary entries $\hat{T}_{\sta s'}(\sta, \tau')$ and
+$\hat{T}_{s\fin}(\tau, \fin)$ involve the labelled WFST's start and
+end rows, which carry domain-level boundary indicators
+($\nonemptytrans_{\sta\cdot}$, $\nonemptytrans_{\cdot\fin}$) that are
+not column-internal. These rows may need explicit derivation rather
+than mechanical application of equation~\eqref{eq:T-hat}; the
+construction in Section~\ref{sec:varanc-mixdom-reduced-wfst} is
+correct for interior $(s, s') \in \{\mat, \ins, \del\}^2$ but should
+be verified at the boundaries.
+
+These open issues are flagged here for transparency. Their resolution
+is a precondition for production use of the reduced ELBO in
+parameter learning; for ancestral-tuple inference at fixed $\theta$
+the resulting bias (if any) is $q$-independent and so cancels from
+the variational optimum.

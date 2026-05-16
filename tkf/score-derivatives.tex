@@ -1,0 +1,275 @@
+
+\section{TKF91 Score Function}
+\label{sec:appendix-score}
+
+We derive the explicit partial derivatives needed to compute the observed-data score
+from Pair HMM transition counts, as described in Section~\ref{sec:bw-tkf91}.
+
+\subsection{Derivatives of TKF parameters}
+
+Define $\eta = e^{-\insrate \evoltime}$ (so that $\alpha = e^{-\delrate\evoltime}$ and $\eta = e^{-\insrate\evoltime}$)
+and $\Delta = \delrate\eta - \insrate\alpha$ (the denominator of $\beta$).
+
+\paragraph{$\alpha = e^{-\delrate\evoltime}$.}
+\[
+\frac{\partial \log\alpha}{\partial \insrate} = 0, \qquad
+\frac{\partial \log\alpha}{\partial \delrate} = -\evoltime
+\]
+
+\paragraph{$\beta = \insrate(\eta - \alpha)/\Delta$.}
+Using $\log\beta = \log\insrate + \log(\eta - \alpha) - \log\Delta$:
+\begin{eqnarray*}
+\frac{\partial \log\beta}{\partial \insrate} & = & \frac{1}{\insrate} - \frac{\evoltime\eta}{\eta - \alpha} + \frac{\evoltime\delrate\eta + \alpha}{\Delta} \\
+\frac{\partial \log\beta}{\partial \delrate} & = & \frac{\evoltime\alpha}{\eta - \alpha} - \frac{\eta + \evoltime\insrate\alpha}{\Delta}
+\end{eqnarray*}
+
+\paragraph{$\gamma = 1 - \delrate\beta/(\insrate(1-\alpha))$.}
+Using $\log(1-\gamma) = \log\delrate + \log\beta - \log\insrate - \log(1-\alpha)$:
+\begin{eqnarray*}
+\frac{\partial \log(1-\gamma)}{\partial \insrate} & = & \frac{\partial\log\beta}{\partial\insrate} - \frac{1}{\insrate} \\
+\frac{\partial \log(1-\gamma)}{\partial \delrate} & = & \frac{1}{\delrate} + \frac{\partial\log\beta}{\partial\delrate} + \frac{\evoltime\alpha}{1-\alpha}
+\end{eqnarray*}
+and $\frac{\partial\log\gamma}{\partial\theta} = -\frac{1-\gamma}{\gamma}\frac{\partial\log(1-\gamma)}{\partial\theta}$ for $\theta \in \{\insrate,\delrate\}$.
+
+\paragraph{$\kappa = \insrate/\delrate$.}
+\[
+\frac{\partial \log\kappa}{\partial \insrate} = \frac{1}{\insrate}, \qquad
+\frac{\partial \log\kappa}{\partial \delrate} = -\frac{1}{\delrate}
+\]
+
+\paragraph{Complementary parameters.}
+For any parameter $\xi$:
+$\frac{\partial\log(1-\xi)}{\partial\theta} = -\frac{\xi}{1-\xi}\frac{\partial\log\xi}{\partial\theta}$.
+
+\subsection{Observed-data score}
+
+\begin{table}[ht]
+\centering
+\caption{Correspondence between transition counts, complete-data log-likelihood terms, and lineage fates.}
+\label{tab:hmm-counts}
+\begin{tabular}{lll}
+\hline
+Log-likelihood term & Coefficient & Interpretation \\
+\hline
+$\log\alpha$ &
+  $n_{SM}+n_{MM}+n_{DM}+n_{IM}$ &
+  Founder survival (match) \\
+$\log(1-\alpha)$ &
+  $n_{SD}+n_{MD}+n_{DD}+n_{ID}$ &
+  Founder death (delete) \\
+$\log(1-\gamma)$ &
+  $n_{DM}+n_{DD}+n_{DE}$ &
+  Lineage extinction (no $\del \to \ins$)\\
+$\log\gamma$ &
+  $n_{DI}$ &
+  Youngest orphan ($\del \to \ins$) \\
+$\log\beta$ &
+  $n_{SI}+n_{MI}+n_{II}$ &
+  Further offspring (insertions continue) \\
+$\log(1-\beta)$ &
+  $n_{IM}+n_{ID}+n_{IE}$ &
+  No further offspring (insertions end) \\
+\hline
+\end{tabular}
+\end{table}
+
+Using the transition count decomposition from Table~\ref{tab:hmm-counts},
+the Pair HMM log-likelihood under the \emph{conditional} model $P(y|x)$ is
+\[
+\ell_{\text{cond}} = n_{\log\alpha}\log\alpha + n_{\log(1-\alpha)}\log(1-\alpha)
++ n_{\log\beta}\log\beta + n_{\log(1-\beta)}\log(1-\beta)
++ n_{\log\gamma}\log\gamma + n_{\log(1-\gamma)}\log(1-\gamma)
+\]
+where we have suppressed the $\kappa$ and $(1-\kappa)$ terms since they cancel in the conditional likelihood
+(they appear symmetrically in the transition probabilities and the ancestral sequence prior).
+
+The score with respect to $\insrate$ is
+\[
+\frac{\partial \ell_{\text{cond}}}{\partial \insrate}
+= \sum_{\xi} n_\xi \frac{\partial \xi}{\partial \insrate}
+\]
+where $\xi$ ranges over $\{\log\alpha, \log(1-\alpha), \log\beta, \log(1-\beta), \log\gamma, \log(1-\gamma)\}$,
+and similarly for $\delrate$.
+
+\subsection{Joint likelihood correction}
+
+For the \emph{joint} model $P(x,y)$, the log-likelihood includes the ancestral sequence prior
+\[
+\ell_{\text{joint}} = \ell_{\text{cond}} + |x|\log\kappa + \log(1-\kappa) + \sum_i n_i\log\eqm_i
+\]
+where $|x|$ is the ancestor length, $n_i$ counts character $i$ in the ancestor,
+and the $\kappa$/$1-\kappa$ terms come from the geometric length distribution.
+The additional score contributions are
+\[
+\frac{\partial}{\partial \insrate}\left[|x|\log\kappa + \log(1-\kappa)\right]
+= \frac{|x|}{\insrate} - \frac{1}{\delrate - \insrate}, \qquad
+\frac{\partial}{\partial \delrate}\left[|x|\log\kappa + \log(1-\kappa)\right]
+= -\frac{|x|}{\delrate} + \frac{1}{\delrate - \insrate}
+\]
+
+\subsection{Recovering sufficient statistics and M-step}
+
+The gradients $\partial\ell/\partial\insrate$ and $\partial\ell/\partial\delrate$
+relate to the BDI sufficient statistics via
+\[
+\frac{\partial\ell}{\partial\insrate} = \frac{\expect[B]}{\insrate} - \expect[S] - T, \qquad
+\frac{\partial\ell}{\partial\delrate} = \frac{\expect[D]}{\delrate} - \expect[S]
+\]
+Combined with the conservation law~\eqref{eq:conservation},
+the closed-form M-step updates are
+$\insrate_{\text{new}} = \expect[B]/\expect[S]$ and
+$\delrate_{\text{new}} = \expect[D]/\expect[S]$.
+
+Alternatively, gradient ascent can be performed directly using the score,
+without needing to recover the individual sufficient statistics.
+
+
+\section{General BDI Sufficient Statistics}
+\label{sec:appendix-bdi}
+
+We derive the endpoint-conditioned sufficient statistics for the general linear BDI process
+with birth rate $\insrate$, death rate $\delrate$, and immigration rate $\immrate$
+(not necessarily equal to $\insrate$), conditioned on $X(0) = i$ and $X(T) = j$.
+
+\subsection{Complete-data log-likelihood}
+
+The complete-data log-likelihood for a path is
+\[
+\log P(\xpath) = B_\ind\log\insrate + B_\imm\log\immrate + D\log\delrate
+  - (\insrate + \delrate)S - \immrate T + c
+\]
+with sufficient statistics $B_\ind$ (individual births), $B_\imm$ (immigrations),
+$D$ (deaths), and $S = \int_0^T X(t)\,dt$ (time-integrated population).
+
+\subsection{Score equations}
+
+Differentiating with respect to $(\insrate, \delrate, \immrate)$:
+\begin{eqnarray*}
+\frac{\partial}{\partial\insrate}\log P_{ij} & = & \frac{\expect[B_\ind]}{\insrate} - \expect[S] \\
+\frac{\partial}{\partial\delrate}\log P_{ij} & = & \frac{\expect[D]}{\delrate} - \expect[S] \\
+\frac{\partial}{\partial\immrate}\log P_{ij} & = & \frac{\expect[B_\imm]}{\immrate} - T
+\end{eqnarray*}
+
+\subsection{Conservation law}
+
+Since population changes only by births and deaths, $i + B_\ind + B_\imm - D = j$, giving
+\begin{equation}\label{eq:conservation-general}
+\expect[B_\ind] + \expect[B_\imm] - \expect[D] = j - i
+\end{equation}
+
+\subsection{Closed-form solution}
+
+Solving the system of four equations (three score equations plus conservation) in four unknowns,
+using $\insrate \neq \delrate$:
+\begin{eqnarray*}
+\expect[B_\imm] & = & \immrate\frac{\partial}{\partial\immrate}\log P_{ij} + \immrate T \\
+\expect[S] & = & \frac{j - i
+  + \delrate\frac{\partial}{\partial\delrate}\log P_{ij}
+  - \insrate\frac{\partial}{\partial\insrate}\log P_{ij}
+  - \immrate\frac{\partial}{\partial\immrate}\log P_{ij}
+  - \immrate T}{\insrate - \delrate} \\
+\expect[B_\ind] & = & \insrate\frac{\partial}{\partial\insrate}\log P_{ij} + \insrate\,\expect[S] \\
+\expect[D] & = & \delrate\frac{\partial}{\partial\delrate}\log P_{ij} + \delrate\,\expect[S]
+\end{eqnarray*}
+
+\subsection{Transition probability for general BDI}
+
+For the general linear BDI process with per-capita birth rate $\insrate$,
+per-capita death rate $\delrate$, and constant immigration rate $\immrate$
+(where $\immrate$ is a free parameter, not necessarily $0$ or $\insrate$),
+the transition probability $P_{ij}(T) = P(X(T) = j \mid X(0) = i)$ is known in closed form
+\cite{Kendall1948}.
+
+Using the $\alpha$ and $\beta$ from Section~\ref{sec:bdi},
+define $\rho = \immrate / \insrate$ (the immigration-to-birth ratio).
+The transition probability factorizes as:
+\begin{equation}\label{eq:pij-general}
+P_{ij}(T) = \underbrace{P_{ij}^{(0)}(T)}_{\text{no-immigration}} \cdot
+\underbrace{R_{ij}(T)}_{\text{immigration factor}}
+\end{equation}
+The no-immigration factor is
+\begin{equation}\label{eq:pij-noimm}
+P_{ij}^{(0)}(T) = \sum_{k=0}^{\min(i,j)} \binom{i}{k} \binom{j-1}{k-1}
+  \alpha^k (1-\alpha)^{i-k} (1-\gamma)^{i-k}
+  \gamma^{j-k} (1-\beta)^{k+1} \beta^{j-k-1} \cdot \delta_{j>0}
+\end{equation}
+(with the $k=0$ term understood as $(1-\alpha)^i (1-\gamma)^i$ when $j=0$,
+and the convention $\binom{-1}{-1} = 1$).
+
+For the immigration factor,
+when $\immrate \neq \insrate$ (i.e.\ $\rho \neq 1$):
+\begin{equation}\label{eq:imm-factor}
+R_{ij}(T) = (1-\beta)^{\rho} \cdot
+{}_2F_1\!\left(-j, \rho;\, 1;\, \frac{\beta}{1-\beta} \cdot \frac{1}{\beta/(1-\beta)}\right)
+\end{equation}
+More explicitly, the full $P_{ij}(T)$ with immigration can be written
+using the negative binomial form \cite{Kendall1948}:
+\begin{equation}\label{eq:pij-full}
+P_{ij}(T) = \sum_{k=0}^{\min(i,j)}
+  \binom{i}{k}\binom{j-1}{k-1}
+  \alpha^k (1-\alpha-\gamma+\alpha\gamma)^{i-k}
+  \gamma^{j-k}(1-\beta)^{k+1}\beta^{j-k-1}
+  \cdot (1-\beta)^{\rho}
+  \sum_{m=0}^{j-k} \binom{\rho+m-1}{m}\beta^m
+\end{equation}
+where the inner sum is a truncated negative binomial in $\beta$ with parameter $\rho$.
+When $\rho = 1$ (i.e.\ $\immrate = \insrate$),
+the immigration factor simplifies to a factor of $(1-\beta)$, recovering the TKF91 transition probabilities.
+When $\rho = 0$ (no immigration), $R = 1$ and we recover $P_{ij}^{(0)}$.
+
+\subsection{\texorpdfstring{Score derivatives for $\immrate$}{Score derivatives for nu}}
+
+The score with respect to $\immrate$ is
+\[
+\frac{\partial}{\partial\immrate}\log P_{ij}
+= \frac{1}{P_{ij}} \frac{\partial P_{ij}}{\partial\immrate}
+\]
+Since $\immrate$ enters through $\rho = \immrate/\insrate$ and the factor $(1-\beta)^\rho$
+times the negative binomial sum, we have
+\begin{equation}
+\frac{\partial}{\partial\immrate}\log P_{ij}
+= \frac{1}{\insrate}\left(
+  \log(1-\beta) + \psi(\rho) \cdot [\text{correction from the sum}]
+\right)
+\end{equation}
+where $\psi$ is the digamma function (arising from $\partial/\partial\rho\;\binom{\rho+m-1}{m}$).
+The full expression is:
+\begin{equation}\label{eq:dlogP-dnu}
+\frac{\partial}{\partial\immrate}\log P_{ij} = \frac{1}{\insrate}
+  \frac{\sum_k (\cdots) \sum_m \binom{\rho+m-1}{m}\beta^m
+  \left[\log(1-\beta) + \sum_{\ell=0}^{m-1}\frac{1}{\rho+\ell}\right]}
+  {\sum_k (\cdots) \sum_m \binom{\rho+m-1}{m}\beta^m}
+\end{equation}
+where $(\cdots)$ abbreviates the terms from the outer sum in~(\ref{eq:pij-full}).
+
+\subsection{Chain rule}
+
+In practice, automatic differentiation of~(\ref{eq:pij-full})
+is the preferred approach for computing
+$\partial\log P_{ij}/\partial\insrate$,
+$\partial\log P_{ij}/\partial\delrate$, and
+$\partial\log P_{ij}/\partial\immrate$,
+since the nested sums and special functions make manual differentiation unwieldy.
+
+For completeness, the chain rule decomposes as:
+\[
+\frac{\partial\log P_{ij}}{\partial\insrate}
+= \frac{\partial\log P_{ij}}{\partial\alpha}\frac{\partial\alpha}{\partial\insrate}
++ \frac{\partial\log P_{ij}}{\partial\beta}\frac{\partial\beta}{\partial\insrate}
++ \frac{\partial\log P_{ij}}{\partial\gamma}\frac{\partial\gamma}{\partial\insrate}
++ \frac{\partial\log P_{ij}}{\partial\rho}\frac{\partial\rho}{\partial\insrate}
+\]
+with the $\alpha$, $\beta$, $\gamma$ derivatives given in Appendix~\ref{sec:appendix-score},
+and the additional term
+\[
+\frac{\partial\rho}{\partial\insrate} = -\frac{\immrate}{\insrate^2}, \qquad
+\frac{\partial\rho}{\partial\immrate} = \frac{1}{\insrate}
+\]
+The derivative $\partial\log P_{ij}/\partial\rho$ is the quantity in~(\ref{eq:dlogP-dnu})
+times $\insrate$.
+The $\delrate$ derivative has no $\rho$ term since $\rho$ does not depend on $\delrate$.
+
+The formulas above hold for any $(i,j,\insrate,\delrate,\immrate)$ with $\insrate \neq \delrate$
+and $P_{ij}(T) > 0$.
+In the TKF91 regime ($\immrate = \insrate$, $i \in \{0,1\}$),
+they specialize to the results of the main text.

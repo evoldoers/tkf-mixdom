@@ -1,0 +1,244 @@
+
+\section{The Neural TKF Model}
+\label{sec:neural-tkf}
+
+\subsection{Beyond HMMs: epistasis and neural networks}
+
+A fundamental limitation of Hidden Markov Model (HMM) approaches to sequence evolution
+is their inability to model \emph{epistasis}---the phenomenon whereby
+the evolutionary constraints at one site depend on the identity of residues at other sites.
+In an HMM, emission probabilities at each position are conditionally independent
+given the hidden state, so the substitution process at site $i$
+cannot depend on the residue at site $j$.
+This is a poor approximation for proteins (where stability and function
+depend on networks of interacting residues)
+and for structured RNAs (where base-pairing imposes strong covariation between paired sites).
+
+Stochastic context-free grammars (SCFGs) offer a partial remedy:
+by emitting paired terminals, they can capture the covariation
+between base-paired positions in RNA secondary structure.
+However, SCFGs impose a highly constrained, tree-structured form of epistasis:
+only positions that are co-emitted by the same nonterminal can covary,
+and the pattern of dependencies is rigidly determined by the grammar's derivation tree.
+SCFGs cannot model the dense, long-range epistatic networks
+found in protein tertiary structure or RNA pseudoknots.
+
+The strongest candidate for moving beyond these limitations
+is \emph{neural network parameterization} of the evolutionary process.
+By conditioning transition and emission parameters on learned embeddings
+of the full sequence context, neural models can in principle capture
+arbitrary epistatic interactions, limited only by the capacity of the network.
+The challenge is to do so while retaining the interpretable probabilistic structure---alignment,
+phylogeny, and time-reversibility---that makes statistical models of evolution scientifically useful.
+
+\subsection{Neural transducers}
+
+A \emph{neural transducer} replaces the fixed parameters of a statistical sequence transducer
+(such as a Pair HMM) with position-specific parameters predicted by a neural network.
+Given an input sequence $X = (x_1, \ldots, x_L)$ and evolutionary time $\evoltime$,
+a neural embedding network $\mathcal{E}(X)$ produces per-site embeddings,
+from which prediction heads derive site-specific transition and emission parameters.
+The model likelihood is computed by a standard Forward algorithm
+over the transducer's state space,
+but with neural-predicted parameters substituted at each position.
+Training proceeds by differentiating the Forward log-likelihood with respect to the network weights.
+
+This approach occupies a middle ground between two extremes.
+At one end are classical homogeneous models (TKF91, TKF92, and their mixtures)
+with shared parameters across all sites.
+At the other end are unconstrained sequence-to-sequence models
+that predict descendant tokens autoregressively
+without any explicit alignment or evolutionary structure~\cite{KoehlEtAl2026PEINT}.
+The neural transducer retains the alignment structure and time-reversibility
+of the underlying stochastic process,
+while allowing site-specific evolutionary rates
+that can capture context-dependent selection pressures.
+
+Viewed through this lens,
+a neural transducer with a $k$th-order Markov embedding
+can be seen as a $(k+1)$th-order approximation
+to a whole-sequence evolutionary model.
+Models such as Cosine~\cite{LuEtAl2026Cosine}
+also condition on the full ancestor sequence via attention,
+but use the alignment purely as an attention guide
+rather than as an explicit latent variable in the generative model.
+Models such as PEINT~\cite{KoehlEtAl2026PEINT}
+dispense with alignment entirely,
+gaining flexibility at the cost of interpretable evolutionary structure.
+The neural transducer combines the alignment-guided architecture
+of Cosine with the epistatic sequence-to-sequence flexibility of PEINT,
+while retaining a well-defined probabilistic indel model
+that can be composed along a phylogenetic tree.
+
+\subsection{The Neural TKF92 model}
+
+Large and Holmes~\cite{LargeHolmes2026} introduced the Neural TKF model,
+which parameterizes a site-specific TKF92 process using neural network embeddings.
+Given an ancestor--descendant pair $(X, Y)$ separated by time $\evoltime$,
+the model works as follows.
+
+\paragraph{Sequence embeddings.}
+Separate embedding networks $\mathcal{E}_{\mathrm{anc}}(X)$
+and $\mathcal{E}_{\mathrm{desc}}(Y)$
+produce per-site embedding vectors.
+The ancestor embedder uses bidirectional context
+(the full ancestor is observed),
+while the descendant embedder uses causal (left-to-right) context
+to maintain a valid autoregressive factorization.
+Several architectures were explored, including residual CNNs,
+bidirectional LSTMs, and Transformers with rotary positional encoding;
+the Transformer architecture performed best.
+
+\paragraph{Prediction heads.}
+At each aligned position $(i, j)$,
+the ancestor and descendant embeddings are concatenated
+along with the previous alignment state and evolutionary time $\evoltime$,
+then passed through feedforward networks to predict site-specific TKF92 parameters:
+\begin{itemize}[nosep]
+\item Equilibrium distribution $\eqm_{ij}$ (via softmax over alphabet logits);
+\item Deletion rate $\delrate_{ij}$ (via a bounded sigmoid $\sigma_{\mathrm{bound}}$);
+\item Insertion--deletion offset $\delta_{ij}$ with $\insrate_{ij} = \delrate_{ij}(1 - \delta_{ij})$,
+  ensuring $\delrate > \insrate$ (also via bounded sigmoid);
+\item Fragment extension probability $\ext_{ij}$ (via standard sigmoid).
+\end{itemize}
+The bounded sigmoid $\sigma_{\mathrm{bound}}(x, b_{\min}, b_{\max})
+= b_{\min} + (b_{\max} - b_{\min}) / (1 + e^{-x})$
+prevents rates from diverging during training.
+
+\paragraph{Emission and transition.}
+Emissions follow a site-specific F81 substitution model:
+for a match column $(a, b)$ with $a, b \in \alphabet$,
+the emission probability is $[\exp(\exch_{ij} \evoltime)]_{ab}$,
+where $\exch_{ij}$ is the F81 rate matrix constructed from $\eqm_{ij}$.
+Insert emissions use $(\eqm_{ij})_b$.
+The transition matrix is the standard TKF92 matrix
+(with states $\{ \mat, \ins, \del, \fin \}$),
+but with site-specific parameters $(\insrate_{ij}, \delrate_{ij}, \ext_{ij})$
+substituted at each position.
+
+\paragraph{Training.}
+The pairwise alignment between ancestor and descendant
+serves as the latent path through the Pair HMM.
+The Forward algorithm computes the marginal likelihood
+$P(Y | X, \evoltime)$ by summing over all valid alignments,
+and the network is trained by gradient descent on $-\log P(Y | X, \evoltime)$.
+The Forward dynamic program is fully differentiable.
+
+\paragraph{Alignment-guided attention.}
+A key architectural feature is that the pairwise alignment
+can serve as a \emph{causal attention guide}:
+at descendant position $j$,
+cross-attention to the ancestor is restricted
+to positions $i' \leq i$ where $i$ is the rightmost ancestor position
+aligned to or before $j$.
+This alignment-guided masking provides an inductive bias
+that encourages the network to attend to evolutionarily related positions,
+while maintaining the causal structure needed for autoregressive decoding.
+
+\paragraph{Extensions.}
+The embedding networks can attend to richer inputs
+beyond the raw sequence:
+multiple sequence alignments (MSAs) of homologs,
+predicted or experimentally determined 3D structures,
+or functional annotations.
+These additional inputs are concatenated or cross-attended
+into the per-site embeddings before the prediction heads,
+allowing the model to condition evolutionary rates
+on structural and functional context.
+
+\subsection{The Triad model for ancestral reconstruction}
+\label{sec:triad}
+
+The Neural TKF model as described above is trained on ancestor--descendant pairs,
+where both sequences are observed (e.g., extant homologs related by a known branch).
+For ancestral reconstruction on a phylogenetic tree,
+we require the reverse direction:
+inferring an ancestor given its descendants.
+
+The \emph{Triad model} addresses this by generating an ancestral sequence
+conditioned on two sibling sequences.
+Specifically, given a tree of the form
+\[
+\texttt{((Sib}_1\texttt{:}t_1\texttt{, Sib}_2\texttt{:}t_2\texttt{)Parent:}t_3\texttt{)Grandparent;},\]
+the model maximizes $P(\text{Grandparent} \mid \text{Sib}_1, \text{Sib}_2, t_1, t_2, t_3)$,
+using the grandparent as a proxy for the unobserved parent
+(in the limit $t_3 \to 0$, the grandparent approaches the parent).
+Three branch lengths $(t_1, t_2, t_3)$ replace the single time parameter,
+extending the dimensionality of the evolutionary conditioning.
+
+\paragraph{Input representation.}
+The two sibling sequences are first aligned to each other,
+producing a pairwise alignment over a $(|\alphabet|+1)^2 - 1$ token alphabet
+(every pair of aligned characters including gaps, excluding the double-gap).
+This sibling alignment is treated as a fixed input tape:
+each column is an atomic symbol,
+and the semantics of it being a pairwise alignment are opaque to the decoder.
+
+\paragraph{Output representation.}
+The output alphabet is the same alignment-augmented alphabet
+as in the pairwise Neural TKF:
+$|\alphabet|$ match tokens, $|\alphabet|$ insert tokens,
+a delete token, and an end-of-sequence token.
+Here ``insert'' and ``delete'' refer to the grandparent tape
+relative to the sibling tape;
+the reversal of evolutionary direction
+(siblings$\to$grandparent vs.\ ancestor$\to$descendant)
+is handled naturally by the model's time-reversibility.
+
+\paragraph{Full alignment map.}
+Unlike the pairwise model, where the alignment between ancestor and descendant
+is a Markov chain of $\mat/\ins/\del$ states,
+the Triad model maintains a \emph{full alignment map}
+between the grandparent output and the sibling input tape.
+This alignment map records, for each grandparent position,
+which sibling-tape columns it aligns to.
+The full map (rather than just the most recent alignment state)
+is made available to the decoder,
+allowing attention to all previously aligned positions.
+
+In the decoder, this alignment map augments both:
+\begin{itemize}[nosep]
+\item \emph{Cross-attention}: at each grandparent output position,
+  the model attends to sibling-tape positions
+  guided by the cumulative alignment,
+  giving access to covariant positions
+  (e.g., compensatory base-pair partners in RNA);
+\item \emph{Self-attention}: the alignment map can also modulate
+  self-attention within the grandparent sequence,
+  so that positions aligned to the same or nearby sibling-tape columns
+  are encouraged to attend to each other.
+\end{itemize}
+
+This full-map attention is a strictly richer conditioning
+than the Markovian alignment state used in the pairwise model.
+It enables the Triad decoder to exploit long-range covariation
+in the sibling sequences when reconstructing the ancestor,
+which is particularly important for structured RNAs
+where compensatory mutations at paired positions carry strong phylogenetic signal.
+
+\paragraph{Training data.}
+Training triads $(\text{Grandparent}, \text{Sib}_1, \text{Sib}_2)$
+are sampled from phylogenetic trees with known alignments
+(e.g., Rfam seed alignments for RNA families).
+The sampling targets uniform coverage over sibling divergences
+$(0 < t_1 \leq 1, 0 < t_2 \leq 1)$
+while keeping the parent--grandparent distance $t_3$ short,
+since at inference time the model operates in the limit $t_3 \to 0$
+for progressive ancestral reconstruction.
+
+\paragraph{Chapman--Kolmogorov consistency.}
+A key test for any time-dependent evolutionary model
+is Markovian consistency:
+evolving from time 0 to $t_1 + t_2$ directly
+should give the same distribution as evolving from 0 to $t_1$
+and then from $t_1$ to $t_1 + t_2$.
+For the Neural TKF model, this can be tested
+by using a TKF92-based importance sampler
+to estimate the marginal distribution
+$P(Y | X, t_1 + t_2) \approx \sum_Z P(Z | X, t_1) P(Y | Z, t_2)$,
+where $Z$ ranges over intermediate sequences
+sampled from the first-leg conditional.
+Discrepancies from the direct model $P(Y | X, t_1 + t_2)$
+reveal failures of Markovian consistency,
+which are expected for finite-order neural approximations
+and can guide architecture improvements.

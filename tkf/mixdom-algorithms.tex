@@ -1,0 +1,340 @@
+
+\subsection{Phylogenetic composition}
+\label{sec:composition}
+
+The order-1 HMM (Section~\ref{sec:order1hmm}) and transducers (Section~\ref{sec:order1trans})
+can be composed on a phylogenetic tree to yield a single composite machine
+whose state encodes the joint configuration of all branch machines.
+
+Given a rooted binary tree with $n$ leaves:
+\begin{itemize}
+\item Number nodes $0,\ldots,2n-2$ in \emph{preorder} (root $= 0$).
+\item Place the order-1 Singlet HMM on a notional branch above the root (node 0).
+\item Place an order-1 Pair Transducer on each real branch.
+\item Each node $v$ carries a \emph{tag} $\in \alphabet \cup \{\varepsilon\}$, initially $\varepsilon$.
+\end{itemize}
+
+Each branch machine is either the root HMM or a branch transducer.
+All machines are converted to waiting-machine form (they already are, by construction above).
+
+\subsubsection{Composition rules}
+
+\paragraph{State constraint.}
+A node's machine may advance (take a transition) only if all higher-numbered nodes' machines
+are in waiting states.
+
+\paragraph{Tagging.}
+When an internal node $v$'s transducer takes a transition with output symbol $\destok \neq \varepsilon$,
+node $v$ is tagged with $\destok$.
+If $v$'s tag is non-$\varepsilon$, the next move must feed $v$'s tag as input
+to both child branch transducers (forcing them out of their waiting states).
+This clears $v$'s tag (but the children's transitions may tag downstream nodes).
+
+\paragraph{Priority.}
+If multiple nodes are tagged simultaneously,
+the lowest-numbered (closest to root) tagged node is cleared first.
+
+\paragraph{Cascading.}
+This system of tags allows upward propagation from observed leaf emissions (MSA columns)
+via Felsenstein-style pruning:
+working from leaves (known emissions) upward, each internal node's ancestral character
+is a latent variable marginalized by the DP.
+
+\subsubsection{Composite state space}
+
+A \emph{configuration} of the composed machine is a tuple
+\[
+\sigma = (q_0, q_1, \ldots, q_{2n-2},\; \tau_0, \tau_1, \ldots, \tau_{2n-2})
+\]
+where $q_v$ is node $v$'s machine state and $\tau_v \in \alphabet \cup \{\varepsilon\}$ is its tag.
+The start configuration has all machines in $\sta$ and all tags $\varepsilon$.
+The end configuration has all machines in $\fin$ and all tags $\varepsilon$.
+
+\paragraph{Practical caveat.}
+While this composition defines a valid single machine whose language is the set of MSAs
+weighted by the full phylogenetic likelihood, the composite state space is
+$O(|Q|^{2n-1} \cdot |\alphabet|^{2n-1})$ where $|Q|$ is the number of states per branch machine---i.e.\
+geometric in the number of taxa.
+Explicitly constructing the composed machine is therefore impractical for all but
+the smallest trees.
+The beam algorithms that follow (Sections~\ref{sec:beam-backward}--\ref{sec:progressive})
+avoid this by enumerating only the configurations reachable within a pruned beam,
+so that the effective state space remains manageable.
+The composition formalism is nonetheless useful as a \emph{specification}:
+it defines the target distribution from which the beam search samples or
+whose expected counts the Forward-Backward algorithm estimates.
+
+\subsection{Beam Backward algorithm (BeamMSA)}
+\label{sec:beam-backward}
+
+Given a multiple sequence alignment (MSA) with $L$ columns
+and the composite machine from Section~\ref{sec:composition},
+we compute the alignment likelihood using a \emph{beam Backward} algorithm,
+working from the end configuration backward.
+
+\paragraph{Columns and the emission constraint.}
+Each MSA column $\ell = 1,\ldots,L$ specifies, for each leaf $v$,
+either a character $y_v^\ell \in \alphabet$ or a gap.
+A configuration $\sigma$ is \emph{compatible} with column $\ell$
+if the set of leaf emissions implied by $\sigma$'s tags matches the column.
+
+\paragraph{Backward recurrence.}
+Let $B(\sigma)$ denote the Backward variable: the total probability of
+generating MSA columns $\ell, \ell+1, \ldots, L$ and reaching the end state,
+given that the composite machine is currently in configuration $\sigma$ just before column $\ell$.
+\begin{align}
+B(\sigma_{\fin}) &= 1 && \mbox{(end configuration)} \label{eq:back-base}\\
+B(\sigma) &= \sum_{\sigma'} T(\sigma, \sigma')\, B(\sigma') && \mbox{(all other configurations)} \label{eq:back-rec}
+\end{align}
+where $T(\sigma,\sigma')$ is the composite transition weight
+(product of individual machine transitions, subject to the composition rules above)
+and the sum is over all successor configurations $\sigma'$.
+
+The alignment likelihood is $B(\sigma_{\sta})$.
+
+\paragraph{Beam pruning.}
+Maintain a beam $\mathcal{B}_\ell$ of at most $W$ configurations per column,
+ranked by $B(\sigma)$.
+When expanding $\mathcal{B}_\ell$ from $\mathcal{B}_{\ell+1}$,
+discard any $\sigma$ whose $B(\sigma)$ falls below $B_{\max} / \Delta$
+where $B_{\max}$ is the current maximum and $\Delta$ is the beam width ratio.
+If the beam collapses (no configurations remain), backtrack.
+
+\paragraph{Epsilon closures within a column.}
+A \emph{column-emitting move} is any transition whose output cascades down the tree
+to produce a new MSA column: specifically, an insertion (a transition that outputs a character
+without consuming input), which then tags the node and cascades to its descendants.
+Between column-emitting moves, machines may make silent transitions
+(tag propagation, waiting-state transitions, etc.).
+These form an $\varepsilon$-closure that must be computed at each step.
+For each configuration in the beam, enumerate all reachable configurations
+via silent transitions (respecting the priority ordering),
+accumulating weights multiplicatively along each path.
+In practice, null cycles (if any) can either be ignored (assuming the model's
+null-state topology is acyclic) or handled by allowing a configurable number
+of extra exploratory steps in the beam search.
+
+\subsubsection{Forward traceback}
+
+After the Backward pass reaches $\sigma_{\sta}$, a stochastic Forward traceback
+samples a path from $\sigma_{\sta}$ to $\sigma_{\fin}$:
+\begin{align}
+P(\sigma' | \sigma) &= \frac{T(\sigma,\sigma')\, B(\sigma')}{B(\sigma)} \label{eq:fwd-sample}
+\end{align}
+At each step, sample the next configuration proportional to~(\ref{eq:fwd-sample}).
+This yields a sampled alignment (including ancestral sequences at internal nodes).
+
+\subsubsection{Beam Forward-Backward}
+
+Alternatively, after the Backward beam pass:
+\begin{enumerate}
+\item Prune dead-end configurations from each $\mathcal{B}_\ell$
+  (those with no predecessor in $\mathcal{B}_{\ell-1}$).
+\item Run a Forward pass over the pruned beam:
+\begin{align}
+F(\sigma_{\sta}) &= 1 \label{eq:fwd-base}\\
+F(\sigma') &= \sum_{\sigma \in \mathcal{B}} T(\sigma,\sigma')\, F(\sigma) \label{eq:fwd-rec}
+\end{align}
+\item Posterior marginals for any feature $\phi$:
+\begin{align}
+P(\phi | \mbox{MSA}) &= \frac{1}{B(\sigma_{\sta})} \sum_{\sigma \to \sigma'} F(\sigma)\, T(\sigma,\sigma')\, B(\sigma')\, [\phi(\sigma,\sigma')] \label{eq:fb-posterior}
+\end{align}
+\end{enumerate}
+
+\subsubsection{Beam Viterbi}
+
+Replace $\sum$ with $\max$ in the Backward recurrence~(\ref{eq:back-rec})
+and store argmax pointers:
+\begin{align}
+B^V(\sigma_{\fin}) &= 1 \label{eq:vit-base}\\
+B^V(\sigma) &= \max_{\sigma'} T(\sigma,\sigma')\, B^V(\sigma') \label{eq:vit-rec}
+\end{align}
+The optimal alignment is recovered by Forward traceback following the argmax pointers.
+
+\subsection{Progressive alignment via profile construction (ProgRec)}
+\label{sec:progressive}
+
+We now describe a progressive multiple sequence alignment algorithm
+using the order-1 machines from Sections~\ref{sec:order1hmm}--\ref{sec:order1trans},
+with model parameters from \cite{LargeHolmes2026}.
+This follows the transducer-composition approach of
+\cite{WestessonEtAl2012},
+adapted here for Mealy machines (I/O on transitions rather than states).
+
+The antecedents of this approach are the full multidimensional alignment algorithm of \cite{Hein2000}
+which computes the Forward algorithm for TKF91 on a binary tree.
+This may be seen as unifying the tree-based Viterbi multiple alignment approach of \cite{Sankoff85}
+with the statistical phylogenetics of \cite{Felsenstein81}.
+The approach described here also maintains a partial order graph of 
+intermediate alignments \cite{LeeGrassoSharlow2002},
+which essentially is the approach used by \cite{LoytynojaGoldman2005}.
+
+
+\subsubsection{Recognizers and Profiles}
+
+Let the phylogenetic tree have $n$ leaves with observed sequences
+$\{y_v : v \in \mbox{leaves}\}$, nodes numbered in preorder.
+Let $R$ denote the order-1 Singlet HMM (root generator, Section~\ref{sec:order1hmm})
+and $B_v$ the order-1 Pair Transducer on the branch to node $v$ (Section~\ref{sec:order1trans}).
+
+\paragraph{Recognizers.}
+For each leaf $v$, the \emph{exact-match recognizer} $\mathcal{R}(y_v)$
+is a transducer with empty output alphabet that accepts only $y_v$:
+it has $|y_v|+1$ states (positions $0,\ldots,|y_v|$),
+with a single input-consuming transition $i \to i+1$ labeled by $y_v[i+1]$ at each position.
+All states are waiting states except the start.
+
+\paragraph{Profiles.}
+A \emph{profile} $E_v$ at node $v$ is a recognizer (empty output alphabet)
+that accepts a set of plausible ancestral sequences at $v$,
+weighted by their approximate posterior probability given the descendants of $v$.
+For leaves, $E_v = \mathcal{R}(y_v)$.
+
+\subsubsection{Progressive reconstruction}
+
+Working from the leaves toward the root, for each internal node $v$ with children $l,r$:
+
+\paragraph{Step 1: Compose branch and profile.}
+For each child $c \in \{l,r\}$, form the composition
+$B_c \circ E_c$,
+which is a transducer mapping the sequence at $v$ to the constrained sequences at child $c$.
+Since $E_c$ has empty output, $B_c \circ E_c$ is a recognizer
+(it reads a candidate parent sequence and recognizes it with weight proportional to
+the probability of generating the descendant data at $c$).
+
+\paragraph{Step 2: Intersect siblings.}
+Form the intersection
+\[
+H_v = (B_l \circ E_l) \cap (B_r \circ E_r)
+\]
+This recognizer reads a candidate sequence at $v$ and scores it by the joint probability
+of both children's descendant data, given that parent sequence.
+In the Mealy-machine intersection, the composite state is
+$(q_l, e_l, q_r, e_r)$ where $q_c \in B_c$ and $e_c \in E_c$.
+Both sides must agree on the same input symbol when both are ready (waiting);
+when one side is not waiting, it advances silently while the other stays put.
+
+\paragraph{Step 3: Compose with root prior.}
+Form the generator
+\[
+M_v = R \circ H_v
+\]
+This has empty input and empty output: it is a weighted automaton
+over the empty string, whose total weight $Z = \sum_\pi w(\pi)$ over all paths $\pi$
+is the marginal likelihood of the descendant data below $v$
+(under the stationary prior $R$ at $v$).
+
+\paragraph{Step 4: Sample paths and construct profile.}
+Sample $K$ paths from $P(\pi | M_v) = w(\pi) / Z$ using a Forward pass followed by
+stochastic traceback~(\ref{eq:fwd-sample}).
+For each sampled path $\pi$, extract the $H_v$-component states visited.
+The profile $E_v$ is the sub-recognizer of $H_v$ containing exactly those states
+visited by at least $\tau \geq 2$ of the $K$ sampled paths.
+This bounds $|E_v| = O(KL)$ where $L = \max_v |y_v|$.
+
+\subsubsection{Mealy-machine composition and intersection}
+\label{sec:mealy-ops}
+
+For completeness, we state the composition and intersection rules
+for Mealy machines in waiting-machine normal form
+(``ready'' states = waiting states with input-consuming transitions only;
+``unready'' states = non-waiting, silent transitions only).
+
+\paragraph{Composition.}
+Given $T = (\Omega_X, \Omega_Y, \ldots)$ and $U = (\Omega_Y, \Omega_Z, \ldots)$
+in Mealy normal form,
+$T \circ U$ has states $\subseteq \mathcal{S}_T \times \mathcal{S}_U$ with transition weight:
+\[
+w''((t,u), \omega_x, \omega_z, (t',u')) = \begin{cases}
+\delta_{tt'}\, \delta_{\omega_x\varepsilon}\, w'(u,\varepsilon,\omega_z,u')
+& \text{if } u \text{ unready} \\[4pt]
+\delta_{uu'}\, \delta_{\omega_z\varepsilon}\, w(t,\omega_x,\varepsilon,t')
++ \displaystyle\sum_{\omega_y} w(t,\omega_x,\omega_y,t')\, w'(u,\omega_y,\omega_z,u')
+& \text{if } u \text{ ready}
+\end{cases}
+\]
+
+\paragraph{Intersection.}
+Given $T = (\Omega_X, \Omega_T, \ldots)$ and $U = (\Omega_X, \Omega_U, \ldots)$
+in Mealy normal form,
+$T \cap U$ has states $\subseteq \mathcal{S}_T \times \mathcal{S}_U$
+with output alphabet $\Omega_T \times \Omega_U$ and transition weight:
+\[
+w''((t,u), \omega_x, (\omega_y,\omega_z), (t',u')) = \begin{cases}
+\delta_{tt'}\, \delta_{\omega_x\varepsilon}\, \delta_{\omega_y\varepsilon}\, w'(u,\varepsilon,\omega_z,u')
+& \text{if } u \text{ unready} \\[4pt]
+\delta_{uu'}\, \delta_{\omega_x\varepsilon}\, \delta_{\omega_z\varepsilon}\, w(t,\varepsilon,\omega_y,t')
+& \text{if } t \text{ unready, } u \text{ ready} \\[4pt]
+w(t,\omega_x,\omega_y,t')\, w'(u,\omega_x,\omega_z,u')
+& \text{if both ready}
+\end{cases}
+\]
+
+\subsubsection{Forward recursion for $M_v$}
+\label{sec:forward-mv}
+
+The generator $M_v = R \circ H_v$ has states $m = (\rho, q_l, e_l, q_r, e_r)$
+where $\rho \in R$, $(q_l,e_l) \in B_l \circ E_l$, and $(q_r,e_r) \in B_r \circ E_r$.
+The Forward variable $Z(m)$ satisfies:
+\begin{align}
+Z(\sta_M) &= 1 \label{eq:profile-fwd-base}\\
+Z(m') &= \sum_{m : (m,\varepsilon,\varepsilon,m') \in \mathcal{T}} w(m,\varepsilon,\varepsilon,m')\, Z(m) \label{eq:profile-fwd-rec}
+\end{align}
+where $\mathcal{T}$ is the transition set of $M_v$.
+The total likelihood is $Z(\fin_M)$.
+
+The fill order iterates over $e_l$ and $e_r$ in topological order
+(corresponding to positions in the child profiles),
+with an inner loop over $Q_v = R \circ (B_l \cap B_r)$ states
+(the ``comparison kernel'' Pair HMM).
+This has time complexity $O(|B|^2\, |E_l|\, |E_r|)$ per internal node,
+where $|B|$ is the branch transducer state count.
+
+\subsubsection{Profile extraction}
+
+Given the Forward table $Z$, sample paths $\pi^{(1)},\ldots,\pi^{(K)}$ from $M_v$
+using the stochastic traceback~(\ref{eq:fwd-sample}).
+For each path $\pi^{(k)}$, let $\mathcal{H}^{(k)} = \{(q_l,e_l,q_r,e_r) : (\rho,q_l,e_l,q_r,e_r) \in \pi^{(k)}\}$
+be the $H_v$-states visited.
+
+The profile $E_v$ is the sub-automaton of $H_v$ induced by the states
+\[
+\mathcal{S}_{E_v} = \{ h \in H_v : |\{k : h \in \mathcal{H}^{(k)}\}| \geq \tau \}
+\]
+with the same transition weights as $H_v$, restricted to $\mathcal{S}_{E_v}$.
+Adding appropriate wait states places $E_v$ in Mealy normal form.
+
+\paragraph{Bubble merging.}
+Paths through $E_v$ that traverse the same sequence of wait states
+but differ only in latent-state assignments can be merged by collapsing bubbles
+(identifying states with identical incoming and outgoing wait-state connectivity).
+This further compresses the profile without changing the recognized language.
+
+\subsubsection{MSA extraction}
+
+A sampled path through $M_1$ (the root) determines, at each position,
+which $H_1$-state is visited, and therefore which states of $E_l$, $E_r$ are aligned.
+Recursing into the child profiles yields a full column assignment for all leaves.
+
+Specifically, each emitting transition in the sampled path implies:
+\begin{itemize}
+\item a character at the current node (from the root generator or branch match),
+\item advancement of the left profile, right profile, or both,
+\item and therefore a column in the MSA (with gaps for non-advancing sides).
+\end{itemize}
+
+When bubble merging has been applied, the canonical path
+(chosen during merging) is used to resolve any ambiguity in the
+sub-alignment of the clade below the merged bubble.
+
+\subsubsection{Viterbi Progressive Reconstruction}
+
+An alternative to the sampling-based profile construction of Step~4 above
+is to use Viterbi decoding at each internal node.
+Instead of sampling $K$ paths from $M_v$ and building a multi-path profile,
+the Viterbi variant computes a single maximum-likelihood path through
+$M_v$ and uses the resulting ancestral sequence directly as the
+reconstructed sequence at node $v$.
+This gives a deterministic progressive reconstruction that avoids
+the $O(KL)$ profile size but sacrifices the ability to represent
+uncertainty in the ancestral sequence.

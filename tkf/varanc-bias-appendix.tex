@@ -1,0 +1,181 @@
+% !TEX root = tkf.tex
+% Theory appendix: structural bias of the BP cumulant under
+% column-factorised q. Empirical results live in
+% Section~\ref{sec:cumulant-structural-bias-results} (frontmatter-tkf.tex).
+
+\section{Theory: structural bias of the BP cumulant under
+column-factorised \texorpdfstring{$q$}{q}}
+\label{app:cumulant-structural-bias}
+
+We give a precise derivation of the structural bias displayed
+empirically in
+Section~\ref{sec:cumulant-structural-bias-results}.  The bias is
+not a finite-data noise artifact — it is a property of the
+column-factorised variational family used by SVI-VarAnc, and
+persists at any $q$ whose per-column marginals match the truth.
+
+\paragraph{Setup.}
+On a single branch $e$ of length $t_e$, the per-branch WFST is a
+chain HMM over the $5$ states $\{S, M, I, D, E\}$ with chain
+transition matrix $\mathbf{T}_e[s, s']$ given by the standard
+TKF91 / TKF92 closed forms (\texttt{tkf92\_wfst\_T}, eq.\
+\ref{eq:tkf92-wfst}).  The branch's contribution to the data
+log-likelihood is $\sum_{n=1}^{L+1} \log T_e[\zeta_{n-1}, \zeta_n]$
+where $\boldsymbol{\zeta} = (\zeta_0, \dots, \zeta_{L+1})$ is the chain
+trajectory across the $L+2$ columns (including boundaries).
+Conventionally $\zeta_n \in \{S, M, I, D, E, \mathrm{Ig}\}$ where $\mathrm{Ig}$
+denotes a non-emitting "insertion-gap" column where the branch is
+in NYI/NYI or $D$/$D$ joint state and contributes nothing to the
+chain transitions; chain transitions are indexed by consecutive
+non-$\mathrm{Ig}$ columns.
+
+The variational $q$ factorises across columns: $q(\boldsymbol{\zeta}) =
+\prod_{n=1}^L q_n(\zeta_n)$ with each $q_n$ a tree-structured
+distribution over edge presence/absence carrying the leaf clamps
+of column $n$.  Define the per-column WFST-state probabilities at
+branch $e$:
+\begin{equation}
+P_n^{(e)}(s) = q_n(\text{branch state } e \text{ is } s),
+\quad s \in \{M, I, D\},
+\qquad
+P_n^{(e)}(\mathrm{Ig}) = q_n(\text{NYI},\text{NYI}) + q_n(D, D).
+\end{equation}
+
+\paragraph{The cumulant formula and what it computes exactly.}
+Section~\ref{sec:bw-tkf92} introduces the BP cumulant $\mathbf{W}_e
+\in \mathbb{R}^{5 \times 5}$ as the sufficient statistic the
+M-step ingests:
+\begin{equation}
+\label{eq:cumulant-W}
+W_e[s, s']
+= \sum_{1 \leq M < N \leq L+1}
+   P_M^{(e)}(s) \cdot P_N^{(e)}(s') \cdot
+   \prod_{k = M+1}^{N-1} P_k^{(e)}(\mathrm{Ig}).
+\end{equation}
+Under the factorised $q$, $W_e[s, s']$ is the \emph{exact}
+expected count of WFST chain transitions $s \to s'$ on branch $e$:
+\begin{align*}
+\expect_q\bigl[\#\{\text{chain transitions } s \to s'\}\bigr]
+&= \sum_{M < N} q\bigl(\zeta_M = s, \zeta_N = s',
+                        \zeta_{M+1} = \cdots = \zeta_{N-1} = \mathrm{Ig}\bigr) \\
+&= \sum_{M < N} P_M(s)\,P_N(s')\,\prod_{k=M+1}^{N-1} P_k(\mathrm{Ig})
+\;\;=\;\; W_e[s, s'],
+\end{align*}
+where the second equality uses the column-factorisation of $q$.
+The sum over $(M, N)$ counts each chain transition once because
+of the explicit $\mathrm{Ig}$-padding constraint: any single trajectory
+realisation $\boldsymbol{\zeta}$ with non-$\mathrm{Ig}$ columns at indices
+$n_1 < n_2 < \cdots < n_K$ contributes weight 1 to exactly the
+adjacent-pair transitions $(n_0, n_1), (n_1, n_2), \dots,
+(n_K, n_{K+1})$ (with $n_0 = 0, n_{K+1} = L+1$); for any other
+$(M, N)$ pair, at least one intervening column is non-$\mathrm{Ig}$ and
+the indicator product is zero.  This $O(L)$ prefix-sum implementation
+agrees with the $O(L^2)$ direct sum to machine precision
+($6.7\times 10^{-16}$).
+
+\paragraph{The structural bias.}
+The factorisation assumption is \emph{not} satisfied by the truth
+posterior $p^*(\boldsymbol{\zeta} \mid \text{data})$, even for TKF91
+($\ext = 0$).  Although TKF91's generative model is per-position
+i.i.d., the per-branch WFST chain has nonzero transition
+probabilities $T_e[D, D]$, $T_e[I, I]$, $T_e[I, D]$ and so on
+(closed-form expressions in \eqref{eq:tkf92-wfst} reduce, at
+$\ext = 0$, to the standard TKF91 Pair HMM weights).  These
+chain memories propagate from data conditioning into a
+non-factorised joint posterior:
+\begin{equation}
+p^*\bigl(\zeta_M = s, \zeta_N = s', \zeta_{M+1..N-1} = \mathrm{Ig}
+   \mid \text{data}\bigr)
+\;\neq\;
+\prod_n p^*\bigl(\zeta_n \mid \text{data}\bigr),
+\end{equation}
+even though the per-column truth marginal $p^*(\zeta_n \mid
+\text{data})$ is exactly recoverable by per-column Felsenstein
+BP.  The bias of the cumulant against the truth-posterior chain
+expectation is the integrated difference between the factorised-q
+product of marginals and the truth-posterior joint:
+\begin{equation}
+\label{eq:cumulant-bias-correct}
+\boxed{
+W_e[s, s'] - \expect_{p^*}\!\bigl[\#\{s \to s'\} \bigm| \text{data}\bigr]
+= \sum_{M < N}\!\Bigl[ p^*_M(s)\,p^*_N(s')\!
+   \prod_{k=M+1}^{N-1}\! p^*_k(\mathrm{Ig})
+\;-\; p^*\bigl(\zeta_M=s, \zeta_N=s', \zeta_{M+1..N-1}=\mathrm{Ig}
+   \bigm| \text{data}\bigr) \Bigr].
+}
+\end{equation}
+The bracketed term is the connected $(N-M+1)$-way correlation of
+the truth posterior over the columns $\{M, M+1, \dots, N\}$; it
+vanishes only when the truth posterior factorises across these
+columns.  For TKF91, $T_e[D,D] > 0$ and $T_e[I,I] > 0$ at
+$\ext = 0$ alone suffice to make the right-hand side of
+\eqref{eq:cumulant-bias-correct} nonzero on the $(s, s') = (I, I)$
+and $(D, D)$ entries: an opened gap is positively correlated with
+continued gap by the chain transition kernel itself, even before
+any explicit fragment-extension parameter is invoked.
+
+\paragraph{Entropy reward exacerbates the bias on rare entries.}
+The ELBO objective decomposes as $\mathrm{ELBO} = \expect_q[\log p(z,
+\text{data}; \theta)] - \expect_q[\log q]$ with the entropy term
+$-\expect_q[\log q]$ rewarding diffuse $q$.  At ELBO stationarity,
+$q$'s per-column marginals balance the data-fit term against the
+entropy term; for tied or weakly-fitted logits, the resulting $q$
+is slightly more diffuse than the truth posterior on individual
+rare states (i.e., $P_n^{(e)}(I)$ above the per-column truth
+marginal $p_n^*(I)$).  Through the cumulant
+\eqref{eq:cumulant-W}, even a small per-column inflation
+$P_n(s) = p_n^*(s) + \epsilon$ contributes a leading
+linear-in-$\epsilon$ bias on $W[s, s']$ with positive coefficient
+$\partial W / \partial P_n(s) = \sum_{N > n} P_N^{(e)}(s')
+\prod_{k=n+1}^{N-1} P_k^{(e)}(\mathrm{Ig}) > 0$, summed over $L$ source
+columns; the cumulant amplifies per-column diffuseness via its
+$O(L^2)$ pair structure.
+
+\paragraph{Why the EM converges to a fixed point.}
+The EM map $\theta \mapsto \mathrm{MLE}(\mathbf{W}(\theta))$ is
+self-consistent at the biased fixed point $\theta_\infty$ when
+the cumulant bias on $\theta$ saturates.  Each entry of the cumulant
+is bounded uniformly in $\theta$:
+$W_e[s, s'] \leq L + 1$ on a single branch (each $(M, N)$ pair
+contributes at most $1$, and the geometric $\mathrm{Ig}$-product is
+summable),
+giving a $\theta$-independent upper bound on the aggregated
+sufficient-statistic count.  The exposure denominator
+$T_{\text{eff}} = \sum_e t_e$ in the BDI rate-MLE
+(\texttt{tkf92\_vbem.py:223}) is itself $\theta$-independent ---
+it depends only on the tree branch lengths, not on the inferred
+rates --- and is bounded below by the smallest tree branch.
+Composing these, the rate-MLE $\hat\lambda(\theta) \propto
+\sum_e W[\cdot, I] / T_{\text{eff}}$ (with the precise BDI
+quadratic-MLE form in \texttt{tkf92\_vbem.py:m\_step\_indel\_quadratic})
+is a continuous, bounded self-map on a compact rate interval $[0,
+\bar\lambda]$ with $\bar\lambda \leq (L + 1) / \min_e t_e$
+(continuity follows because $W(\theta)$ depends continuously on
+$\theta$ via the per-edge TKF92 transition matrix
+\eqref{eq:tkf92-wfst}, and the M-step quadratic root is continuous
+in its coefficients).  Brouwer's fixed-point theorem applies:
+a fixed point $\theta_\infty$ exists.  Consistent with this
+boundedness argument, the EM trajectory of
+Section~\ref{sec:cumulant-structural-bias-results} reaches a finite
+biased fixed point and does not diverge.
+
+\paragraph{Implications for parameter inference.}
+The structural bias is a property of any inference scheme that
+uses the cumulant tensor $\mathbf{W}$ as a sufficient statistic
+under a column-factorised variational family.  It does not affect:
+(i) the ELBO value itself (which is a coherent $\log p(\text{data})$
+lower bound regardless of what the cumulant looks like), nor
+(ii) ancestral indel-presence reconstruction
+(Section~\ref{sec:results-varanc-vs-fitch}: VarAnc and Fitch
+parsimony are statistically indistinguishable on the unified
+Pfam test splits, $|\Delta\text{F1}| < 0.006$ across short / hard
+/ xhard), nor
+(iii) downstream MSA-conditioned rate estimation via
+exact-EM (Maraschino, Section~\ref{sec:results-pfam-cherry}).
+It does affect any rate estimate computed from the variational
+cumulant, including the SVI-VarAnc refinement of cherry-trained
+parameters (Section~\ref{sec:results-cherry-vs-msa}), where
+parameters drift toward $\theta_\infty$ rather than toward
+truth.  We report both initial cherry-trained and $\theta_\infty$
+estimates without correction; the structural bias is the principal
+known limitation of variational training in this paper.
