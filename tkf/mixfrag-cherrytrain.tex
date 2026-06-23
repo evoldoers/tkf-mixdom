@@ -1,0 +1,202 @@
+% mixfrag-cherrytrain.tex — Maraschino-style summarised training for MixFrag
+% Section-local notation.
+\providecommand{\transwithin}{\mathsf{A}}
+\providecommand{\transbetween}{\mathsf{B}}
+\providecommand{\runfac}{\phi}
+\providecommand{\Nmatch}{N_{\mathrm{match}}}
+\providecommand{\NgapM}{N^{\mat}_{\mathrm{gap}}}
+\providecommand{\NgapE}{N^{\fin}_{\mathrm{gap}}}
+\providecommand{\Nstart}{N_{\mathrm{start}}}
+\providecommand{\Nend}{N_{\mathrm{end}}}
+\providecommand{\Nempty}{N_{\emptyset}}
+\providecommand{\Nsub}{N_{\mathrm{sub}}}
+\section{MixFrag Training from Alignment-Summary Counts}
+\label{sec:mixfrag-cherrytrain}
+
+The MixFrag Baum-Welch algorithm of Section~\ref{sec:bw-mixfrag} marginalises the
+latent fragtype inside a per-pair Forward-Backward, so its per-fragtype counts
+$F_\frag,E_\frag$ are posterior expectations that must be recomputed for every
+cherry on every iteration.
+It would seem that the cherry-count summarisation used for TKF92
+(Section~\ref{sec:maraschino-main}), which precomputes a fixed tensor of
+alignment statistics and then fits it by autograd independently of corpus size,
+cannot apply, precisely because the fragtypes are latent.
+In fact it can: the fragtype-augmented \mixfrag\ transfer matrices have a
+rank-one off-diagonal structure that lets each pairwise alignment be summarised,
+per discretised time, by a small set of count tensors on which exact EM runs in
+time independent of the number of cherries.
+
+\subsection{The fragtype-marginalised transfer decomposition}
+\label{sec:mixfrag-transfer}
+
+Fix a pairwise cherry alignment at (discretised) time $\evoltime$, written as a
+column sequence $c_1\ldots c_L$ with each $c_t\in\{\mat,\ins,\del\}$.
+Under \mixfrag\ (Section~\ref{sec:mixfrag-machines}) the indel likelihood of this
+column sequence is a sum over the latent fragtype $\frag_t\in\{1,\ldots,\nfrag\}$
+carried by each column,
+\[
+P_{\mathrm{indel}}(c_{1:L}) =
+\sum_{\frag_1\ldots\frag_L}
+\tkftrans^{\nfrag}_{\sta,\,c_1\frag_1}
+\left[\prod_{t=1}^{L-1}\tkftrans^{\nfrag}_{c_t\frag_t,\,c_{t+1}\frag_{t+1}}\right]
+\tkftrans^{\nfrag}_{c_L\frag_L,\,\fin}.
+\]
+Collecting the fragtype index into $\nfrag$-vectors and writing
+$\notext_\frag = 1-\ext_\frag$, the column-to-column transfers are the
+$\nfrag\times\nfrag$ matrices
+\[
+(\transwithin_a)_{\srcfrag\destfrag}
+= \ext_\srcfrag\,\delta_{\srcfrag\destfrag}
++ \tkftrans_{aa}\,\notext_\srcfrag\,\fragdist_\destfrag
+\quad(\text{within a run, } a\to a),
+\qquad
+(\transbetween_{ab})_{\srcfrag\destfrag}
+= \tkftrans_{ab}\,\notext_\srcfrag\,\fragdist_\destfrag
+\quad(a\neq b),
+\]
+with start row $(\tkftrans_{\sta a}\,\fragdist_\destfrag)_\destfrag$ and end column
+$(\notext_\srcfrag\,\tkftrans_{a\fin})_\srcfrag$, where
+$\tkftrans_{ab}\equiv\tkftrans_{ab}(\insrate,\delrate,\evoltime)$ is the TKF91
+Pair HMM matrix of Section~\ref{sec:tkf91-machines}.
+
+The off-diagonal transfer is \emph{rank one}:
+$\transbetween_{ab}=\tkftrans_{ab}\,\notext_\bullet\,\fragdist_\bullet^{\!\top}$,
+the outer product of the column vector $\notext_\bullet=(\notext_\frag)_\frag$ and
+the row vector $\fragdist_\bullet=(\fragdist_\frag)_\frag$ -- the fragtype is
+redrawn afresh from $\fragdist$ at every new link.
+A rank-one factor cuts the transfer-matrix product, so at every change of column
+type the chain separates and the likelihood factorises over the alignment's
+maximal single-type runs.
+Writing the runs as $a_1^{k_1}a_2^{k_2}\ldots a_m^{k_m}$ (with $a_i\neq a_{i+1}$
+and lengths $k_i\geq1$),
+\begin{equation}\label{eq:mixfrag-runfactor}
+P_{\mathrm{indel}}(c_{1:L}) =
+\tkftrans_{\sta a_1}
+\left[\prod_{i=1}^m \runfac_{a_i}(k_i)\right]
+\left[\prod_{i=1}^{m-1}\tkftrans_{a_i a_{i+1}}\right]
+\tkftrans_{a_m\fin},
+\qquad
+\runfac_a(k) = \fragdist_\bullet^{\!\top}\,\transwithin_a^{\,k-1}\,\notext_\bullet,
+\end{equation}
+where the \emph{run factor} $\runfac_a(k)$ depends only on the run type $a$ and
+length $k$.
+
+\subsection{Match-run and gap factors}
+\label{sec:mixfrag-factors}
+
+Splitting $\transwithin_a=\diag(\ext_\bullet)+\tkftrans_{aa}\,\notext_\bullet\fragdist_\bullet^{\!\top}$
+into extension ($\diag\ext$) and new-link ($\tkftrans_{aa}\notext_\bullet\fragdist_\bullet^{\!\top}$)
+steps shows that a run of length $k$ is a concatenation of $p\geq1$ same-type
+fragments of lengths $\ell_1+\ldots+\ell_p=k$, each an independent geometric draw,
+separated by new links:
+\begin{equation}\label{eq:mixfrag-mell}
+\runfac_a(k)
+= \sum_{p\geq1}\tkftrans_{aa}^{\,p-1}
+\sum_{\ell_1+\ldots+\ell_p=k}\prod_{u=1}^p m(\ell_u),
+\qquad
+m(\ell)=\sum_\frag\fragdist_\frag\,\ext_\frag^{\,\ell-1}\,\notext_\frag,
+\end{equation}
+with $m(\ell)$ the \mixfrag\ fragment-length marginal (a mixture of geometrics).
+In generating-function form, with $\Phi_a(z)=\sum_{k\geq1}\runfac_a(k)z^k$ and
+$\mathcal{M}(z)=\sum_{\ell\geq1}m(\ell)z^\ell
+=\sum_\frag\fragdist_\frag\notext_\frag\,z/(1-\ext_\frag z)$,
+\begin{equation}\label{eq:mixfrag-gf}
+\Phi_a(z)=\frac{\mathcal{M}(z)}{1-\tkftrans_{aa}\,\mathcal{M}(z)},
+\end{equation}
+so each $\runfac_a(k)$ is a rational-generating-function coefficient, computable by
+an $O(k)$ recursion.
+A \emph{match-run} of length $k$ contributes exactly $\runfac_\mat(k)$.
+
+A \emph{gap} -- a maximal block of $\ins$ and $\del$ columns -- factorises by the
+same rank-one cuts into its alternating $\ins$- and $\del$-runs.
+A pairwise alignment does not identify the relative order of insertions and
+deletions inside a gap; summing over those orderings (as for the TKF92 gap-block
+probabilities of Section~\ref{sec:tkf92-gapprob}) yields a factor that depends
+only on the gap's deletion/insertion totals $(i,j)$ and its exit state.
+Tracking deletions by $z_\del$ and insertions by $z_\ins$, let $P_\ins,P_\del$ be
+the generating functions of gap prefixes (entered from a $\mat$ state) whose last
+run is an $\ins$- resp.\ $\del$-run; they solve the $2\times2$ linear system
+\begin{equation}\label{eq:mixfrag-gapprefix}
+P_\ins=\bigl(\tkftrans_{\mat\ins}+P_\del\,\tkftrans_{\del\ins}\bigr)\Phi_\ins(z_\ins),
+\qquad
+P_\del=\bigl(\tkftrans_{\mat\del}+P_\ins\,\tkftrans_{\ins\del}\bigr)\Phi_\del(z_\del),
+\end{equation}
+and the gap generating function with exit state $Y\in\{\mat,\fin\}$ is
+\begin{equation}\label{eq:mixfrag-gapgf}
+\mathcal{G}_{Y}(z_\del,z_\ins)
+= P_\ins\,\tkftrans_{\ins Y}+P_\del\,\tkftrans_{\del Y}
+= \sum_{i,j}G_Y(i,j)\,z_\del^{\,i} z_\ins^{\,j}.
+\end{equation}
+The ordering-summed gap-block factor $G_Y(i,j)$ is recovered by the bivariate
+recursion obtained on clearing the denominators of~\eqref{eq:mixfrag-gapprefix}.
+The entry state is fixed to $\mat$ because the TKF91 rows $\sta,\mat,\ins$
+coincide (Section~\ref{sec:tkf91-machines}): a gap entered from the start $\sta$
+has the same factor as one entered from a match.
+
+\subsection{Alignment-summary sufficient statistics}
+\label{sec:mixfrag-summary}
+
+Combining~\eqref{eq:mixfrag-runfactor} with the gap factorisation, every cherry
+alignment enters the indel likelihood, per time bin $\evoltime$, only through the
+following counts:
+\begin{itemize}
+\item $\Nmatch(k)$ -- the number of maximal $\mat$-runs of length $k$
+  (factor $\runfac_\mat(k)$);
+\item $\NgapM(i,j)$, $(i,j)\neq(0,0)$ -- the number of gaps exiting into a match
+  (factor $G_\mat(i,j)$); by the row coincidence above this also covers
+  \emph{leading} gaps (entered from $\sta$);
+\item $\NgapE(i,j)$, $(i,j)\neq(0,0)$ -- the number of gaps exiting at the
+  alignment end (factor $G_\fin(i,j)$); this covers a \emph{trailing} gap and, for
+  an alignment with no matches at all, the entire match-free
+  $\sta\to(\ins/\del)^+\to\fin$ path;
+\item $\Nstart$, $\Nend$ -- indicators that the alignment begins, resp.\ ends, with
+  a match (scalars $\tkftrans_{\sta\mat}=\tkftrans_{\mat\mat}$ and
+  $\tkftrans_{\mat\fin}$), and $\Nempty$ -- the number of empty cherries (no
+  columns at all), each the bare $\sta\to\fin$ path of weight $\tkftrans_{\sta\fin}$
+  (degenerate, and absent from real corpora);
+\item the substitution counts $\Nsub(a,b)$ -- aligned residue pairs at $\mat$
+  columns -- exactly as in Maraschino (Section~\ref{sec:maraschino-main}), and
+  fragtype-independent because the substitution model is shared.
+\end{itemize}
+The case $(i,j)=(0,0)$ is excluded from the gap counts because two matches with no
+intervening indel form one longer $\mat$-run, already counted by $\Nmatch$.
+With $\theta=(\insrate,\delrate,\{\ext_\frag\},\{\fragdist_\frag\},\exch,\eqm)$ the
+corpus log-likelihood is
+\begin{multline}\label{eq:mixfrag-summary-ll}
+\log P(\theta)=\sum_\evoltime\Bigl[\textstyle
+\sum_k \Nmatch(k;\evoltime)\log\runfac_\mat(k)
++ \sum_{i,j}\NgapM(i,j;\evoltime)\log G_\mat(i,j) \\
++ \sum_{i,j}\NgapE(i,j;\evoltime)\log G_\fin(i,j)
++ \Nstart(\evoltime)\log\tkftrans_{\mat\mat}
++ \Nend(\evoltime)\log\tkftrans_{\mat\fin} \\
++ \Nempty(\evoltime)\log\tkftrans_{\sta\fin}
++ \sum_{a,b}\Nsub(a,b;\evoltime)\log\bigl(\eqm_a\exp(\revsub\evoltime)_{ab}\bigr)
+\Bigr],
+\end{multline}
+each factor evaluated at $\theta$ and bin time $\evoltime$.
+
+\subsection{EM on the summary counts}
+\label{sec:mixfrag-summary-em}
+
+Equation~\eqref{eq:mixfrag-summary-ll} is an explicit function of the count
+tensors, so training is exact EM on those tensors.
+In the E-step, the expected complete-data sufficient statistics contributed by a
+segment are read off the gradient of its log-factor by the score-function
+identity~\eqref{eq:score-identity}: the birth, death and time-integral statistics
+$B,D,S$, the link count $L$, and the per-fragtype fragment-extension and -end
+counts $F_\frag,E_\frag$ (the latter also the expected number of type-$\frag$
+fragments) contributed by each $\runfac_\mat(k)$, $G_\mat(i,j)$, $G_\fin(i,j)$ and
+start/end scalar are the partial derivatives of its logarithm with respect to the
+relevant natural parameters; the trajectory count $M$ and the observation time $T$
+(the bin time times the number of cherries in the bin) are tallied directly; and
+the substitution statistics $W,U,V$ come from $\Nsub$ as in Maraschino.
+Weighting these per-segment expectations by the tensor counts and summing over
+bins gives the corpus-level expectations.
+The M-step is then the closed form of Section~\ref{sec:bw-mixfrag}: the
+$\fragdist_\frag$ (categorical) and $\ext_\frag$ (geometric) updates from
+$E_\frag,F_\frag$, together with the TKF91 $(\insrate,\delrate)$ quadratic and the
+$(\exch,\eqm)$ substitution update.
+After one preprocessing pass that builds the tensors, each EM iteration costs only
+$O\bigl(\sum_\evoltime(\nfrag\,k_{\max}+i_{\max}j_{\max})\bigr)$ -- independent of
+the number of cherries -- so an entire training corpus is summarised once and then
+fit in time set only by the tensor sizes.
