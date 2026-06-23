@@ -66,6 +66,44 @@ def make_tkf92_pair_hmm(ins_rate, del_rate, t, ext, Q, pi):
     return log_trans, state_types, sub_matrix, pi
 
 
+def make_mixfrag_pair_hmm(ins_rate, del_rate, t, exts, weights, Q, pi):
+    """Construct MixFrag (TKF92 fragment-mixture) Pair HMM (joint distribution).
+
+    State order S, M_1..M_F, I_1..I_F, D_1..D_F, E (F = len(exts)). Emissions
+    are fragtype-independent (shared substitution model), so ``state_types``
+    maps every M_f -> M, I_f -> I, D_f -> D and the generic Pair-HMM emission
+    code (``pair_emission_logprob``) applies unchanged. Reduces to
+    ``make_tkf92_pair_hmm`` at F=1, weights=[1].
+
+    Args:
+        exts:    (F,) fragtype extension probabilities r_f.
+        weights: (F,) fragtype weights w_f (sum to 1).
+    Returns:
+        (log_trans, state_types, sub_matrix, pi).
+    """
+    from ..core.ctmc import transition_matrix
+    tau = params.mixfrag_trans(ins_rate, del_rate, t, exts, weights)
+    log_trans = safe_log(tau)
+    F = int(jnp.asarray(exts).shape[0])
+    state_types = jnp.array([S] + [M] * F + [I] * F + [D] * F + [E],
+                            dtype=jnp.int32)
+    sub_matrix = transition_matrix(Q, t)
+    return log_trans, state_types, sub_matrix, pi
+
+
+def make_mixfrag_singlet_hmm(ins_rate, del_rate, exts, weights, pi):
+    """Construct MixFrag Singlet (stationary) HMM.
+
+    State order S, I_1..I_F, E; each I_f emits one residue from pi
+    (fragtype-independent). Returns (log_trans, state_types, pi).
+    """
+    tau = params.mixfrag_singlet_trans(ins_rate, del_rate, exts, weights)
+    log_trans = safe_log(tau)
+    F = int(jnp.asarray(exts).shape[0])
+    state_types = jnp.array([S] + [I] * F + [E], dtype=jnp.int32)
+    return log_trans, state_types, pi
+
+
 def pair_emission_logprob(state_type, x_char, y_char, sub_matrix, pi):
     """Log emission probability for a Pair HMM state.
 
