@@ -1,0 +1,205 @@
+% mixfrag.tex — The TKF92 Model with Fragment Mixtures (MixFrag)
+\section{The TKF92 Model with Fragment Mixtures (MixFrag)}
+\label{sec:mixfrag}
+
+MixFrag generalises TKF92 (Section~\ref{sec:tkf92}) by promoting the single
+fragment-extension parameter $\ext$ to a categorical latent variable.
+When a mortal link's fragment is created, it is independently assigned a
+\emph{fragtype} $\frag \in \{1,\ldots,\nfrag\}$ with
+$\frag \sim \catdist(\fragdist_1,\ldots,\fragdist_\nfrag)$
+(weights $\fragdist_\frag \geq 0$, $\sum_\frag \fragdist_\frag = 1$),
+and the fragment then consists of $\fraglen \sim \geomdist(\ext_\frag)$
+characters from $\alphabet$, all governed by the same substitution process
+$\subproc(\exch,\eqm)$.
+In the notation of Section~\ref{sec:tkf92},
+\begin{multline*}
+\seq'(\evoltime) \sim
+\tkffrags^\nfrag\!\left(\subproc(\exch,\eqm);\insrate,\delrate,
+\{\ext_\frag\},\{\fragdist_\frag\}\right) \\
+\equiv
+\tkflinks\!\left(\fragproc^\nfrag\!\left(\subproc(\exch,\eqm);
+\{\ext_\frag\},\{\fragdist_\frag\}\right);\insrate,\delrate\right)
+\end{multline*}
+where the fragment process first draws a fragtype and then a fragtype-specific
+geometric run,
+\begin{multline*}
+\state \sim \fragproc^\nfrag(\model;\{\ext_\frag\},\{\fragdist_\frag\})
+\ \Leftrightarrow\
+\frag \sim \catdist(\fragdist_1,\ldots,\fragdist_\nfrag), \\
+\fraglen \sim \geomdist(\ext_\frag),\
+\state = (x_1 \ldots x_\fraglen),\ x_\sumidx \sim \model.
+\end{multline*}
+The only parameters beyond TKF91 are the $\nfrag$ fragtype-specific extension
+probabilities $\ext_\frag$ and the $\nfrag$ fragtype weights $\fragdist_\frag$;
+the indel (BDI) process and the substitution process are both shared across
+fragtypes.
+With $\nfrag = 1$ (so $\fragdist_1 = 1$) MixFrag reduces to TKF92.
+\ifdefined\MIXDOMPAPER
+MixFrag is a precursor to the MixDom model (Section~\ref{sec:mixdom}): it shares
+MixDom's per-fragment latent typing, but retains a single substitution model and
+a single, non-nested indel process, and so introduces no null states.
+\else
+MixFrag is a precursor to the hierarchical MixDom model \cite{LargeHolmes2026}:
+it shares MixDom's per-fragment latent typing, but retains a single substitution
+model and a single, non-nested indel process, and so introduces no null states.
+\fi
+
+
+\subsection{Singlet HMM and Pair HMM Representations}
+\label{sec:mixfrag-machines}
+
+We do not give a WFST for MixFrag.
+The fragtype is latent information that is not visible in the sequence, so a
+transducer that respects fragment indivisibility over evolutionary time must
+expose the fragtype in its interface alphabet---in order to keep
+branch-to-branch composition consistent---making the construction even more
+elaborate than the TKF92 WFST of Appendix~\ref{sec:tkf92-wfst}.
+The Singlet and Pair HMMs, by contrast, follow systematically from TKF91,
+exactly as for TKF92.
+
+The same construction yields both machines from their TKF91 counterparts: a
+transition \emph{out of} an emitting state of fragtype $\srcfrag$ acquires a
+$(1-\ext_\srcfrag)$ multiplier (the current fragment terminates); a transition
+\emph{into} an emitting state of fragtype $\destfrag$ acquires a
+$\fragdist_\destfrag$ multiplier (the new fragment is assigned fragtype
+$\destfrag$); and each emitting state acquires an added self-loop term
+$\ext_\srcfrag\,\delta_{\srcfrag\destfrag}$ that extends the current fragment
+within its own fragtype.
+
+\paragraph{Singlet HMM (stationary distribution).}
+The Singlet HMM has $2+\nfrag$ states $\{\sta,\ins_\frag,\fin\}$.
+Applying the construction to the TKF91 stationary HMM (which emits
+$n \sim \geomdist(\kappa)$ characters, $\kappa = \insrate/\delrate$) gives the
+transition matrix
+\[
+\left(
+\begin{array}{r|ccc}
+& \sta & \ins_\destfrag & \fin \\
+\hline
+\sta          & 0 & \kappa\,\fragdist_\destfrag & 1-\kappa \\
+\ins_\srcfrag & 0 & \ext_\srcfrag\,\delta_{\srcfrag\destfrag}
+                    + (1-\ext_\srcfrag)\,\kappa\,\fragdist_\destfrag
+                  & (1-\ext_\srcfrag)(1-\kappa) \\
+\fin          & 0 & 0 & 0
+\end{array}
+\right)
+\]
+where $\ins_\srcfrag$ emits a character from $\eqm$.
+Each $\ins_\srcfrag$ row sums to
+$\ext_\srcfrag + (1-\ext_\srcfrag)\big(\kappa\sum_\destfrag\fragdist_\destfrag
++ (1-\kappa)\big) = \ext_\srcfrag + (1-\ext_\srcfrag) = 1$,
+using $\sum_\destfrag\fragdist_\destfrag = 1$.
+
+\paragraph{Pair HMM (finite-time joint distribution).}
+The Pair HMM has $2+3\nfrag$ states
+$\{\sta,\mat_\frag,\ins_\frag,\del_\frag,\fin\}$;
+for convenience we write $\sta_\frag \equiv \sta$ and $\fin_\frag \equiv \fin$,
+so that any state may be written $\xstate_\frag$ with
+$\xstate \in \{\sta,\mat,\ins,\del,\fin\}$.
+Writing $\tkftrans_{\xstate\ystate} \equiv
+\tkftrans_{\xstate\ystate}(\insrate,\delrate,\evoltime)$ for the TKF91 Pair HMM
+transition probabilities (Section~\ref{sec:tkf91-machines}), the joint Pair HMM
+transition matrix is
+\[
+\resizebox{\textwidth}{!}{$\displaystyle
+\tkftrans^\nfrag(\insrate,\delrate,\evoltime,\{\ext_\frag\},\{\fragdist_\frag\}) =
+\left(
+\begin{array}{r|ccccc}
+& \sta & \mat_\destfrag & \ins_\destfrag & \del_\destfrag & \fin \\
+\hline
+\sta & 0
+  & \fragdist_\destfrag\tkftrans_{\sta\mat}
+  & \fragdist_\destfrag\tkftrans_{\sta\ins}
+  & \fragdist_\destfrag\tkftrans_{\sta\del}
+  & \tkftrans_{\sta\fin} \\
+\mat_\srcfrag & 0
+  & \ext_\srcfrag\delta_{\srcfrag\destfrag} + (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\mat\mat}
+  & (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\mat\ins}
+  & (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\mat\del}
+  & (1-\ext_\srcfrag)\tkftrans_{\mat\fin} \\
+\ins_\srcfrag & 0
+  & (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\ins\mat}
+  & \ext_\srcfrag\delta_{\srcfrag\destfrag} + (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\ins\ins}
+  & (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\ins\del}
+  & (1-\ext_\srcfrag)\tkftrans_{\ins\fin} \\
+\del_\srcfrag & 0
+  & (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\del\mat}
+  & (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\del\ins}
+  & \ext_\srcfrag\delta_{\srcfrag\destfrag} + (1-\ext_\srcfrag)\fragdist_\destfrag\tkftrans_{\del\del}
+  & (1-\ext_\srcfrag)\tkftrans_{\del\fin} \\
+\fin & 0 & 0 & 0 & 0 & 0
+\end{array}
+\right)
+$}
+\]
+Emissions are inherited unchanged from TKF92 and are independent of fragtype:
+$\mat_\frag$ aligns an ancestral--descendant residue pair under
+$\exp(\revsub\evoltime)$, while $\ins_\frag$ and $\del_\frag$ emit a single
+inserted or deleted residue from $\eqm$.
+Each emitting row sums to 1: for $\xstate \in \{\mat,\ins,\del\}$, since
+$\sum_\destfrag\fragdist_\destfrag = 1$ the fragtype weights collapse and the row
+sum reduces to
+$\ext_\srcfrag + (1-\ext_\srcfrag)\sum_\ystate \tkftrans_{\xstate\ystate}
+= \ext_\srcfrag + (1-\ext_\srcfrag) = 1$,
+exactly as for TKF92.
+The Pair HMM has no null states, so---unlike the MixDom Pair HMM---no
+null-elimination (collapse) step is required.
+
+
+\subsection{Baum-Welch Algorithm for MixFrag}
+\label{sec:bw-mixfrag}
+
+The Baum-Welch algorithm follows that for TKF92 (Section~\ref{sec:bw-tkf92}), but
+the fragment-extension and fragment-end statistics are now accumulated per
+fragtype.
+
+\paragraph{E-step.}
+Run Forward-Backward on the MixFrag Pair HMM, yielding expected transition counts
+$\hat{n}'_{a_\srcfrag b_\destfrag}$ over the $2+3\nfrag$ states.
+For an emitting state $a_\frag$ ($a \in \{\mat,\ins,\del\}$), the self-loop count
+$\hat{n}'_{a_\frag a_\frag}$ combines fragment extension within fragtype $\frag$
+(probability $\ext_\frag$) with a new same-state link that is again assigned
+fragtype $\frag$ (probability $(1-\ext_\frag)\tkftrans_{aa}\fragdist_\frag$).
+We resolve this self-loop and recover the TKF91 link-level counts, accumulating
+the per-fragtype fragment-extension count $F_\frag$ and fragment-end count
+$E_\frag$:
+\begin{eqnarray*}
+F_{a\frag} & = & \frac{\hat{n}'_{a_\frag a_\frag}\,\ext_\frag}
+                      {\ext_\frag + (1-\ext_\frag)\tkftrans_{aa}\fragdist_\frag},
+                 \quad a \in \{\mat,\ins,\del\} \\
+F_\frag & = & \sum_{a \in \{\mat,\ins,\del\}} F_{a\frag} \\
+E_\frag & = & \sum_{a \in \{\mat,\ins,\del\}} \sum_{b_\destfrag}
+              \hat{n}'_{a_\frag\, b_\destfrag} \ -\ F_\frag \\
+\hat{n}_{a_\srcfrag b_\destfrag} & = & \hat{n}'_{a_\srcfrag b_\destfrag}
+              - \delta_{ab}\,\delta_{\srcfrag\destfrag}\,F_{a\srcfrag}
+\end{eqnarray*}
+The denominator of $F_{a\frag}$ is the full weight of the $a_\frag \to a_\frag$
+self-loop: its fragment-extension branch ($\ext_\frag$) and its
+new-link-same-state branch (which must re-draw the same fragtype, hence the
+$\fragdist_\frag$ factor).
+Summing the resolved counts over fragtypes,
+$\hat{n}_{ab} = \sum_{\srcfrag,\destfrag} \hat{n}_{a_\srcfrag b_\destfrag}$,
+recovers the TKF91 link-level transition counts, from which $S,B,D,W,U,L,M,V$ are
+accumulated exactly as for TKF91 (the indel and substitution processes being
+shared across fragtypes); in particular
+$L = \sum_{i}(\hat{n}_{i\mat} + \hat{n}_{i\del})$ counts links (fragments of any
+type) and the character-level statistics $W,U,V$ are accumulated per character as
+in TKF91.
+Because the fragtype is latent and cannot be read off the alignment, the
+per-fragtype counts $F_\frag,E_\frag$ are not functions of the observed pairwise
+alignment alone, so the Maraschino cherry-count distillation of
+Section~\ref{sec:maraschino-intro} does not apply directly; training instead uses
+Baum-Welch, or its stochastic variational form.
+
+\paragraph{M-step.}
+Identical to TKF91, except that the fragtype-specific parameters are set from the
+per-fragtype fragment statistics,
+\[
+\ext_\frag \leftarrow \frac{F_\frag}{F_\frag + E_\frag},
+\qquad
+\fragdist_\frag \leftarrow \frac{E_\frag}{\sum_{\frag'} E_{\frag'}}.
+\]
+Here $E_\frag$ is the expected number of fragments of fragtype $\frag$ (each
+fragment terminates exactly once), so $\fragdist_\frag$ is the categorical MLE
+over fragtypes, while $\ext_\frag$ is the geometric MLE, giving mean fragment
+length $1/(1-\ext_\frag) = (F_\frag + E_\frag)/E_\frag$ for fragtype $\frag$.
