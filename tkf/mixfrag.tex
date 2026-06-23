@@ -14,7 +14,7 @@ $\subproc(\exch,\eqm)$.
 In the notation of Section~\ref{sec:tkf92},
 \begin{multline*}
 \seq'(\evoltime) \sim
-\tkffrags^\nfrag\!\left(\subproc(\exch,\eqm);\insrate,\delrate,
+\mixfrag\!\left(\subproc(\exch,\eqm);\insrate,\delrate,
 \{\ext_\frag\},\{\fragdist_\frag\}\right) \\
 \equiv
 \tkflinks\!\left(\fragproc^\nfrag\!\left(\subproc(\exch,\eqm);
@@ -34,15 +34,8 @@ probabilities $\ext_\frag$ and the $\nfrag$ fragtype weights $\fragdist_\frag$;
 the indel (BDI) process and the substitution process are both shared across
 fragtypes.
 With $\nfrag = 1$ (so $\fragdist_1 = 1$) MixFrag reduces to TKF92.
-\ifdefined\MIXDOMPAPER
-MixFrag is a precursor to the MixDom model (Section~\ref{sec:mixdom}): it shares
-MixDom's per-fragment latent typing, but retains a single substitution model and
-a single, non-nested indel process, and so introduces no null states.
-\else
-MixFrag is a precursor to the hierarchical MixDom model \cite{LargeHolmes2026}:
-it shares MixDom's per-fragment latent typing, but retains a single substitution
-model and a single, non-nested indel process, and so introduces no null states.
-\fi
+It uses a single substitution model and a single, non-nested indel process, and
+so introduces no null states.
 
 
 \subsection{Singlet HMM and Pair HMM Representations}
@@ -142,8 +135,8 @@ sum reduces to
 $\ext_\srcfrag + (1-\ext_\srcfrag)\sum_\ystate \tkftrans_{\xstate\ystate}
 = \ext_\srcfrag + (1-\ext_\srcfrag) = 1$,
 exactly as for TKF92.
-The Pair HMM has no null states, so---unlike the MixDom Pair HMM---no
-null-elimination (collapse) step is required.
+The Pair HMM has no null states, so no null-elimination (collapse) step is
+required.
 
 
 \subsection{Baum-Welch Algorithm for MixFrag}
@@ -162,7 +155,8 @@ $\hat{n}'_{a_\frag a_\frag}$ combines fragment extension within fragtype $\frag$
 fragtype $\frag$ (probability $(1-\ext_\frag)\tkftrans_{aa}\fragdist_\frag$).
 We resolve this self-loop and recover the TKF91 link-level counts, accumulating
 the per-fragtype fragment-extension count $F_\frag$ and fragment-end count
-$E_\frag$:
+$E_\frag$ (the latter is also the expected number of type-$\frag$ fragments,
+since each fragment terminates exactly once):
 \begin{eqnarray*}
 F_{a\frag} & = & \frac{\hat{n}'_{a_\frag a_\frag}\,\ext_\frag}
                       {\ext_\frag + (1-\ext_\frag)\tkftrans_{aa}\fragdist_\frag},
@@ -185,11 +179,9 @@ shared across fragtypes); in particular
 $L = \sum_{i}(\hat{n}_{i\mat} + \hat{n}_{i\del})$ counts links (fragments of any
 type) and the character-level statistics $W,U,V$ are accumulated per character as
 in TKF91.
-Because the fragtype is latent and cannot be read off the alignment, the
-per-fragtype counts $F_\frag,E_\frag$ are not functions of the observed pairwise
-alignment alone, so the Maraschino cherry-count distillation of
-Section~\ref{sec:maraschino-intro} does not apply directly; training instead uses
-Baum-Welch, or its stochastic variational form.
+Because the fragtype is latent, the Forward-Backward E-step marginalises it
+together with the alignment, so the per-fragtype counts $F_\frag, E_\frag$ are
+posterior expectations rather than counts read directly off a given alignment.
 
 \paragraph{M-step.}
 Identical to TKF91, except that the fragtype-specific parameters are set from the
