@@ -68,8 +68,22 @@ def _pad_to_bin(n):
 
     Returns at least 1 (0-length sequences are padded to 1 so that
     forward_backward_1d_padded can handle them via seq_length=0).
+
+    Hack: TKFMIXDOM_MAX_PAD env var (if set) caps the result so that
+    pad-bin can fall below the next geometric bin. Useful to fit OOM-
+    prone families on small GPUs. NOTE: setting this disables JIT cache
+    reuse between calls with different n (each lands on its own bin).
     """
+    import os
     n = max(n, 1)
+    cap = os.environ.get('TKFMIXDOM_MAX_PAD')
+    if cap is not None:
+        cap = int(cap)
+        if n > cap:
+            raise ValueError(f"_pad_to_bin: n={n} exceeds TKFMIXDOM_MAX_PAD={cap}")
+        # Round n up to nearest multiple of 32 (or cap), whichever smaller
+        rounded = min(((n + 31) // 32) * 32, cap)
+        return max(rounded, 1)
     for b in _GEOM_BINS:
         if b >= n:
             return b

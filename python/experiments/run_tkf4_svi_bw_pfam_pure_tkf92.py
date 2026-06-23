@@ -22,6 +22,38 @@ import numpy as np
 
 os.environ.setdefault('JAX_ENABLE_X64', '1')
 
+# ----- OOM-mitigation env knobs (must be set BEFORE jax is imported) -----
+# These mirror the cli flags below; we look at sys.argv directly because
+# argparse needs a clean argparse pass, but env must be set first.
+
+def _has_flag(*names):
+    return any(n in sys.argv for n in names)
+
+
+def _arg_value(flag, default=None):
+    if flag in sys.argv:
+        idx = sys.argv.index(flag)
+        if idx + 1 < len(sys.argv):
+            return sys.argv[idx + 1]
+    return default
+
+
+# (a) Persistent on-disk compilation cache — survives across runs.  Pure win:
+#     compile-time saving with no runtime memory effect.
+_jax_cache = _arg_value('--jax-cache-dir',
+                         os.path.expanduser('~/.cache/tkfmixdom-jax'))
+if _jax_cache and not _has_flag('--no-jax-cache'):
+    os.makedirs(_jax_cache, exist_ok=True)
+    os.environ.setdefault('JAX_COMPILATION_CACHE_DIR', _jax_cache)
+
+# (b) Disable XLA CUDA command buffers — sacrifices ~10-30% throughput but
+#     removes the ~97-graph-per-process command-buffer cap that previously
+#     OOM'd this script at ~5k pairs.
+if _has_flag('--no-command-buffers'):
+    os.environ['XLA_FLAGS'] = (
+        os.environ.get('XLA_FLAGS', '')
+        + ' --xla_gpu_enable_command_buffer=').strip()
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from tkfmixdom.jax.core.ctmc import rate_matrix_jc69
@@ -75,6 +107,29 @@ def main():
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--out',
                     default='pfam/tkf92_svi_bw_pure_train.npz')
+    # OOM-mitigation knobs (declared so argparse accepts them; the actual
+    # effect of these is taken at module load BEFORE jax import — see top of
+    # file).
+    p.add_argument('--jax-cache-dir', default=None,
+                    help='Persistent on-disk compilation cache directory. '
+                         'Default ~/.cache/tkfmixdom-jax.  Pure win unless '
+                         '--no-jax-cache is also given.')
+    p.add_argument('--no-jax-cache', action='store_true',
+                    help='Disable the persistent compilation cache.')
+    p.add_argument('--no-command-buffers', action='store_true',
+                    help='Set XLA_FLAGS=--xla_gpu_enable_command_buffer= to '
+                         'disable CUDA command buffers.  Slower per-step but '
+                         'avoids the ~97-graph cap that OOMs this script at '
+                         '~5k pairs.')
+    p.add_argument('--bin-bucketed', action='store_true',
+                    help='Stratified minibatch sampling: pre-bucket pairs by '
+                         '(Lx_pad, Ly_pad) and draw each minibatch from one '
+                         'bucket.  Drastically reduces unique JIT shapes seen '
+                         'per iter -> JIT cache reuses, fewer command buffers.')
+    p.add_argument('--pre-warm', action='store_true',
+                    help='Before the training loop, run one E-step for each '
+                         'unique (Lx_pad, Ly_pad) bin shape so the JIT cache '
+                         'is warm and any OOM happens up-front, not mid-run.')
     args = p.parse_args()
 
     if args.Q == 'lg':
@@ -103,7 +158,9 @@ def main():
         Q=Q, pi=pi_np,
         n_iter=args.n_iter, batch_size=args.batch_size,
         svi_tau=args.svi_tau, svi_kappa=args.svi_kappa,
-        seed=args.seed, log_fn=print)
+        seed=args.seed, log_fn=print,
+        bin_bucketed=args.bin_bucketed,
+        pre_warm=args.pre_warm)
 
     print(f'\nFinal: λ={out["lam"]:.5f} μ={out["mu"]:.5f} ext={out["ext"]:.4f}')
     np.savez(args.out, lam=out['lam'], mu=out['mu'], ext=out['ext'],

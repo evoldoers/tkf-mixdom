@@ -1,0 +1,522 @@
+Notebook[{
+
+Cell["GGI \[Rule] TKF92 matched-flow ODE: symbolic derivation in Mathematica", "Title"],
+
+Cell["Self-contained Mathematica implementation of the matched-flow ODE construction \
+from tkf/composition-renormalization.tex.  Goal: obtain the ODE symbolically and \
+integrate it with NDSolve (and try DSolve as a stretch goal) as an independent check \
+of the Python implementation.", "Text"],
+
+Cell["Build order:\n\
+1. TKF91/TKF92 building blocks (\[Alpha], \[Beta], \[Gamma], 5\[Times]5 \[Tau]).\n\
+2. BDI sufficient statistics via Mathematica autodiff on the WFST log-likelihood,\n\
+   with a central-FD L'Hopital guard at \[Lambda]=\[Mu].\n\
+3. 13-state Triad transition matrix T = A + B dt.\n\
+4. Null-elim of ID + 12\[Rule]5 coarse-graining via CMAP_12.\n\
+5. \[CapitalDelta][X] = BDI map applied to m^(1), baseline subtracted.\n\
+6. Boundary condition r*(0).\n\
+7. Closed-form r(t) via DSolve.\n\
+8. Full parameter ODE; DSolve attempt + NDSolve cross-check.", "Text"],
+
+Cell[CellGroupData[{
+Cell["1.  Preamble", "Section"],
+
+Cell["ClearAll[\"Global`*\"]", "Input"],
+
+Cell["(* State indices for the 5-state pair HMM (Mathematica is 1-indexed) *)
+sS = 1; sM = 2; sI = 3; sD = 4; sE = 5;
+
+(* State indices for the 13-state Triad *)
+tSS = 1; tsI = 2; tMM = 3; tmI = 4; tMD = 5; tIM = 6; tiI = 7;
+tID = 8; tDs = 9; tDm = 10; tDi = 11; tDd = 12; tEE = 13;
+
+(* CMAP_12: coarse-graining of the 12 surviving states (after null-elim of ID)
+   down to 5 pair-HMM states.  Order of kept Triad states:
+       SS, sI, MM, mI, MD, IM, iI, Ds, Dm, Di, Dd, EE
+   Target:
+       S,  I,  M,  I,  D,  I,  I,  D,  D,  D,  D,  E
+   Replaces scratch_ggi_triad_algebraic.coarse_grain, which mis-labelled
+   sI \[Rule] S, mI \[Rule] M, MD \[Rule] M (those entries flip dr/dt sign). *)
+cmap12 = {sS, sI, sM, sI, sD, sI, sI, sD, sD, sD, sD, sE};", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["2.  TKF91/TKF92 building blocks", "Section"],
+
+Cell["\[Beta] and \[Gamma] in (\[Kappa], \[Alpha]) coordinates (composition-renormalization-detailed.tex, Lemma 'Two effective indel coordinates'). \
+This form is smooth at \[Kappa]=1 because \!\(\*SuperscriptBox[\(\[Alpha]\), \(1 - \[Kappa]\)]\) is analytic in \[Kappa] around 1.", "Subsection"],
+
+Cell["beta[kap_, alph_] := kap (1 - alph^(1 - kap)) / (1 - kap alph^(1 - kap));
+gam[kap_, alph_]  := 1 - beta[kap, alph] / (kap (1 - alph));
+
+(* Sanity: agreement with the textbook form \[Beta] = \[Lambda](\[Eta]-\[Alpha])/(\[Mu]\[Eta]-\[Lambda]\[Alpha]) *)
+betaStd[lam_, mu_, t_] := Module[{eta = Exp[-lam t], alph = Exp[-mu t]},
+  lam (eta - alph) / (mu eta - lam alph)];
+Simplify[beta[lam/mu, Exp[-mu t]] - betaStd[lam, mu, t]]", "Input"],
+
+Cell["TKF92 5\[Times]5 transition matrix \[Tau] over (S, M, I, D, E)", "Subsection"],
+
+Cell["tau5[kap_, alph_, r_] := Module[{b = beta[kap, alph], g = gam[kap, alph],
+    ob, og, ok, rowSMI, rowD, T, src},
+  ob = 1 - b; og = 1 - g; ok = 1 - kap;
+  T = ConstantArray[0, {5, 5}];
+  (* S row, no extension *)
+  T[[sS, sM]] = ob kap alph;
+  T[[sS, sI]] = b;
+  T[[sS, sD]] = ob kap (1 - alph);
+  T[[sS, sE]] = ob ok;
+  (* M and I rows, with extension r on self-loop *)
+  rowSMI = (1 - r) {0, ob kap alph, b, ob kap (1 - alph), ob ok};
+  Do[
+    T[[src, ;;]] = rowSMI;
+    T[[src, src]] += r,
+    {src, {sM, sI}}];
+  (* D row, gamma instead of beta *)
+  rowD = (1 - r) {0, og kap alph, g, og kap (1 - alph), og ok};
+  rowD[[sD]] += r;
+  T[[sD, ;;]] = rowD;
+  T];
+
+(* Sanity: rows sum to 1 *)
+Simplify[Total /@ tau5[kap, alph, r]]", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["3.  BDI sufficient statistics via Mathematica autodiff", "Section"],
+
+Cell["WFST log-likelihood (\[Sum]_g n_g log \[Xi]_g over the 6 groups).  Mathematica computes \
+the partial derivatives symbolically; the L'Hopital limit at \[Lambda]=\[Mu] is handled by \
+central FD in tkf91Stats.", "Text"],
+
+Cell["logP[lam_, mu_, t_, na_, n1a_, nb_, n1b_, ng_, n1g_] := Module[
+  {alph = Exp[-mu t], kap = lam/mu, b, g},
+  b = beta[kap, alph];
+  g = gam[kap, alph];
+  na Log[alph] + n1a Log[1 - alph] +
+  nb Log[b]    + n1b Log[1 - b]    +
+  ng Log[g]    + n1g Log[1 - g]];", "Input"],
+
+Cell["Partial derivatives.  Differentiate against a fresh local symbol then \
+substitute the numerical value.  This pattern is required because Mathematica's D \
+needs its 2nd argument to be a symbol, not a number.", "Subsection"],
+
+Cell["dlamLogP[lamV_?NumericQ, muV_?NumericQ, tV_?NumericQ,
+         naV_?NumericQ, n1aV_?NumericQ, nbV_?NumericQ, n1bV_?NumericQ,
+         ngV_?NumericQ, n1gV_?NumericQ] := Module[{l},
+  D[logP[l, muV, tV, naV, n1aV, nbV, n1bV, ngV, n1gV], l] /. l -> lamV];
+
+dmuLogP[lamV_?NumericQ, muV_?NumericQ, tV_?NumericQ,
+        naV_?NumericQ, n1aV_?NumericQ, nbV_?NumericQ, n1bV_?NumericQ,
+        ngV_?NumericQ, n1gV_?NumericQ] := Module[{m},
+  D[logP[lamV, m, tV, naV, n1aV, nbV, n1bV, ngV, n1gV], m] /. m -> muV];", "Input"],
+
+Cell["General-formula TKF91 BDI map (eqs ES-formula, EB-formula, ED-formula in lhopital-limits.tex).", "Subsection"],
+
+Cell["(* IMPORTANT: in Mathematica, a complete expression followed by a newline is
+   terminated, so a multi-line RHS that starts each continuation with `+` would
+   silently drop the continuation lines.  Either wrap the whole RHS in outer
+   parens, or end each continued line with the trailing operator.  Below uses
+   the trailing-operator style. *)
+
+EofSGen[lam_, mu_, t_, T_, cons_, na_, n1a_, nb_, n1b_, ng_, n1g_] :=
+  (cons + mu  dmuLogP [lam, mu, t, na, n1a, nb, n1b, ng, n1g]
+        - lam dlamLogP[lam, mu, t, na, n1a, nb, n1b, ng, n1g]
+        - lam T) / (lam - mu);
+
+EofBGen[lam_, mu_, t_, T_, cons_, na_, n1a_, nb_, n1b_, ng_, n1g_] :=
+  lam dlamLogP[lam, mu, t, na, n1a, nb, n1b, ng, n1g] +
+  lam EofSGen[lam, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g] +
+  lam T;
+
+EofDGen[lam_, mu_, t_, T_, cons_, na_, n1a_, nb_, n1b_, ng_, n1g_] :=
+  mu dmuLogP[lam, mu, t, na, n1a, nb, n1b, ng, n1g] +
+  mu EofSGen[lam, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g];", "Input"],
+
+Cell["countGroups: map a 5\[Times]5 count matrix to the 6 WFST groups + conservation.", "Subsection"],
+
+Cell["countGroups[m_] := Module[{na, n1a, nb, n1b, ng, n1g, cons},
+  na  = m[[sS, sM]] + m[[sM, sM]] + m[[sI, sM]] + m[[sD, sM]];
+  n1a = m[[sS, sD]] + m[[sM, sD]] + m[[sI, sD]] + m[[sD, sD]];
+  nb  = m[[sS, sI]] + m[[sM, sI]] + m[[sI, sI]];
+  n1b = m[[sS, sM]] + m[[sS, sD]] + m[[sS, sE]]
+      + m[[sM, sM]] + m[[sM, sD]] + m[[sM, sE]]
+      + m[[sI, sM]] + m[[sI, sD]] + m[[sI, sE]];
+  ng  = m[[sD, sI]];
+  n1g = m[[sD, sM]] + m[[sD, sD]] + m[[sD, sE]];
+  cons = Total[m[[All, sI]]] - Total[m[[All, sD]]];
+  {na, n1a, nb, n1b, ng, n1g, cons}];", "Input"],
+
+Cell["tkf91Stats: dispatcher with central-FD L'Hopital guard at \[Lambda]=\[Mu].  Returns {E[B], E[D], E[S]}.", "Subsection"],
+
+Cell["tkf91Stats[m_, lam_?NumericQ, mu_?NumericQ, t_?NumericQ, T_?NumericQ] := Module[
+  {na, n1a, nb, n1b, ng, n1g, cons, h, lamP, lamM, sP, sM},
+  {na, n1a, nb, n1b, ng, n1g, cons} = countGroups[m];
+  If[Abs[lam - mu] > 10^-10,
+    (* General case *)
+    {EofBGen[lam, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g],
+     EofDGen[lam, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g],
+     EofSGen[lam, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g]},
+    (* L'Hopital: average the general formula at (mu+h, mu) and (mu-h, mu) *)
+    h    = Max[Abs[mu] 10^-4, 10^-8];
+    lamP = mu + h;
+    lamM = mu - h;
+    sP = {EofBGen[lamP, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g],
+          EofDGen[lamP, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g],
+          EofSGen[lamP, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g]};
+    sM = {EofBGen[lamM, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g],
+          EofDGen[lamM, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g],
+          EofSGen[lamM, mu, t, T, cons, na, n1a, nb, n1b, ng, n1g]};
+    (sP + sM) / 2]];", "Input"],
+
+Cell["TKF92 BDI extension: decompose self-loops, return F (extension), E_term (termination), \
+and the joint-singlet stats L, M.", "Subsection"],
+
+Cell["tkf92Stats[m_, lam_?NumericQ, mu_?NumericQ, t_?NumericQ, T_?NumericQ, ext_?NumericQ] := Module[
+  {tau = tau5[lam/mu, Exp[-mu t], ext], nCorr = m, F = 0, notF, EB, ED, ES,
+   extFrac, loop, L, Mn, s},
+  Do[
+    extFrac = ext / tau[[s, s]];
+    loop = m[[s, s]];
+    F += extFrac loop;
+    nCorr[[s, s]] = (1 - extFrac) loop,
+    {s, {sM, sI, sD}}];
+  notF = Total[Flatten[nCorr[[{sM, sI, sD}, All]]]];
+  {EB, ED, ES} = tkf91Stats[nCorr, lam, mu, t, T];
+  L = Total[m[[All, sM]]] + Total[m[[All, sD]]];
+  Mn = Total[m[[All, sE]]];
+  {EB, ED, ES, F, notF, L, Mn}];", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["4.  Triad HMM construction (T = A + B dt)", "Section"],
+
+Cell["GGI generator action z(src, dst) -> (z_0, z_1).  z_0 is the surrogate's pass-through; \
+z_1 is the leading-dt GGI perturbation.", "Text"],
+
+Cell["zVal[src_, dst_, lamG_, muG_, x_, y_] := Switch[{src, dst},
+  {sS, sM}, {1, -(lamG + muG)}, {sS, sI}, {0, lamG}, {sS, sD}, {0, muG}, {sS, sE}, {1, -lamG},
+  {sM, sM}, {1, -(lamG + muG)}, {sM, sI}, {0, lamG}, {sM, sD}, {0, muG}, {sM, sE}, {1, -lamG},
+  {sI, sI}, {x, 0}, {sI, sM}, {1 - x, 0}, {sI, sE}, {1 - x, 0},
+  {sD, sD}, {y, 0}, {sD, sM}, {1 - y, 0}, {sD, sE}, {1, 0},
+  _, {0, 0}];", "Input"],
+
+Cell["13\[Times]13 (A, B) matrices per the Triad table.  Code-convention note: x = I-extension \
+(= insertion-extension y_GGI in the paper); y = D-extension (= deletion-extension x_GGI).", "Subsection"],
+
+Cell["buildAB[lamS_?NumericQ, muS_?NumericQ, rS_?NumericQ,
+        lamG_?NumericQ, muG_?NumericQ, x_?NumericQ, y_?NumericQ, t_?NumericQ] := Module[
+  {Y = tau5[lamS/muS, Exp[-muS t], rS], A = ConstantArray[0, {13, 13}],
+   B = ConstantArray[0, {13, 13}], setYZ, setY, yy, zz},
+
+  yy[a_, b_] := Y[[a, b]];
+  zz[a_, b_] := zVal[a, b, lamG, muG, x, y];
+
+  setYZ[row_, col_, fac_, src_, dst_] := Module[{z = zz[src, dst]},
+    A[[row, col]] += fac z[[1]];
+    B[[row, col]] += fac z[[2]]];
+  setY[row_, col_, fac_] := (A[[row, col]] += fac);
+
+  (* Row SS *)
+  setYZ[tSS, tsI, 1, sS, sI]; setYZ[tSS, tMM, yy[sS,sM], sS, sM]; setYZ[tSS, tMD, yy[sS,sM], sS, sD];
+  setYZ[tSS, tIM, yy[sS,sI], sS, sM]; setYZ[tSS, tID, yy[sS,sI], sS, sD];
+  setY[tSS, tDs, yy[sS,sD]]; setYZ[tSS, tEE, yy[sS,sE], sS, sE];
+  (* Row sI *)
+  setYZ[tsI, tsI, 1, sI, sI]; setYZ[tsI, tMM, yy[sS,sM], sI, sM]; setYZ[tsI, tMD, yy[sS,sM], sI, sD];
+  setYZ[tsI, tIM, yy[sS,sI], sI, sM]; setYZ[tsI, tID, yy[sS,sI], sI, sD];
+  setY[tsI, tDi, yy[sS,sD]]; setYZ[tsI, tEE, yy[sS,sE], sI, sE];
+  (* Row MM *)
+  setYZ[tMM, tMM, yy[sM,sM], sM, sM]; setYZ[tMM, tmI, 1, sM, sI]; setYZ[tMM, tMD, yy[sM,sM], sM, sD];
+  setYZ[tMM, tIM, yy[sM,sI], sM, sM]; setYZ[tMM, tID, yy[sM,sI], sM, sD];
+  setY[tMM, tDm, yy[sM,sD]]; setYZ[tMM, tEE, yy[sM,sE], sM, sE];
+  (* Row mI *)
+  setYZ[tmI, tMM, yy[sM,sM], sI, sM]; setYZ[tmI, tmI, 1, sI, sI]; setYZ[tmI, tMD, yy[sM,sM], sI, sD];
+  setYZ[tmI, tIM, yy[sM,sI], sI, sM]; setYZ[tmI, tID, yy[sM,sI], sI, sD];
+  setY[tmI, tDi, yy[sM,sD]]; setYZ[tmI, tEE, yy[sM,sE], sI, sE];
+  (* Row MD *)
+  setYZ[tMD, tMM, yy[sM,sM], sD, sM]; setYZ[tMD, tmI, 1, sD, sI]; setYZ[tMD, tMD, yy[sM,sM], sD, sD];
+  setYZ[tMD, tIM, yy[sM,sI], sD, sM]; setYZ[tMD, tID, yy[sM,sI], sD, sD];
+  setY[tMD, tDd, yy[sM,sD]]; setYZ[tMD, tEE, yy[sM,sE], sD, sE];
+  (* Row IM *)
+  setYZ[tIM, tMM, yy[sI,sM], sM, sM]; setYZ[tIM, tMD, yy[sI,sM], sM, sD];
+  setYZ[tIM, tIM, yy[sI,sI], sM, sM]; setYZ[tIM, tiI, 1, sM, sI]; setYZ[tIM, tID, yy[sI,sI], sM, sD];
+  setY[tIM, tDm, yy[sI,sD]]; setYZ[tIM, tEE, yy[sI,sE], sM, sE];
+  (* Row iI *)
+  setYZ[tiI, tMM, yy[sI,sM], sI, sM]; setYZ[tiI, tMD, yy[sI,sM], sI, sD];
+  setYZ[tiI, tIM, yy[sI,sI], sI, sM]; setYZ[tiI, tiI, 1, sI, sI]; setYZ[tiI, tID, yy[sI,sI], sI, sD];
+  setY[tiI, tDi, yy[sI,sD]]; setYZ[tiI, tEE, yy[sI,sE], sI, sE];
+  (* Row ID *)
+  setYZ[tID, tMM, yy[sI,sM], sD, sM]; setYZ[tID, tMD, yy[sI,sM], sD, sD];
+  setYZ[tID, tIM, yy[sI,sI], sD, sM]; setYZ[tID, tiI, 1, sD, sI]; setYZ[tID, tID, yy[sI,sI], sD, sD];
+  setY[tID, tDd, yy[sI,sD]]; setYZ[tID, tEE, yy[sI,sE], sD, sE];
+  (* Row Ds *)
+  setYZ[tDs, tMM, yy[sD,sM], sS, sM]; setYZ[tDs, tMD, yy[sD,sM], sS, sD];
+  setYZ[tDs, tIM, yy[sD,sI], sS, sM]; setYZ[tDs, tID, yy[sD,sI], sS, sD];
+  setY[tDs, tDs, yy[sD,sD]]; setYZ[tDs, tEE, yy[sD,sE], sS, sE];
+  (* Row Dm *)
+  setYZ[tDm, tMM, yy[sD,sM], sM, sM]; setYZ[tDm, tMD, yy[sD,sM], sM, sD];
+  setYZ[tDm, tIM, yy[sD,sI], sM, sM]; setYZ[tDm, tID, yy[sD,sI], sM, sD];
+  setY[tDm, tDm, yy[sD,sD]]; setYZ[tDm, tEE, yy[sD,sE], sM, sE];
+  (* Row Di *)
+  setYZ[tDi, tMM, yy[sD,sM], sI, sM]; setYZ[tDi, tMD, yy[sD,sM], sI, sD];
+  setYZ[tDi, tIM, yy[sD,sI], sI, sM]; setYZ[tDi, tID, yy[sD,sI], sI, sD];
+  setY[tDi, tDi, yy[sD,sD]]; setYZ[tDi, tEE, yy[sD,sE], sI, sE];
+  (* Row Dd *)
+  setYZ[tDd, tMM, yy[sD,sM], sD, sM]; setYZ[tDd, tMD, yy[sD,sM], sD, sD];
+  setYZ[tDd, tIM, yy[sD,sI], sD, sM]; setYZ[tDd, tID, yy[sD,sI], sD, sD];
+  setY[tDd, tDd, yy[sD,sD]]; setYZ[tDd, tEE, yy[sD,sE], sD, sE];
+  {A, B, Y}];", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["5.  Null-elimination of ID + coarse-graining 12 -> 5", "Section"],
+
+Cell["The ID state is a ghost insertion immediately followed by deletion (no X->Z column \
+produced).  Eliminate via geometric closure of its self-loop.", "Text"],
+
+Cell["nullElimID[Afull_, Bfull_] := Module[
+  {keep, AiID, AIDj, BiID, AKeep, BKeep, gID, U, V},
+  keep = Complement[Range[13], {tID}];   (* 12 indices: skip tID = 8 *)
+  gID = Afull[[tID, tID]];
+  AiID = Afull[[keep, tID]];
+  AIDj = Afull[[tID, keep]];
+  BiID = Bfull[[keep, tID]];
+  AKeep = Afull[[keep, keep]];
+  BKeep = Bfull[[keep, keep]];
+  U = AKeep + Outer[Times, AiID, AIDj] / (1 - gID);
+  V = BKeep + Outer[Times, BiID, AIDj] / (1 - gID);
+  {U, V}];
+
+coarseGrain12[n12_] := Module[{m = ConstantArray[0, {5, 5}], a, b},
+  Do[
+    m[[cmap12[[a]], cmap12[[b]]]] += n12[[a, b]],
+    {a, 12}, {b, 12}];
+  m];", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["6.  Expected counts n^(0), n^(1), m^(0), m^(1), and \[CapitalDelta][X]", "Section"],
+
+Cell["statsAndIncrements[lamS_?NumericQ, muS_?NumericQ, rS_?NumericQ, t_?NumericQ,
+                   lamG_?NumericQ, muG_?NumericQ, x_?NumericQ, y_?NumericQ] := Module[
+  {AB, Afull, Bfull, U, V, C, CVC, n0, n1, m0, m1, s0, s1, sZero, ssIdx, eeIdx},
+
+  AB = buildAB[lamS, muS, rS, lamG, muG, x, y, t];
+  Afull = AB[[1]]; Bfull = AB[[2]];
+
+  {U, V} = nullElimID[Afull, Bfull];
+  (* After dropping tID = 8, SS is still index 1 and EE is now index 12 *)
+  ssIdx = 1; eeIdx = 12;
+
+  C = Inverse[IdentityMatrix[12] - U];
+  CVC = C . V . C;
+
+  n0 = Outer[Times, C[[ssIdx, ;;]], C[[;;, eeIdx]]] * U;
+  n1 = Outer[Times, CVC[[ssIdx, ;;]], C[[;;, eeIdx]]] * U +
+       Outer[Times, C[[ssIdx, ;;]],   C[[;;, eeIdx]]] * V +
+       Outer[Times, C[[ssIdx, ;;]],   CVC[[;;, eeIdx]]] * U;
+
+  m0 = coarseGrain12[n0];
+  m1 = coarseGrain12[n1];
+
+  s0 = tkf92Stats[m0, lamS, muS, t, t, rS];
+  (* Subtract m=0 baseline so \[CapitalDelta][X] is purely linear in m1 (the BDI map is
+     affine in m thanks to the +\[Lambda]T immortal-link term) *)
+  sZero = tkf92Stats[ConstantArray[0., {5, 5}], lamS, muS, t, t, rS];
+  s1 = tkf92Stats[m1, lamS, muS, t, t, rS] - sZero;
+
+  {{m0, m1}, {s0, s1}}];", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["7.  Boundary condition", "Section"],
+
+Cell["Per-residue conditional-KL boundary at t \[Rule] 0+ (eq:boundary-r).  \
+Convention note: code's xIns = insertion-extension (= paper's y);
+code's yDel = deletion-extension (= paper's x).", "Text"],
+
+Cell["rStar[lam0_, mu0_, xIns_, yDel_] :=
+  (lam0 xIns (1 - yDel) + mu0 yDel (1 - xIns)) /
+  (lam0 (1 - yDel) + mu0 (1 - xIns));
+
+lamTBoundary[lam0_, mu0_, xIns_, yDel_] := lam0 / (1 - rStar[lam0, mu0, xIns, yDel]);
+muTBoundary [lam0_, mu0_, xIns_, yDel_] := mu0 / (1 - rStar[lam0, mu0, xIns, yDel]);
+
+(* The algebraic identity (1 - rs) A = B, where rs = r*(0),
+     A = lam0/(1-y) + mu0/(1-x),  B = lam0 + mu0
+   is the algebraic key behind r_inf = rs/(2-rs) and k = (lam0+mu0)(2-rs)/(1-rs)
+   in the closed-form r(t).  Verify it symbolically: *)
+Module[{rs, A, B},
+  rs = rStar[lam0, mu0, xIns, yDel];
+  A = lam0/(1 - xIns) + mu0/(1 - yDel);   (* xIns = paper's y, yDel = paper's x *)
+  B = lam0 + mu0;
+  Simplify[(1 - rs) A - B,
+           Assumptions -> {0 < xIns < 1, 0 < yDel < 1, lam0 > 0, mu0 > 0}]]", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["8.  Closed-form r(t) via DSolve", "Section"],
+
+Cell["From eq:rdot-firstorder.  With A = lam0/(1-y) + mu0/(1-x) and B = lam0 + mu0:
+  dr/dt = (1-r) A - (1+r) B = (A-B) - (A+B) r
+Linear in r alone -- DSolve handles it directly.  Then use the boundary identity \
+(1-r*) A = B to simplify r_inf and k in terms of r* and (lam0+mu0).", "Text"],
+
+Cell["(* In paper convention: y = insertion-extension, x = deletion-extension. *)
+Module[{A, B, sol, rInf, kDecay, rs},
+  A = lam0/(1 - y) + mu0/(1 - x);
+  B = lam0 + mu0;
+  sol = DSolve[{r'[t] == (A - B) - (A + B) r[t], r[0] == r0}, r[t], t];
+  Print[\"Solution: \", sol];
+
+  rInf  = Limit[r[t] /. sol[[1]], t -> Infinity, Assumptions -> {A + B > 0}];
+  kDecay = (A + B);
+  Print[\"r_inf = \", Simplify[rInf]];
+  Print[\"k     = \", Simplify[kDecay]];
+
+  (* Substitute r0 = r*(0) and verify the boxed forms *)
+  rs = rStar[lam0, mu0, y, x];   (* xIns = y, yDel = x *)
+  Print[\"Check r_inf == r*/(2-r*): \",
+    Simplify[(rInf /. r0 -> rs) - rs/(2 - rs),
+             Assumptions -> {0 < x < 1, 0 < y < 1, lam0 > 0, mu0 > 0}]];
+  Print[\"Check k == (lam0+mu0)(2-r*)/(1-r*): \",
+    Simplify[kDecay - (lam0 + mu0)(2 - rs)/(1 - rs),
+             Assumptions -> {0 < x < 1, 0 < y < 1, lam0 > 0, mu0 > 0}]];
+  sol]", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["9.  Full matched-flow ODE (eq:ode-params)", "Section"],
+
+Cell["The parameter-form ODE.  With (B, D, S, F, E) from m^(0) and (B^g, D^g, S^g, F^g, E^g) \
+the linear perturbations from m^(1):
+  d\[Lambda]/dt = (B^g - \[Lambda](S^g + 1))/(S + t)
+  d\[Mu]/dt    = (D^g - \[Mu] S^g)/S
+  dr/dt    = ((1-r) F^g - r E^g)/(F + E)", "Text"],
+
+Cell["dthetaDt[lamS_?NumericQ, muS_?NumericQ, rS_?NumericQ, t_?NumericQ,
+         lamG_?NumericQ, muG_?NumericQ, x_?NumericQ, y_?NumericQ] := Module[
+  {res, s0, s1, B0, D0, S0, F0, En0, Bg, Dg, Sg, Fg, Eg},
+  res = statsAndIncrements[lamS, muS, rS, t, lamG, muG, x, y];
+  {s0, s1} = res[[2]];
+  {B0, D0, S0, F0, En0} = Take[s0, 5];
+  {Bg, Dg, Sg, Fg, Eg} = Take[s1, 5];
+  {(Bg - lamS (Sg + 1)) / (S0 + t),
+   (Dg - muS Sg) / S0,
+   ((1 - rS) Fg - rS Eg) / (F0 + En0)}];", "Input"],
+
+Cell["Numerical sanity at the asymmetric May-29 reference (lam0=0.035, mu0=0.045, x_del=0.6, y_ins=0.4).
+Convention swap: buildAB takes (x = I-extension = y_ins, y = D-extension = x_del).", "Text"],
+
+Cell["Module[{lam0n = 0.035, mu0n = 0.045, xDelN = 0.6, yInsN = 0.4,
+        rsN, lamTn, muTn, rhs},
+  rsN  = rStar[lam0n, mu0n, yInsN, xDelN];   (* xIns = y_ins, yDel = x_del *)
+  lamTn = lam0n / (1 - rsN);
+  muTn  = mu0n  / (1 - rsN);
+  Print[\"r*(0) = \", rsN];
+  Print[\"lam_T(0) = \", lamTn, \"  mu_T(0) = \", muTn];
+
+  Do[
+    rhs = dthetaDt[lamTn, muTn, rsN, tProbe, lam0n, mu0n, yInsN, xDelN];
+    Print[\"t = \", tProbe, \": d(lam,mu,r)/dt = \", rhs],
+    {tProbe, {0.001, 0.005, 0.01, 0.05, 0.1}}]]", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["10.  DSolve attempt on the full 3-D ODE (likely to time out)", "Section"],
+
+Cell["Symbolic integration of the 3-D matched-flow ODE.  Will probably fail \
+(13-state symbolic resolvent is huge).  Time-budget it.", "Text"],
+
+Cell["TimeConstrained[
+  Module[{rhsSym, eqLam, eqMu, eqR},
+    (* Build a symbolic RHS evaluated only at symbolic (lam, mu, r), with
+       (lam0, mu0, x, y) left as symbols.  This pattern bypasses the NumericQ
+       gate on dthetaDt -- it will be very slow.  Treat as a stretch goal. *)
+    rhsSym = dthetaDt[lam[t], mu[t], r[t], t, lam0, mu0, x, y];
+    eqLam = lam'[t] == rhsSym[[1]];
+    eqMu  = mu'[t]  == rhsSym[[2]];
+    eqR   = r'[t]   == rhsSym[[3]];
+    DSolve[{eqLam, eqMu, eqR,
+            lam[tEps] == lam0/(1 - r0), mu[tEps] == mu0/(1 - r0), r[tEps] == r0},
+           {lam[t], mu[t], r[t]}, t]],
+  30,
+  \"timeout\"]", "Input"],
+
+Cell["The closed-form r(t) DSolve (Section 8) is the cleaner symbolic check.  \
+Repeated here as a one-liner:", "Text"],
+
+Cell["DSolve[{r'[t] == (1 - r[t]) (lam0/(1 - y) + mu0/(1 - x))
+              - (1 + r[t]) (lam0 + mu0),
+        r[0] == r0}, r[t], t] // Simplify", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["11.  NDSolve cross-check against the Python implementation", "Section"],
+
+Cell["IMPORTANT: NDSolve needs the RHS to NOT pre-evaluate at setup time.  Writing \
+dthetaDt[lam[t], mu[t], r[t], t, ...][[1]] directly in the equation fails: NDSolve \
+evaluates dthetaDt at parse time, where lam[t] etc. aren't NumericQ, so dthetaDt \
+stays unevaluated -- and the unevaluated symbol's [[1]] extracts the FIRST argument \
+(= lam[t]).  Result: NDSolve silently integrates lam'[t] == lam[t], r'[t] == r[t], etc. \
+(exponential growth).  Use wrapper functions that fire only at integration time.", "Text"],
+
+Cell["rhsLam[lam_?NumericQ, mu_?NumericQ, r_?NumericQ, t_?NumericQ,
+       lam0_?NumericQ, mu0_?NumericQ, x_?NumericQ, y_?NumericQ] :=
+  dthetaDt[lam, mu, r, t, lam0, mu0, x, y][[1]];
+rhsMu[lam_?NumericQ, mu_?NumericQ, r_?NumericQ, t_?NumericQ,
+      lam0_?NumericQ, mu0_?NumericQ, x_?NumericQ, y_?NumericQ] :=
+  dthetaDt[lam, mu, r, t, lam0, mu0, x, y][[2]];
+rhsR[lam_?NumericQ, mu_?NumericQ, r_?NumericQ, t_?NumericQ,
+     lam0_?NumericQ, mu0_?NumericQ, x_?NumericQ, y_?NumericQ] :=
+  dthetaDt[lam, mu, r, t, lam0, mu0, x, y][[3]];
+
+Module[{lam0n = 0.035, mu0n = 0.045, xDelN = 0.6, yInsN = 0.4,
+        rsN, lamTn, muTn, tEpsN = 0.005, tMaxN = 5.0, sol, ts},
+  rsN  = rStar[lam0n, mu0n, yInsN, xDelN];
+  lamTn = lam0n / (1 - rsN);
+  muTn  = mu0n  / (1 - rsN);
+
+  sol = Quiet @ NDSolve[
+    {lam'[t] == rhsLam[lam[t], mu[t], r[t], t, lam0n, mu0n, yInsN, xDelN],
+     mu'[t]  == rhsMu [lam[t], mu[t], r[t], t, lam0n, mu0n, yInsN, xDelN],
+     r'[t]   == rhsR  [lam[t], mu[t], r[t], t, lam0n, mu0n, yInsN, xDelN],
+     lam[tEpsN] == lamTn, mu[tEpsN] == muTn, r[tEpsN] == rsN},
+    {lam, mu, r}, {t, tEpsN, tMaxN},
+    Method -> \"StiffnessSwitching\",
+    MaxStepSize -> 0.05, AccuracyGoal -> 6, PrecisionGoal -> 6,
+    MaxSteps -> 10000];
+
+  ts = {0.005, 0.05, 0.5, 1.0, 2.0, 5.0};
+  Grid[Prepend[
+    Table[{tn, lam[tn] /. sol[[1]], mu[tn] /. sol[[1]], r[tn] /. sol[[1]]}, {tn, ts}],
+    {\"t\", \"lam(t)\", \"mu(t)\", \"r(t)\"}], Frame -> All]]", "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["12.  Notes", "Section"],
+
+Cell["1. Every function that gets called inside NDSolve's RHS is gated on ?NumericQ. \
+This forces NDSolve to substitute numerical values BEFORE entering the body, so the \
+12x12 matrix inversion in statsAndIncrements runs numerically (fast, well-behaved) \
+rather than symbolically (huge expression blow-up + cascading errors).
+
+2. The BDI partial derivatives use the idiom
+       D[logP[localSym, otherArgs], localSym] /. localSym -> numericalValue
+   because Mathematica's D requires its 2nd argument to be a symbol, not a number.
+
+3. The L'Hopital limit at lam = mu is handled by central FD over (mu \[PlusMinus] h).  No \
+symbolic Limit[] calls in the hot path (those are slow and would defeat NumericQ gating).
+
+4. CMAP_12 fixes the historical sI/mI/MD mis-labelling in the Python coarse_grain.
+
+5. \[CapitalDelta][X] = tkf92Stats[m1, ...] - tkf92Stats[0, ...] because the BDI map is \
+affine (with a +\[Lambda]T immortal-link constant); the baseline subtraction extracts \
+the linear-in-m1 piece.
+
+6. eq:matched-flow defines the LOCAL self-composition flow.  This is not the same \
+object as argmin_theta D(GGI(t) || TKF92(theta, t)) at each t (the per-t direct fit) -- \
+those trajectories may diverge.  Validating the NDSolve trajectory against per-tau \
+Gillespie + kl_fit is comparing different objects.", "Text"]
+}, Open]]
+
+}, WindowSize -> {1100, 850}, FrontEndVersion -> "13.0 for Mac OS X x86 (64-bit)"]

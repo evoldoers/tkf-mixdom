@@ -1,0 +1,20 @@
+{
+  "msa_dir": "/home/yam/bio-datasets/data/pfam-seed",
+  "seed": 0,
+  "max_seq_len": 600,
+  "val_frac": 0.1,
+  "n_train": 23472,
+  "n_val": 2608,
+  "n_dropped_short_aln": 0,
+  "n_dropped_too_long": 420,
+  "t_train_stats": {
+    "min": 0.0,
+    "median": 1.3892880682833668,
+    "mean": 3.125347732243583,
+    "max": 10.0
+  },
+  "anc_len_train_stats": {
+    "median": 120,
+    "max": 600
+  }
+}

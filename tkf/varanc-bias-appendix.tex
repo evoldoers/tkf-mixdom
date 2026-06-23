@@ -142,12 +142,12 @@ summable),
 giving a $\theta$-independent upper bound on the aggregated
 sufficient-statistic count.  The exposure denominator
 $T_{\text{eff}} = \sum_e t_e$ in the BDI rate-MLE
-(\texttt{tkf92\_vbem.py:223}) is itself $\theta$-independent ---
+is itself $\theta$-independent ---
 it depends only on the tree branch lengths, not on the inferred
 rates --- and is bounded below by the smallest tree branch.
 Composing these, the rate-MLE $\hat\lambda(\theta) \propto
 \sum_e W[\cdot, I] / T_{\text{eff}}$ (with the precise BDI
-quadratic-MLE form in \texttt{tkf92\_vbem.py:m\_step\_indel\_quadratic})
+quadratic-MLE form of the closed-form indel M-step)
 is a continuous, bounded self-map on a compact rate interval $[0,
 \bar\lambda]$ with $\bar\lambda \leq (L + 1) / \min_e t_e$
 (continuity follows because $W(\theta)$ depends continuously on

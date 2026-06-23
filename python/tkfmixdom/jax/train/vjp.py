@@ -106,6 +106,7 @@ def _pi_emission_gradient(posteriors, state_types, pi, x_seq, y_seq):
            jnp.maximum(pi, 1e-30)
 
 
+@jax.checkpoint
 def tkf91_log_prob(ins_rate, del_rate, t, Q, pi, x_seq, y_seq):
     """Compute log P(x, y | lambda, mu, t, Q, pi) under TKF91.
 
@@ -115,6 +116,12 @@ def tkf91_log_prob(ins_rate, del_rate, t, Q, pi, x_seq, y_seq):
     The custom VJP wraps only the DP; the emission computation (which
     depends on Q via expm) is outside the VJP scope, so JAX autodiffs
     through it normally.
+
+    @jax.checkpoint: 2D forward-backward + custom-VJP residuals are
+    re-computed during backward instead of stored across fwd→bwd.  ~30-50%
+    slowdown buys back O(Lx·Ly·n_states) workspace memory per pair, which
+    is what was blowing up Adam d3f2 / d3f3 on 11 GB GPUs (per
+    project_gradient_checkpointing.md, 2026-04).
     """
     sub_matrix = transition_matrix(Q, t)
     return _tkf91_dp(ins_rate, del_rate, t, sub_matrix, pi, x_seq, y_seq)
@@ -187,10 +194,12 @@ def _tkf91_dp_bwd(res, g):
 _tkf91_dp.defvjp(_tkf91_dp_fwd, _tkf91_dp_bwd)
 
 
+@jax.checkpoint
 def tkf91_log_prob_cond(ins_rate, del_rate, t, Q, pi, x_seq, y_seq):
     """Compute log P(x, y | |ancestor|, params) under TKF91.
 
     Conditioned on ancestor length. Differentiable w.r.t. all params.
+    @jax.checkpoint: see tkf91_log_prob docstring for memory rationale.
     """
     sub_matrix = transition_matrix(Q, t)
     return _tkf91_cond_dp(ins_rate, del_rate, t, sub_matrix, pi, x_seq, y_seq)
@@ -240,11 +249,13 @@ def _tkf91_cond_dp_bwd(res, g):
 _tkf91_cond_dp.defvjp(_tkf91_cond_dp_fwd, _tkf91_cond_dp_bwd)
 
 
+@jax.checkpoint
 def tkf92_log_prob(ins_rate, del_rate, t, ext, Q, pi, x_seq, y_seq):
     """Compute log P(x, y | lambda, mu, t, ext, Q, pi) under TKF92.
 
     Differentiable w.r.t. all params: ins_rate, del_rate, ext (custom VJP),
     Q, pi (autograd through expm).
+    @jax.checkpoint: see tkf91_log_prob docstring for memory rationale.
     """
     sub_matrix = transition_matrix(Q, t)
     return _tkf92_dp(ins_rate, del_rate, t, ext, sub_matrix, pi, x_seq, y_seq)
@@ -336,6 +347,7 @@ def _chi_weighted_loglik(main_ins_rate, main_del_rate, t,
     return jnp.sum(n_chi * log_chi)
 
 
+@jax.checkpoint
 def mixdom_log_prob(main_ins_rate, main_del_rate, t,
                     dom_ins_rates, dom_del_rates, dom_weights,
                     frag_weights, ext_rates,
@@ -612,6 +624,7 @@ def _mixdom2_emission_counts(class_subs, class_pis, class_dist,
     return mc_c, V_c_linear, classdist_counts
 
 
+@jax.checkpoint
 def mixdom2_log_prob(main_ins_rate, main_del_rate, t,
                      dom_ins_rates, dom_del_rates, dom_weights,
                      frag_weights, ext_rates,

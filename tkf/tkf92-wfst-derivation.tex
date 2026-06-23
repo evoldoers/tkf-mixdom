@@ -98,9 +98,9 @@ singlet contributions; what fails to lump is the WFST.
 Writing $\alpha,\beta,\gamma,\kappa$ for the TKF link-level parameters
 (as in Section~\ref{sec:tkf91-machines}), and $r=\ext$
 for the fragment-extension probability:
-\begin{equation}
-\tkftrans''(\insrate,\delrate,\evoltime,\ext)=
-\renewcommand{\arraystretch}{1.6}
+\begin{eqnarray}
+\lefteqn{\tkftrans''(\insrate,\delrate,\evoltime,\ext) \;= \quad} \label{eq:tkf92-pair-hmm-6x6} \\
+& & \renewcommand{\arraystretch}{1.6}
 \left(
 \begin{array}{r|cccccc}
 & \sta & \mat & \ins_0 & \ins_1 & \del & \fin \\\hline
@@ -131,9 +131,8 @@ for the fragment-extension probability:
             & (1{-}r)(1{-}\gamma)(1{-}\kappa) \\
 \fin   & 0 & 0 & 0 & 0 & 0 & 0
 \end{array}
-\right)
-\label{eq:tkf92-pair-hmm-6x6}
-\end{equation}
+\right) \nonumber
+\end{eqnarray}
 The structural zeros are: $\sta$ cannot reach $\ins_1$ in one step
 (no ancestor has yet been emitted), and $\mat,\del,\ins_1$ cannot
 reach $\ins_0$ in one step (an ancestor has already been emitted).
@@ -190,9 +189,9 @@ weights, exactly as in TKF91, so that $\mat$-state emission becomes
 $\exp(\revsub\evoltime)_{\anctok\destok}$ and $\del$-state emission
 becomes $1$; we focus on the transition matrix below.
 
-\begin{equation}
-\tkfwfst''(\insrate,\delrate,\evoltime,\ext)=
-\renewcommand{\arraystretch}{1.7}
+\begin{eqnarray}
+\lefteqn{\tkfwfst''(\insrate,\delrate,\evoltime,\ext) \;= \quad} \label{eq:tkf92-wfst} \\
+& & \renewcommand{\arraystretch}{1.7}
 \left(
 \begin{array}{r|cccccc}
 & \sta & \mat & \ins_0 & \ins_1 & \del & \fin \\\hline
@@ -223,9 +222,8 @@ becomes $1$; we focus on the transition matrix below.
             & 1{-}\gamma \\
 \fin   & 0 & 0 & 0 & 0 & 0 & 0
 \end{array}
-\right)
-\label{eq:tkf92-wfst}
-\end{equation}
+\right) \nonumber
+\end{eqnarray}
 
 The $\ins_1$ row uses the $p$ divisor on its $\mat$ and $\del$ exits
 and $1{-}\beta$ on its $\fin$ exit, matching the post-immortal-link
@@ -467,3 +465,80 @@ and can be verified numerically from the WFST tensor code.
   reflecting that $\ins_0$ is reachable only before any ancestor
   has been consumed and $\ins_1$ only after.
 \end{enumerate}
+
+\subsection{Boundary-sampler factorisation of $\tkfwfst''$}
+\label{sec:wfst92-boundary-factor}
+
+The $6{\times}6$ WFST admits a clean factorisation into a boundary
+sampler, a TKF91 WFST on fragment-level links, and a fragment-expansion
+projection.  This makes the ``TKF91 hiding inside TKF92'' structure
+explicit and exposes a degenerate Doob $h$-transform that is worth
+recording.
+
+\paragraph{Boundary sampler $B$.}  A row-stochastic WFST that reads
+ancestor residues (without fragment markers) and outputs a per-residue
+mark in $\{N, E\}$ ($N$ = ``new fragment,'' $E$ = ``extends current
+fragment''):
+\begin{itemize}[nosep]
+\item From start $\sta_B$ on the first residue: emit $N$ with weight $1$.
+\item From the working state $\mat_B$ on subsequent residues: emit $E$ with
+  weight $r/p$, or $N$ with weight $(1-r)\kappa/p$.  Row sum on a
+  residue input: $r/p + (1-r)\kappa/p = p/p = 1$.
+\item EOS transitions to $\fin_B$ with weight $1$ from either state.
+\end{itemize}
+
+\paragraph{Trivial Doob $h$-transform.}  In TKF92 the residue identities
+are i.i.d.\ $\sim \eqm$ {\em independent of\/} the boundary indicators,
+so the posterior $P(\mathbf{b}|\mathbf{x})$ equals the prior
+$P(\mathbf{b})$ residue-by-residue.  The Doob $h$-transform $h(b,x_i)
+= P(x_i|b)/P(x_i)$ that would in general be required to make a
+posterior boundary-sampler locally row-stochastic reduces to
+$h \equiv 1$, leaving $B$ a strict prior sampler.  For models where
+the per-residue emission distribution does depend on fragment-context
+(some MixDom variants), $B$ would carry a non-trivial $h$ and would
+no longer be locally row-stochastic without explicit normalisation.
+
+\paragraph{Factorisation.}  Let $W_{91}^{\text{link}}$ denote the
+TKF91 conditional WFST (Section~\ref{sec:tkf91-machines}) acting on
+fragment-level links (one symbol per ancestor fragment-start), and
+let $F$ denote the deterministic expand-and-erase projection that
+inflates each TKF91 link into a $1{+}\text{Geom}(r)$-length
+descendant fragment of residues (drawn from $\exp(Q\evoltime)$ for
+match links, from $\eqm$ for insert links, or empty for delete links)
+and discards the boundary marks from the output.  Then
+\[
+\tkfwfst'' \;=\; B \circ W_{91}^{\text{link}} \circ F .
+\]
+
+\paragraph{Row-by-row verification.}  The $\mat$-row entries of
+$\tkfwfst''$ decompose as
+\begin{eqnarray*}
+\tkfwfst''_{\mat\,\mat}   & = & \underbrace{r/p}_{B:\,E} \cdot 1 + \underbrace{(1{-}r)\kappa/p}_{B:\,N} \cdot (1{-}\beta)\alpha \\
+                          & = & \bigl(r + (1{-}r)(1{-}\beta)\kappa\alpha\bigr)/p \quad\checkmark \\
+\tkfwfst''_{\mat\,\ins_1} & = & (1{-}r)\,\beta \quad \text{(new descendant link inserted between ancestor fragments)} \quad\checkmark \\
+\tkfwfst''_{\mat\,\del}   & = & (1{-}r)\kappa/p \cdot (1{-}\beta)(1{-}\alpha) \;=\; (1{-}r)(1{-}\beta)\kappa(1{-}\alpha)/p \quad\checkmark \\
+\tkfwfst''_{\mat\,\fin}   & = & 1{-}\beta \quad\checkmark
+\end{eqnarray*}
+The $\del$-row verifies identically with $\gamma$ in place of $\beta$.  The
+$\ins_1$-row is the same TKF91 link-level row reached after some non-empty
+ancestor prefix, weighted by the same $B$ structure as $\mat$.  The
+$\sta$ and $\ins_0$ rows are the boundary case $b_1 = N$ (the first
+residue is forced new), which removes the $r/p$ self-extend branch
+and recovers the no-$r$ entries given in the table.
+
+\paragraph{Detailed balance.}  Detailed balance holds at the augmented
+$(x,\mathbf{b},y,\mathbf{b}')$ level: $W_{91}^{\text{link}}$ is reversible
+under $\eqm$ (Holmes-Bruno), $B$ is a proper conditional sampler with
+$h \equiv 1$, and marginalising the boundary marks $\mathbf{b}, \mathbf{b}'$
+recovers the TKF92 joint pair HMM
+$\tkftrans''$ exactly.
+
+\paragraph{Consequence.}  For MCMC inference under TKF92 one can
+augment the state with per-residue fragment-boundary indicators
+$\mathbf{b}$ at each tree node (sampled cheaply from
+$\text{Bernoulli}(r/p)$, {\em independently of the substitution
+matrix\/}) and run TKF91 moves at the link level.  This decomposition
+is the operational realisation of the ``fragments-as-TKF91-links''
+view originally outlined in Thorne, Kishino, and Felsenstein (1992).
+At $r = 0$ the $B$ step is trivial and the construction reduces to
+plain TKF91.

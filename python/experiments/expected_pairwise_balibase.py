@@ -173,8 +173,18 @@ def _tkf92_mixture_pair_posteriors(int_seqs, names, pairs, anchor, mix,
             jnp.asarray(anchor['Q']), jnp.asarray(anchor['pi']),
             n_newton=3, tau_init=1.0)
         return tau_opt
-    tau_anchor = jax.vmap(_anchor_tau_one)(
-        pairs_x, pairs_y, real_Lxs, real_Lys)
+    # Honour pair_chunk for the anchor-tau vmap too — the NR loop here
+    # runs autodiff (grad+hess) through the FB scan, which is memory-
+    # hungry at large pads. Without chunking, this OOMs before the
+    # streaming Q' even starts.
+    tau_chunk = pair_chunk if pair_chunk else n_pairs
+    tau_chunk = max(1, min(tau_chunk, n_pairs))
+    tau_anchor_chunks = []
+    for s in range(0, n_pairs, tau_chunk):
+        e = min(s + tau_chunk, n_pairs)
+        tau_anchor_chunks.append(jax.vmap(_anchor_tau_one)(
+            pairs_x[s:e], pairs_y[s:e], real_Lxs[s:e], real_Lys[s:e]))
+    tau_anchor = jnp.concatenate(tau_anchor_chunks, axis=0)
 
     # OOM-halving fallback: start at the user pair_chunk (or n_pairs),
     # halve on RESOURCE_EXHAUSTED, give up at chunk_try=1.

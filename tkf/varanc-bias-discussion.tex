@@ -32,8 +32,8 @@ $\mathbf{T}_{e,\text{prior}}$ and running BP gives per-column
 pair-marginals exactly equal to the per-column Felsenstein truth
 posterior.  Even at this $q$, the cumulant
 $\mathbf{W}$ (eq.~\ref{eq:cumulant-W}) has a substantial bias against the
-labelled-simulation ("oracle") chain count.  Diagnostic
-\texttt{diag\_cumulant\_structural\_bias.py} sweeps $n_{\text{fams}}
+labelled-simulation ("oracle") chain count.  A diagnostic
+sweeps $n_{\text{fams}}
 \in \{1, 5, 10, 30\}$ on a 6-leaf caterpillar tree (branches
 $0.3$, $\lambda = 0.04$, $\mu = 0.05$, $\ext = 0$, root
 length $L = 240$):
@@ -68,8 +68,7 @@ oracle within $1.5\%$ (not shown).}
 \end{table}
 
 \paragraph{Diagnostic 2: bias does not shrink with Adam convergence.}
-A separate diagnostic
-(\texttt{diag\_adam\_convergence\_vs\_bias.py}) sweeps Adam inner
+A separate diagnostic sweeps Adam inner
 iterations on the variational $q$ with untied per-(edge, column)
 logits and confirms the cumulant bias plateaus at the same $\sim
 4\%$ relative level by $n_{\text{Adam}} = 300$ and does not shrink
@@ -89,8 +88,8 @@ each node's state is the parent's state if compatible with the
 child set, else the smaller compatible state).  This gives a
 fully-labelled per-branch WFST trajectory $S \to \cdots \to E$
 for each column, and we count $(s, s')$ transitions directly ---
-no factorised $q$, no cumulant.  We then call the same BDI M-step
-(\texttt{m\_step\_tkf92}) used by SVI-VarAnc.
+no factorised $q$, no cumulant.  We then apply the same BDI M-step
+used by SVI-VarAnc.
 
 \begin{table}[ht]
 \centering\small

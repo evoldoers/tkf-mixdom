@@ -191,8 +191,7 @@ character, is:
 &= \frac{\notext^{(d)}_f\,(1-\kappa_d)\,\kappa_\main\,\domdist_{d'}\,\kappa_{d'}\,\fragdist_{d', f'}}{1-\zeta},
 \end{align}
 where $\zeta = \kappa_\main \sum_{d''} \domdist_{d''}(1-\kappa_{d''})$
-is the empty-domain renormalisation
-(equation~\eqref{eq:singlet-end-domain}). Each $\omega^{(r)}$
+is the empty-domain renormalisation. Each $\omega^{(r)}$
 factorises as $P((g, e) = (g_r, e_r) \mid (d, f)) \cdot
 P_{\text{singlet}}((d', f') \mid (d, f), g_r, e_r)$, so summing
 over routes recovers the marginal singlet emission probability:
@@ -225,10 +224,11 @@ both.
 labelled chain state at position $n$ (dropping $c_n$, which is
 class-independent for the indel block) and $\tau_n = (d_n, f_n)$
 for the reduced state. Let $\sigma$ denote the labelled singlet
-HMM transition kernel of mixdom-wfst.tex
-Section~\ref{sec:labeled-singlet}, and let $T^{\text{lab}}_{ss'}$
-denote the labelled conditional WFST kernel of
-Section~\ref{sec:labeled-wfst}. The labelled per-character Pair HMM
+HMM transition kernel, and let $T^{\text{lab}}_{ss'}$
+denote the labelled conditional WFST kernel of the full labelled-MixDom
+model (the per-character transducer on the labelled state
+$(c, f, g, d, e)$, before the $(c, g, e)$-marginalisation performed
+here). The labelled per-character Pair HMM
 joint factorises as
 \begin{equation}
 \label{eq:pair-fact}
@@ -237,15 +237,12 @@ P\big((s', Z') \mid (s, Z)\big)
       \sigma\!\big(Z' \mid Z\big),
 \end{equation}
 i.e.\ the WFST conditional weight times the singlet emission
-weight; this is the construction of mixdom-wfst.tex
-Section~\ref{sec:labeled-wfst} (\textit{Singlet} $\circ$ \textit{WFST}
-$=$ \textit{Pair HMM}).
+weight --- the \textit{Singlet} $\circ$ \textit{WFST} $=$ \textit{Pair HMM}
+factorisation of the labelled-MixDom model.
 
 \paragraph{Singlet-table convention.}
-Throughout the proof we use the singlet HMM table at
-mixdom-wfst.tex line~165--170 with the following normalisation
-(consistent with the joint-contribution language at line~187--189
-and the marginalisation check at line~228--237). Two structural
+Throughout the proof we use the labelled singlet HMM table with the
+following normalisation. Two structural
 facts about the labelled MixDom chain underpin this:
 \begin{enumerate}[nosep, label=(\alph*)]
 \item \emph{$e$ is fragment-level.} The domain-end indicator $e$
@@ -278,7 +275,7 @@ For the $g{=}0$ row: $\sum_{f'} \ext^{(d)}_{f, f'} = 1{-}\notext^{(d)}_f
 = \pi(g{=}0 \mid d, f)$. For the $g{=}1, e{=}0$ row:
 $\sum_{f'} \notext^{(d)}_f \kappa_d \fragdist_{d, f'} = \notext^{(d)}_f
 \kappa_d = \pi(g{=}1, e{=}0 \mid d, f)$. For the $g{=}1, e{=}1$ row,
-mixdom-wfst.tex line~228--237 verifies the row sum (over destinations
+the row sum (over destinations
 plus termination) equals $\notext^{(d)}_f (1{-}\kappa_d)
 = \pi(g{=}1, e{=}1 \mid d, f)$.
 
@@ -298,8 +295,8 @@ labelled-chain joint factorises position-by-position as
 P(Z_n \mid Z_{n-1}) = P(d_n, f_n \mid Z_{n-1}) \cdot \pi(g_n, e_n \mid d_n, f_n),
 \]
 because the table entry at position $n$ has the destination prior
-$\pi(g_n, e_n \mid d_n, f_n)$ as an explicit multiplicative factor
-(line~187--189 of mixdom-wfst.tex), independent of $Z_{n-1}$
+$\pi(g_n, e_n \mid d_n, f_n)$ as an explicit multiplicative factor,
+independent of $Z_{n-1}$
 beyond what flows through $(d_n, f_n)$. Marginalising the chain
 joint over $Z_{1:n-1}$ at fixed $(d_n, f_n)$ leaves the
 $\pi(g_n, e_n \mid d_n, f_n)$ factor untouched, establishing
@@ -316,8 +313,8 @@ gives~\eqref{eq:ge-prior}. \qedhere
 decomposes as $\omega = \omega^{(R1)} + \omega^{(R2)} + \omega^{(R3)}$,
 with the per-route weights of eq.~\eqref{eq:omega-routes}.}
 
-\emph{Proof.} The singlet table mixdom-wfst.tex line~165--170
-partitions the source $(g, e)$ values into three rows:
+\emph{Proof.} The labelled singlet table partitions the source
+$(g, e)$ values into three rows:
 \begin{itemize}[nosep]
 \item Row $g{=}0$ (combining all source $e$ values, since the
 $g{=}0$ row weight does not depend on source $e$): table entry
@@ -371,8 +368,8 @@ where the destination-side $(g_r, e_r)$ are determined by the route
 and the destination structural label, trivialising the destination
 sum); and (ii)~for $\ins$, the destination prior on $(g', e')$ at
 the new $(d', f')$ is folded into the WFST as a $\pi(g', e' \mid d',
-f')$ factor (mixdom-wfst.tex eq.~\eqref{eq:wfst-weight-principle}
-gives the WFST = Pair~HMM/singlet division explicitly). In both
+f')$ factor (the WFST, defined as the labelled Pair~HMM joint divided
+by the labelled singlet emission, makes this division explicit). In both
 cases the $(g', e')$ summation cleanly factors out:
 \[
 \sum_{g', e'} T^{\text{lab}}_{ss'}((d, f, g_r, e_r),
@@ -429,8 +426,8 @@ the source $(g, e)$ via the case split into mid-fragment /
 fragment-boundary / domain-boundary, but they do not depend on
 the destination $(g', e')$ except through the trivial label-preservation
 ($\mat$ requires matching labels) constraint already implicit in
-$T^{\text{lab}}$. This is by inspection of the labelled WFST tables
-of mixdom-wfst.tex Section~\ref{sec:labeled-wfst}.
+$T^{\text{lab}}$. This is by inspection of the labelled-MixDom WFST
+tables.
 \item \emph{Boundary entries:} the proof above covers
 non-boundary positions $1 \leq n \leq L$ with $(s, s') \in \{\mat,
 \ins, \del\}$. The $\sta$ and $\fin$ row/column entries of $\hat T$
@@ -471,13 +468,13 @@ labelled WFST entry
 \tilde{T}^{\text{lab}, (r)}_{ss'}\!\big((d, f), (d', f');\, \branchlen, \theta\big)
 \;=\; \sum_{g', e'} T^{\text{lab}}_{ss'}\!\big((d, f, g_r, e_r), (d', f', g', e');\, \branchlen, \theta\big),
 \end{equation}
-where $T^{\text{lab}}$ is the \emph{conditional} labelled WFST of
-Section~\ref{sec:labeled-wfst}, defined as the labelled Pair HMM
+where $T^{\text{lab}}$ is the \emph{conditional} labelled WFST,
+defined as the labelled Pair HMM
 joint divided by the labelled singlet emission, and
 $(g_r, e_r)$ is the source $(g, e)$ for route $r$:
 $(g_{R1}, e_{R1}) = (0, e)$ for any $e$ (since within-fragment
-transitions do not constrain $e$; the labelled-singlet table at
-mixdom-wfst.tex line~165 treats $e$ as a free variable in the
+transitions do not constrain $e$; the labelled-singlet table treats
+$e$ as a free variable in the
 $g{=}0$ row, so we adopt $(0, 0)$ as the canonical representative);
 $(g_{R2}, e_{R2}) = (1, 0)$; and $(g_{R3}, e_{R3}) = (1, 1)$.
 The product $\omega^{(r)} \cdot \tilde{T}^{\text{lab}, (r)}_{ss'}$
@@ -507,7 +504,7 @@ top-level effective transition (in the implementation,
 \texttt{T\_exit\_k}; structurally, $\nonemptytrans^{[d\to d']}_{\mat,\mat}$
 is the destination-typed version of the empty-domain-summed top-level
 $\mat\to\mat$ kernel, with the $\domdist_{d'}$ and other normalisation
-factors absorbed --- see Section~\ref{sec:wfst-simplify}).
+factors absorbed).
 The three weights are distinct in general:
 R1 carries no separate BDI factor because in-fragment extension is
 generated by the singlet alone (the descendant character matches

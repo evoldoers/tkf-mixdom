@@ -309,6 +309,7 @@ def pairwise_posteriors_tkf92_batched(xs, ys, real_Lxs, real_Lys,
 #      _pad_seq before invoking this function (pad-to-bin discipline from
 #      pairwise_posteriors_mixdom is enforced at the caller level).
 # ---------------------------------------------------------------------------
+@jax.jit
 def _tkf92_fb_at_tau_one(x, y, real_Lx, real_Ly, tau,
                           ins_rate, del_rate, ext, Q, pi):
     """Forward-backward for one (x, y) pair with one TKF92 component at fixed τ.

@@ -81,7 +81,7 @@ indel-rate heterogeneity within a single protein family
 \section{Results}
 \label{sec:results}
 
-\subsection{Do the closed-form BDI sufficient-statistic expectations match Gillespie averages?}
+\subsection{Closed-form BDI sufficient-statistic expectations match Gillespie averages}
 \label{sec:results-bdi-gillespie}
 
 % Outline:
@@ -177,7 +177,7 @@ sufficient-statistic expectations are exact and unbiased.}
 \label{fig:tkf-bdi-validation-means}
 \end{figure}
 
-\subsection{Do the closed-form TKF91 / TKF92 sufficient-statistic expectations match Gillespie averages?}
+\subsection{TKF91 and TKF92 Forward--Backward sufficient statistics against Gillespie ground truth}
 \label{sec:results-tkf-gillespie}
 
 % Outline:
@@ -259,12 +259,11 @@ recovery exhibits a \emph{persistent} negative offset on the mean
 that the standard error across replicates --- which does shrink
 normally with $N$ from $0.02$ at $N = 200$ to $0.002$ at $N =
 5000$ --- cannot explain: mean $\hat\ext \approx 0.41$ across all
-$N$, vs.\ truth $0.5$.  An a priori plausible mechanism would be that the JC20 (uniform)
+$N$, vs.\ truth $0.5$.  One plausible mechanism is that the JC20 (uniform)
 substitution model used in this validation benchmark provides
-little Match-vs-indel discrimination at high $t$.  We tested this
-hypothesis directly
-(\texttt{diag\_ext\_recovery\_vs\_subst\_model.py}): at fixed
-$(\insrate, \delrate, \ext) = (0.08, 0.12, 0.5)$ and $N = 1000$,
+little Match-vs-indel discrimination at high $t$.  To test this
+hypothesis, at fixed
+$(\insrate, \delrate, \ext) = (0.08, 0.12, 0.5)$ and $N = 1000$ we
 swap JC20 emissions for LG08 emissions and sweep $t \in \{0.3,
 1.0, 3.0\}$:
 
@@ -300,9 +299,7 @@ $\approx 0.07$--$0.10$ even at $t = 3.0$.}
 \label{tab:ext-recovery-vs-subst-model}
 \end{table}
 
-The actual mechanism, localised by a three-way comparison
-(\texttt{diag\_ext\_mstep\_localisation.py},
-\texttt{diag\_ext\_fb\_vs\_oracle\_vs\_analytic.py}), turns out
+The actual mechanism, localised by a three-way comparison, turns out
 to be a \emph{simulator vs.\ analytic-chain mismatch}, not an
 inference defect:
 
@@ -344,7 +341,7 @@ of a closed-form M-step defect.  Rate recovery
 $(\hat\insrate, \hat\delrate)$ via the closed-form M-step is at
 the standard $1/\sqrt{N}$ rate, and the GTR substitution
 coordinate ascent recovers the exchangeability matrix and
-equilibrium to within sample noise (not pictured separately).
+equilibrium to within sample noise.
 
 The fragment-extension responsibility split for TKF92 (the only
 non-trivial part of the E-step beyond TKF91) uses the correct
@@ -352,7 +349,7 @@ denominator $\ext + (1-\ext)\tkftrans_{aa}$.  Two
 natural-but-incorrect alternatives --- counting all
 $\hat n'_{aa}$ as extensions, and setting $F_a = \hat n'_{aa}
 \cdot \ext$ without the $(1-\ext)\tkftrans_{aa}$ correction ---
-produce visible bias on $\hat\ext$ in our smoke tests; we use the
+produce visible bias on $\hat\ext$; we use the
 correct version throughout.  At the TKF91 boundary ($\ext = 0$)
 the TKF92 E-step degenerates smoothly to the TKF91 E-step
 ($F = 0$, $E$ reduces to the link count), as expected.
@@ -385,7 +382,7 @@ swap rules out).}
 \label{fig:tkf-fb-validation-recovery}
 \end{figure}
 
-\subsection{What TKF92 parameters does Maraschino recover from Pfam sibling pairs, and how stable are they across clans?}
+\subsection{TKF92 parameters recovered by Maraschino from Pfam sibling pairs}
 \label{sec:results-pfam-cherry}
 
 % Outline:
@@ -437,7 +434,7 @@ rather than sampling noise.}
 \label{tab:maraschino-pfam-bootstrap}
 \end{table}
 
-\subsection{How do Maraschino's alignment-given estimates compare to unaligned 2D SVI-BW on the same Pfam pairs?}
+\subsection{Maraschino alignment-given estimates versus unaligned 2D SVI-BW}
 \label{sec:results-svibw}
 
 % Outline:
@@ -450,7 +447,7 @@ rather than sampling noise.}
 %       given alignment; SVI-BW is slower but recovers from alignment
 %       error. Quantify the bias as a function of alignment quality.
 
-We run unaligned 2D SVI-BW (\texttt{svi\_bw\_train\_tkf92})
+We run unaligned 2D SVI-BW
 on $5{,}000$ Pfam sibling pairs, $20$ outer iterations,
 mini-batch size $200$, full pairwise Forward--Backward inside
 each E-step (no MSA conditioning), and compare the recovered
@@ -487,7 +484,7 @@ expectation difference.}
 \label{tab:maraschino-vs-svibw}
 \end{table}
 
-\subsection{How does VarAnc compare to Fitch parsimony and gap character-augmented LG08?}
+\subsection{Ancestral indel-presence reconstruction: VarAnc, Fitch parsimony, and gap-augmented LG08}
 \label{sec:results-varanc-vs-fitch}
 
 % Outline:
@@ -500,10 +497,6 @@ expectation difference.}
 %       character (with its own equilibrium and exchangeabilities)
 %       and treating MSA columns as i.i.d.\ samples under the
 %       resulting 21-state CTMC, run through Felsenstein peeling.
-%       PLACEHOLDER: this baseline is sometimes called Felsenstein21
-%       or Fels21 in our repository / code paths; the published
-%       paper should use "gap-augmented LG08" consistently and note
-%       the internal alias on first mention.
 %   (c) Metrics: F1 score on indel-presence at each ancestral node
 %       (introducing F1 alongside the conventional accuracy because
 %       indel events are rare and class-imbalanced); conventional
@@ -550,7 +543,7 @@ $1\%$ F1 of each other across all splits.}
 \label{tab:varanc-vs-fitch-f1}
 \end{table}
 
-\paragraph{Why gapped-Felsenstein leads, and what we recommend.}
+\paragraph{Interpretation and recommendation.}
 We attribute fels21's consistent (if narrow) lead to the
 modelling difference between it and the TKF family.  TKF91 /
 TKF92 factorise the joint as $P(\text{alignment}) \cdot
@@ -584,7 +577,7 @@ accuracy in exchange for its tractable substitution-rate
 inference --- the empirical answer here suggests yes, but only
 narrowly.
 
-\subsection{Does svi-VarAnc refinement (with FastTree topologies) move TKF92 parameters away from their cherry-trained values?}
+\subsection{svi-VarAnc refinement on FastTree topologies inflates TKF92 indel rates}
 \label{sec:results-svi-varanc}
 
 We initialise svi-VarAnc with the cherry-trained TKF92
@@ -707,14 +700,7 @@ correlations, or a non-variational inference (full marginal
 forward-backward, MCMC), would in principle remove the bias; we
 defer this to future work.
 
-% TODO (more rigorous demo, time permitting): scale n_fams (e.g. 50,
-% 200, 1000) and L (root mean 30, 60, 120, 240) to determine whether
-% the spurious-count ratios are constant (multiplicative variational
-% gap) or shrink with data (suggesting they're recovery noise).
-% Per-column $P(z_n)$ comparison (oracle empirical histogram vs BP
-% marginal) would visualise the smoothing effect directly.
-
-\subsubsection{Reconstruction quality remains usable: tied vs untied \texorpdfstring{$q$}{q}}
+\subsubsection{Reconstruction quality: tied versus untied \texorpdfstring{$q$}{q}}
 
 Despite the rate-recovery bias, the variational $q$'s ancestral
 \emph{reconstruction} (predicted presence/absence of held-out leaves)
@@ -764,65 +750,11 @@ already exhausted by the Fitch-seeded init.}
 \label{fig:sec6-recon-box}
 \end{figure}
 
-% TODO (variational-gap demo): Add a sub-paragraph + figure showing
-% the empirical column-factorised q variational gap on simulated TKF91
-% (ext=0) data.  Tree: 6-leaf caterpillar with 0.3 branch length;
-% n_fams = 20; root_length_mean = 60; truth (\lambda=0.04, \mu=0.05,
-% \ext=0).  Compute Oracle WFST n_trans (5x5) from labelled chain
-% events vs BP n_trans extracted via the cumulant trick from the
-% variational q at truth params.  Common (large-magnitude) entries
-% match within 1\%; rare (small-magnitude) entries are over-counted by
-% factors up to 50x or more, with the largest inflations on transitions
-% involving I (insertion) and D (deletion) self-loops or terminations.
-%
-% Headline table (single-fam-set TKF91 demo):
-%
-%     Transition  Oracle    BP      Inflation
-%     M->M        11885     11704   1.0x   (common)
-%     S->M        193       194     1.0x   (common)
-%     M->I        178       275     1.5x
-%     M->D        161       198     1.2x
-%     I->I        1         58      58x    (rare; spurious)
-%     D->D        0         33      inf    (rare; spurious)
-%     I->D        3         22      7.4x
-%     I->E        12        61      5.1x
-%     D->E        3         48      16x
-%
-% Headline figure: log-log scatter of Oracle vs BP for each (i, j)
-% entry, all 200 branches summed.  Points on the y=x diagonal are
-% well-recovered transitions; points above the diagonal are the
-% spurious-count signature of the column-factorised q.  Color-code
-% by transition type ($\{M\to M\}$, $\{I\to *\}$, $\{D\to *\}$, $\{*\to E\}$).
-%
-% Mechanism (paper text): the column-factorised q has independent
-% per-column marginals $q_n(z_n)$.  The cumulant trick aggregates
-% $W_{ss'} = \sum_{n_1<n_2} q_{n_1}(z_{n_1}=s)\,e^{C_{n_2-1}-C_{n_1}}\,
-% q_{n_2}(z_{n_2}=s')$ assuming independence across columns.  Two
-% effects produce spurious counts: (1) per-column smoothing (q gives
-% small probability mass on I or D at columns where truth puts zero
-% weight, due to limited resolving power of the ELBO at unambiguous
-% sites), and (2) for chain-extension regimes ($\ext>0$) the truth
-% has positive correlation between adjacent columns' z which the
-% factorised q cannot represent.  Both effects compound in the cumulant
-% trick to over-count rare transitions.  The downstream consequence is
-% a $\sim$25\% upward bias on $(\lambda, \mu)$ recovery in tree-VBEM
-% under the (incorrect) inflated-T convention, or $\sim$110\% under the
-% paper-correct $T = t$ per branch (revealing the unmasked variational
-% gap).
-%
-% TODO (more rigorous demo, time permitting): scale n_fams (e.g. 50,
-% 200, 1000) and L (root mean 30, 60, 120, 240) to determine whether
-% the spurious-count ratios are constant (multiplicative variational
-% gap) or shrink with data (suggesting they're recovery noise).
-% Per-column $P(z_n)$ comparison (oracle empirical histogram vs BP
-% marginal) would visualise the smoothing effect directly.
-
 \begin{figure}[ht]
 \centering
 \includegraphics[width=\textwidth]{../python/experiments/figures/sec6_rate_trajectory.pdf}
 \caption{(A) SVI-VarAnc rate trajectory on the Pfam train spec
-($19{,}850$ families), reading per-iter checkpoints from the
-\texttt{.iter\_ckpt.npz} written by the run.  Cherry-trained
+($19{,}850$ families), from per-iteration checkpoints.  Cherry-trained
 $(\lambda_0, \mu_0) = (0.030, 0.030)$ inflates by a factor of
 $\sim 10$ within a few iterations and continues drifting --- the
 real-data analogue of the simulation finding in (B).
@@ -836,7 +768,7 @@ through iter $30$.}
 
 \input{varanc-bias-discussion}
 
-\subsection{How do cherry-trained and MSA-refined TKF92 parameters differ, and which generalises better?}
+\subsection{Cherry-trained versus MSA-refined TKF92 parameters}
 \label{sec:results-cherry-vs-msa}
 
 % Outline:
@@ -909,10 +841,10 @@ climbing (the inflation has approximately decelerated by this
 iter, suggesting the biased fixed point has been reached;
 Figure~\ref{fig:sec6-rate-trajectory} panel A), reproducing on
 real Pfam data the same structural bias documented on simulation
-in Table~\ref{tab:em-convergence-from-truth-inline}.  $^{*}$The
-SVI-VarAnc run was in flight at the time of writing; the
-inflated direction and approximate magnitude of the bias are
-already clear and stable.}
+in Table~\ref{tab:em-convergence-from-truth-inline}.  $^{*}$Values
+reported at iteration $85$ of $100$; the inflated direction and
+approximate magnitude of the bias are clear and stable by this
+point.}
 \label{tab:cherry-vs-msa-pfam-train}
 \end{table}
 
@@ -925,7 +857,7 @@ ELBO objective rather than the marginal data log-likelihood
 diverge under the cumulant approximation), so a held-out marginal
 LL comparison would put the two estimators on different objectives
 and the result would be uninformative about either's quality.
-The honest summary is that the cherry-trained Maraschino fit and
+In summary, the cherry-trained Maraschino fit and
 the unaligned SVI-BW fit agree on the Pfam-train spec to within
 their mutual sampling variability; the SVI-VarAnc fit is biased,
 not via under-convergence, but via the structural cumulant
@@ -935,7 +867,7 @@ recommendation: cherry-trained Maraschino throughout, with the
 Fitch + BDI MLE baseline available for tree-aware users who want
 a sanity check.
 
-\subsection{What components emerge when we fit a mixture-of-TKF92s to Pfam by EM-around-Maraschino?}
+\subsection{Mixture-of-TKF92s fitted to Pfam by EM-around-Maraschino}
 \label{sec:results-mixture-tkf92}
 
 % Outline:
@@ -996,7 +928,7 @@ heterogeneity is biologically interpretable (loop-rich vs
 core-conserved, fast-evolving vs slowly-evolving families,
 etc.) is a downstream question we do not address here.
 
-\subsection{What components emerge when we fit a mixture-of-sites to Pfam by EM-around-CherryML?}
+\subsection{Mixture-of-sites fitted to Pfam by EM-around-CherryML}
 \label{sec:results-mixture-sites}
 
 % Outline:
@@ -1076,15 +1008,13 @@ exchangeability-mixture admits substantially more capacity than
 the equilibrium-only mixture and continues to extract
 likelihood from $5{,}000$ cherries even at $C = 20$.
 
-The fitted weights $\{w_c\}$ (parked in
-\texttt{pfam/cherryml\_mixture\_C\textit{C}\_n5000.npz}) and a
+The fitted weights $\{w_c\}$ and a
 visual summary of class compositions
 (Figure~\ref{fig:sec9-components}) show that intermediate
 $C$ values produce a roughly even partition of the cherry pool,
-with no single component dominating.  We do not perform the
-Pfam-clan stability check or the LG-comparison correlation
-analyses outlined in (c)--(d) above within the scope of this
-paper; both are tractable next steps.
+with no single component dominating.  A Pfam-clan stability check
+and an LG-comparison correlation analysis are beyond the scope of
+this paper; both are tractable next steps.
 
 \begin{figure}[ht]
 \centering
@@ -1100,7 +1030,7 @@ equilibrium compositions.}
 \label{fig:sec9-components}
 \end{figure}
 
-\subsection{How does the number of TKF92 mixture components affect FSA alignment accuracy on BAliBase and OXBench, and how does the resulting pipeline compare to MAFFT and MUSCLE?}
+\subsection{FSA alignment accuracy on BAliBASE and OXBench: TKF92 mixtures versus MAFFT and MUSCLE}
 \label{sec:results-mixture-alignment}
 
 % Outline:
@@ -1204,8 +1134,7 @@ TKF92 vs.\ $K = 20$ mixture vs.\ progressive aligners.  The
 BAliBASE $K = 20$ row is the across-replicate mean of three
 independent random-init mixture runs ($\sigma_{\text{SP}}
 \!\approx\!0.02$ across replicates, comparable to the $K = 1$ vs
-$K = 20$ gap; the per-replicate numbers are in the result
-JSONs).  On BAliBASE, the $K = 20$ mixture is approximately
+$K = 20$ gap).  On BAliBASE, the $K = 20$ mixture is approximately
 neutral relative to $K = 1$.  MUSCLE 5 leads on BAliBASE; TKF92
 is competitive with MAFFT on SP and trails on TC.  On OXBench,
 single TKF92 reaches SP mean $= 0.894$ across $395$ families
@@ -1217,8 +1146,7 @@ mixture run on all $395$ families gives SP mean $= 0.865$
 about $-0.029$ SP / $-0.044$ TC --- the same direction as the
 BAliBASE $K = 1$ vs $K = 20$ gap.  We interpret the absence of a
 clean $K$-sweep monotonicity on either benchmark as evidence for
-the \emph{posterior dilution} mechanism described in the outline
-above: $K$-component mixtures spread per-pair posterior mass
+a \emph{posterior dilution} mechanism: $K$-component mixtures spread per-pair posterior mass
 across competing component-paths, flattening the residue--residue
 alignment posterior and admitting fewer high-confidence column
 merges in sequence annealing.}
@@ -1252,7 +1180,7 @@ the BAliBASE result and with the posterior-dilution mechanism.}
 \label{tab:fsa-sp-tc-vs-K}
 \end{table}
 
-\paragraph{Honest summary.}
+\paragraph{Summary.}
 Within our setup, the mixture-of-TKF92s does not give a
 significant FSA accuracy improvement over the single TKF92 on
 BAliBASE.  This negative result is consistent with a tension
@@ -1269,6 +1197,75 @@ narrower and the curated reference alignments closer to standard
 substitution-plus-indel evolution.  We do not run the
 $K \in \{2, 4, 8\}$ intermediate sweep within the scope of this
 paper.
+
+\subsection{TKF92 as a renormalized surrogate for a general long-indel process}
+\label{sec:results-ggi-flow}
+
+TKF92's geometrically distributed fragments are themselves an
+approximation to the richer dynamics of a general geometric indel
+(GGI) process \cite{Holmes2020}, in which insertions and deletions of
+geometric length act at independent rates.  Because the GGI process is
+not closed under composition, no single TKF92 reproduces it at every
+branch length, and the natural question is how the \emph{best} TKF92
+surrogate---the one minimizing the per-residue conditional
+Kullback--Leibler divergence to GGI---moves as a function of branch
+length $t$.  Composing the TKF92 Pair HMM with an infinitesimal GGI
+step and m-projecting the result back onto TKF92 yields a
+renormalization-group flow on $(\insrate, \delrate, \ext)$, expressible
+as three equivalent ODE systems acting on the BDI sufficient
+statistics, the coarse-grained transition counts, or the rate
+parameters directly (Appendix~\ref{sec:composition-renorm}).  The
+construction follows directly from the automata-theoretic
+infinitesimal-generator picture of \cite{Holmes2020}: a GGI generator
+acting on the TKF92 alignment distribution.
+
+Along this flow the rates $(\insrate, \delrate)$ drift by about $10\%$
+over $t \in [0.05, 10]$ while the fragment-extension probability $\ext$
+carries essentially all of the branch-length dependence.  Freezing the
+rates at their boundary values reduces the system to a single
+$\ext$-ODE with a closed-form first-order solution,
+\begin{equation*}
+\ext(t) \;\approx\; \ext_\infty + \bigl(\ext(0) - \ext_\infty\bigr)\,
+e^{-kt},
+\qquad
+\ext_\infty = \frac{\ext(0)}{2 - \ext(0)},
+\qquad
+k = (\insrate(0) + \delrate(0))\,(2 - \ext(0)),
+\end{equation*}
+whose fixed point and decay constant depend only on the TKF92 boundary
+fit.  This first-order $\ext$-flow tracks the full three-parameter ODE
+to within $2\%$ for $t \lesssim 1$ and $\sim 10\%$ at $t = 10$, and
+follows per-branch maximum-likelihood TKF92 fits to GGI simulations to
+within sampling error (Appendix~\ref{sec:composition-renorm},
+Figures~\ref{fig:pfam-closedform} and~\ref{fig:pfam-flow-1param}).
+
+The decay constant defines a \emph{fragment-coherence half-life}
+$t_{1/2} = \ln 2 / k$, the branch length over which $\ext$ relaxes
+halfway to $\ext_\infty$.  At Pfam scale this half-life is large: the
+prealigned Maraschino fit ($\insrate \approx \delrate \approx 0.030$,
+$\ext \approx 0.65$) gives $t_{1/2} \approx 8.6$, and the unaligned
+SVI-BW fit ($\insrate \approx \delrate \approx 0.034$, $\ext \approx
+0.58$) gives $t_{1/2} \approx 7$ --- both more than an order of
+magnitude above the median Pfam cherry length $t \approx 0.76$.  A
+median cherry therefore traverses only a few percent of the available
+$\ext$-flow; the $K = 20$ mixture components span $t_{1/2} \in [3.4,
+15.0]$ (weighted mean $\approx 9.5$), and even the fastest component
+moves only $\sim 14\%$ of its flow over a median cherry.
+
+The practical consequence is that GGI-steering buys little at Pfam
+divergences.  Steering $\ext$ along the flow neither significantly
+improves nor degrades the TKF92 fit, whether scored on GGI simulations
+or on real Pfam cherries, and whether the TKF92 parameters are
+estimated from fixed alignments (Maraschino) or alignment-free pairwise
+EM (SVI-BW): on GGI-simulated cherries the constant-$\ext$ surrogate
+and the GGI-steered surrogate agree in conditional log-likelihood to
+within a fraction of a nat per cherry, and on Pfam the large
+fragment-coherence half-life leaves the data without the temporal span
+needed to resolve the flow.  The flow becomes the dominant correction
+only for $t \gtrsim t_{1/2}$ --- faster indel regimes or deeper
+branches than Pfam cherries provide --- so constant-$\ext$ TKF92
+remains the appropriate default across the phylogenetic range studied
+here.
 
 \section{Discussion}
 
@@ -1352,7 +1349,7 @@ cherries (Section~\ref{sec:results-pfam-cherry}) and Fitch + BDI
 MLE (Section~\ref{sec:cumulant-structural-bias-results}) are the
 recommended options.
 
-\subsection{Mixture results: substitutions yes, indels neutral, alignment neutral-or-worse}
+\subsection{Mixture results across substitutions, indels, and alignment}
 \label{sec:discussion-mixtures}
 
 A clean asymmetry emerges between the two mixture experiments.
@@ -1445,5 +1442,3 @@ parameters.
 \section{Acknowledgements}
 
 % Funding.
-
-% Claude.

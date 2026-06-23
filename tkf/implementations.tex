@@ -10,7 +10,7 @@ described in this paper, including module structure, CLI tools,
 and the test suite used for validation.
 The source code is in \texttt{python/tkfmixdom/jax/}.
 All implementations use 64-bit floating point (via \texttt{jax.config.update("jax\_enable\_x64", True)}).
-As of the current revision, the test suite contains 1826 tests (all passing).
+As of the current revision, the test suite contains 2099 tests (all passing).
 The \texttt{vjp.py} module provides custom VJP wrappers for JAX-differentiable
 log-likelihood computation, using Forward--Backward expected counts and analytic
 score function derivatives in the backward pass.
@@ -80,6 +80,8 @@ Lines of code (LoC) are approximate.}
 \texttt{fit.py} & Pairwise TKF fitting pipeline & 167 \\
 \texttt{optimizer.py} & Optimizer abstractions & 107 \\
 \texttt{restricted\_mstep.py} & Rate-rescaling, tied-pi, and banded fragdist/ext M-step variants (sec.~\ref{sec:mstep-rescaling}, \ref{sec:mstep-tied-pi}) & 270 \\
+\texttt{tkf92\_svi\_bw.py} & Pure-TKF92 SVI Baum--Welch (vmap'd batched 2D F--B over a bin-bucketed minibatch + per-pair-$t$ suff stats + closed-form $\kappa$-quadratic M-step) & 756 \\
+\texttt{tkf92\_adam\_fb.py} & Pure-TKF92 Adam-on-F--B (vmap'd batched joint $(\lambda, \mu, \mathrm{ext})$ loss; GGI prior-swap option) & 649 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Distillation (\texttt{distill/})}} \\
 \texttt{hmm.py} & Order-1 HMM/WFST distillation & 473 \\
@@ -378,7 +380,7 @@ $t$ — the central test condition for the per-pair-$t$ regression suite.
 \subsection{Test Suite}
 \label{sec:impl-tests}
 
-The test suite (1840 tests, all passing) validates correctness
+The test suite (2099 tests, all passing) validates correctness
 at multiple levels.
 Tests are run with \texttt{python3.12 -m pytest tests/} from the
 \texttt{python/} directory.
@@ -462,6 +464,7 @@ Table~\ref{tab:impl-tests} lists all test files with counts and descriptions.
 \texttt{test\_bw\_vs\_grad} & 22 & Baum--Welch vs.\ gradient consistency \\
 \texttt{test\_grad\_consistency} & 18 & Gradient correctness across parameterizations \\
 \texttt{test\_bdi\_new} & 28 & \texttt{bdi\_stats\_from\_counts} conservation/non-negativity/L'H\^opital; \texttt{m\_step\_indel\_quadratic} validity/LL improvement/NaN regression; Q\_exploded+prior monotonicity per parameter group across 4 edge-case configs; autograd count verification; aggregate EM \\
+\texttt{test\_tkf92\_svi\_bw\_batched} & 7 & vmap'd batched E-step equivalence vs.\ independent pre-refactor numpy reference; padding-invariance (Adam-fix analogue); forward-only val\_eval; Q-function gradient zero at M-step solution (catches L/M coefficient mis-grouping) \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Statistical validation (\texttt{statistical/})}} \\
 \texttt{test\_bdi\_stats} & 16 & Conservation law $E[B]-E[D]=j-i$; score derivs. \\

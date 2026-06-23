@@ -85,6 +85,77 @@ where $\tkftrans_{ab}(\insrate,\delrate,\evoltime)$ are the TKF91 Pair HMM trans
 Each row sums to 1: for $a \in \{\mat,\ins,\del\}$,
 $\ext + (1-\ext)\sum_b \tkftrans_{ab} = \ext + (1-\ext) = 1$.
 
+\paragraph{Gap probabilities summed over indel orderings.}
+\label{sec:tkf92-gapprob}
+
+For any Pair HMM $M$ whose states include $\xstate, \ins, \del, \ystate$ (where
+$\xstate, \ystate$ are arbitrary, possibly equal to one of $\ins, \del$, or each
+other), define $\gapprob^M_{\xstate\ystate}(i,j)$ as the sum of path probabilities
+over all paths of the form $\xstate \to (\text{any sequence of $i$ $\del$'s and
+$j$ $\ins$'s}) \to \ystate$.  Let the relevant transition probabilities
+($i \to j$ in row $i$, column $j$) be
+\[
+\begin{tabular}{r|ccc}
+  & \ystate & \ins & \del \\
+\hline
+\xstate & $a$ & $b$ & $c$ \\
+\ins    & $f$ & $g$ & $h$ \\
+\del    & $p$ & $q$ & $r$
+\end{tabular}
+\]
+The path can be thought of as making $i$ horizontal steps and $j$ vertical steps.
+By conditioning on the number $k$ of zig-zags on the path
+(i.e., cycles $\ins \to \del^+ \to \ins$ or $\del \to \ins^+ \to \del$),
+counting the positions at which they can occur, and summing out, we obtain
+(for $i > 0$ and $j > 0$)
+\begin{eqnarray*}
+\gapprob^M_{\xstate\ystate}(0,0) & = & a \\
+\gapprob^M_{\xstate\ystate}(i,0) & = & c\,r^{i-1} p \\
+\gapprob^M_{\xstate\ystate}(0,j) & = & b\,g^{j-1} f \\
+\gapprob^M_{\xstate\ystate}(i,j) & = &
+g^{j-1} r^{i-1}
+\left(
+\sum_{k=1}^{\min(i,j)}
+\left(\frac{hq}{gr}\right)^k
+\left[
+\binom{i-1}{k-1} \binom{j-1}{k} brf
++ \binom{i-1}{k} \binom{j-1}{k-1} cgp
+\right]
+\right. \\ & & \quad \quad \quad \quad \quad \quad \left.
++ \sum_{k=0}^{\min(i,j)}
+\left(\frac{hq}{gr}\right)^k
+\binom{i-1}{k} \binom{j-1}{k} (bhp+cqf)
+\right)
+\\ & = &
+g^{j-1} r^{i-1} \left[
+  z(j-1)\,brf \cdot \hypergeom{2}{1}{1-i,2-j}{2}{z}
++ z(i-1)\,cgp \cdot \hypergeom{2}{1}{2-i,1-j}{2}{z}
+\right. \\ & & \quad \quad \quad \quad \quad \quad \left.
++\ (bhp+cqf) \cdot \hypergeom{2}{1}{1-i,1-j}{1}{z}
+\right]
+ \\
+z & = & \frac{hq}{gr}
+\end{eqnarray*}
+where $\hypergeomfn{2}{1}$ is the Gauss hypergeometric function
+\[
+  \hypergeom{2}{1}{a,b}{c}{z}
+   \;=\; \sum_{k=0}^\infty \frac{(a)_k (b)_k}{(c)_k} \frac{z^k}{k!},
+   \quad
+   (a)_k = a(a+1)\cdots(a+k-1) = \frac{\Gamma(a+k)}{\Gamma(a)},
+\]
+with $(a)_k$ the Pochhammer symbol (rising factorial) and $\Gamma$ the gamma
+function; we have used the identities
+\begin{eqnarray*}
+  \sum_{k=0}^{\infty} \binom{a}{k} \binom{b}{k} z^k
+  & = & \hypergeom{2}{1}{-a,-b}{1}{z} \\
+  \sum_{k=1}^{\infty} \binom{a}{k-1} \binom{b}{k} z^k
+  & = & -bz \cdot \hypergeom{2}{1}{-a,1-b}{2}{z}
+\end{eqnarray*}
+
+Applied to the TKF92 Pair HMM $\tkftrans''$ above, this lets one evaluate
+gap-block sums (summed over all $\ins/\del$ orderings) in closed form,
+which is the canonical likelihood factor for pairwise alignments under TKF92.
+
 \paragraph{WFST (finite-time conditional distribution).}
 Forming a WFST for TKF92 is complicated by the latent information associated with fragment boundaries. If those boundaries are known, one can construct a WFST that respects them exactly. If they are not known, one can still construct a plausible WFST that imputes them on the fly. This trick, however, ceases to be straightforward for more highly decorated descendants of TKF91.
 Alternatively, one can expose the fragment boundary information in the transducer alphabet, at the cost of reifying indivisibility of fragments over time.
