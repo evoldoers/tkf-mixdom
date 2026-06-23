@@ -36,6 +36,11 @@ def tkf92_trans_full(ins_rate, del_rate, t, ext):
     beta = tkf_beta(ins_rate, del_rate, t)
     gamma = tkf_gamma(ins_rate, del_rate, t)
     kappa = tkf_kappa(ins_rate, del_rate)
+    # Stable 1-kappa: subtraction-first so it is exact 0 at ins_rate == del_rate.
+    # `1 - kappa` with kappa = lam/mu drifts to ~1e-8 under XLA fusion even when
+    # lam == mu, polluting the E-column probabilities (see GGI Pfam fit, 2026-05-29).
+    one_minus_kappa = jnp.maximum(
+        0.0, (del_rate - ins_rate) / jnp.maximum(del_rate, 1e-30))
 
     tau = jnp.zeros((5, 5))
 
@@ -43,12 +48,12 @@ def tkf92_trans_full(ins_rate, del_rate, t, ext):
         tau = tau.at[src, M].set((1 - beta) * kappa * alpha)
         tau = tau.at[src, I].set(beta)
         tau = tau.at[src, D].set((1 - beta) * kappa * (1 - alpha))
-        tau = tau.at[src, E].set((1 - beta) * (1 - kappa))
+        tau = tau.at[src, E].set((1 - beta) * one_minus_kappa)
 
     tau = tau.at[D, M].set((1 - gamma) * kappa * alpha)
     tau = tau.at[D, I].set(gamma)
     tau = tau.at[D, D].set((1 - gamma) * kappa * (1 - alpha))
-    tau = tau.at[D, E].set((1 - gamma) * (1 - kappa))
+    tau = tau.at[D, E].set((1 - gamma) * one_minus_kappa)
 
     # Apply fragment extension self-loops
     for src in [M, I, D]:
@@ -78,14 +83,37 @@ def load_gap_counts(counts_path):
     return gap_counts, tau_centers
 
 
+def _tkf92_singlet_lm_aggregate(kappa, ext, n_cherries_total, t_anc_total):
+    """Aggregated TKF92 stationary log-marginal of the ancestor at constant theta.
+
+    TKF92 stationary length is compound geometric (see fit_ggi_cherryml.py):
+       P(L=0)   = 1 - kappa
+       P(L=ell) = (1-kappa) * kappa(1-r)/r * (r + kappa(1-r))^(ell - 1),  ell >= 1.
+    Aggregated over N cherries with T_anc total ancestor residues (assuming
+    all cherries have L >= 1):
+       Sum_log_P =  N * log((1-kappa) * kappa(1-r)/r)
+                 +  (T_anc - N) * log(r + kappa(1-r)).
+    """
+    one_m_k = jnp.maximum(1 - kappa, 1e-30)
+    k_1mr_over_r = kappa * (1 - ext) / jnp.maximum(ext, 1e-30)
+    rho = ext + kappa * (1 - ext)
+    log_first = jnp.log(one_m_k) + jnp.log(jnp.maximum(k_1mr_over_r, 1e-30))
+    log_rho = jnp.log(jnp.maximum(rho, 1e-30))
+    return n_cherries_total * log_first + (t_anc_total - n_cherries_total) * log_rho
+
+
 @jax.jit
-def composite_log_likelihood(log_del, logit_kappa, logit_ext, gap_counts_jax, tau_centers):
+def composite_log_likelihood(log_del, logit_kappa, logit_ext,
+                              gap_counts_jax, tau_centers,
+                              conditional_flag):
     """Composite log-likelihood of TKF92 from cherry gap counts.
 
     Parameters in unconstrained space:
         log_del: log(μ)
         logit_kappa: logit(κ) where κ = λ/μ ∈ (0, 1)
         logit_ext: logit(r) = log(r/(1-r))
+        conditional_flag: scalar 0.0 or 1.0; when 1.0, subtract the TKF92
+            ancestor singlet log-marginal so the objective is log P(desc|anc).
     """
     del_rate = jnp.exp(log_del)
     kappa = jax.nn.sigmoid(logit_kappa)
@@ -126,12 +154,30 @@ def composite_log_likelihood(log_del, logit_kappa, logit_ext, gap_counts_jax, ta
 
     n_tau = tau_centers.shape[0]
     lls = jax.vmap(ll_one_tau)(jnp.arange(n_tau))
-    return jnp.sum(lls)
+    joint_ll = jnp.sum(lls)
+
+    # TKF92 ancestor singlet log-marginal (constant theta -> a single aggregate).
+    # Total ancestor residues = transitions into M or D across all tau bins.
+    t_anc_total = (gap_counts_jax['C_SM'].sum() + gap_counts_jax['C_SD'].sum()
+                    + gap_counts_jax['C_MM'].sum() + gap_counts_jax['C_MD'].sum()
+                    + gap_counts_jax['C_IM'].sum() + gap_counts_jax['C_ID'].sum()
+                    + gap_counts_jax['C_DM'].sum() + gap_counts_jax['C_DD'].sum())
+    # Total cherries = transitions into E across all tau bins.
+    n_cherries_total = (gap_counts_jax['C_SE'].sum() + gap_counts_jax['C_ME'].sum()
+                         + gap_counts_jax['C_IE'].sum() + gap_counts_jax['C_DE'].sum())
+    singlet_lm = _tkf92_singlet_lm_aggregate(kappa, ext, n_cherries_total, t_anc_total)
+    return joint_ll - conditional_flag * singlet_lm
 
 
 def fit_tkf92(counts_path='../data/seed_counts.npz', n_steps=5000, lr=0.01,
-              save_path=None):
-    """Fit TKF92 (λ, μ, r) via Adam on CherryML composite likelihood."""
+              save_path=None, conditional=False):
+    """Fit TKF92 (λ, μ, r) via Adam on CherryML composite likelihood.
+
+    Args:
+      conditional: if True, maximise P(descendant | ancestor) instead of joint
+        P(ancestor, descendant); i.e. subtract the TKF92 ancestor stationary
+        log-marginal from the joint LL.
+    """
     print(f"Loading counts from {counts_path}...")
     gap_counts, tau_centers = load_gap_counts(counts_path)
 
@@ -143,6 +189,12 @@ def fit_tkf92(counts_path='../data/seed_counts.npz', n_steps=5000, lr=0.01,
     # Convert to JAX
     gap_counts_jax = {k: jnp.array(v, dtype=jnp.float32) for k, v in gap_counts.items()}
     tau_centers_jax = jnp.array(tau_centers, dtype=jnp.float32)
+    conditional_flag = jnp.float32(1.0 if conditional else 0.0)
+    if conditional:
+        print("Objective: conditional LL P(descendant | ancestor) "
+              "(subtracting TKF92 ancestor singlet log-marginal).")
+    else:
+        print("Objective: joint LL P(ancestor, descendant).")
 
     # Initialize: reasonable protein evolution rates
     # μ ≈ 0.06, κ = λ/μ ≈ 0.85, r ≈ 0.5
@@ -156,7 +208,7 @@ def fit_tkf92(counts_path='../data/seed_counts.npz', n_steps=5000, lr=0.01,
     print("JIT compiling...")
     t0 = time.monotonic()
     ll, grads = val_and_grad(log_del, logit_kappa, logit_ext,
-                             gap_counts_jax, tau_centers_jax)
+                             gap_counts_jax, tau_centers_jax, conditional_flag)
     jax.block_until_ready(ll)
     print(f"JIT done in {time.monotonic() - t0:.1f}s, initial LL = {float(ll):.2f}")
 
@@ -172,7 +224,8 @@ def fit_tkf92(counts_path='../data/seed_counts.npz', n_steps=5000, lr=0.01,
     t0 = time.monotonic()
     for step in range(n_steps):
         ll, grads = val_and_grad(params[0], params[1], params[2],
-                                 gap_counts_jax, tau_centers_jax)
+                                 gap_counts_jax, tau_centers_jax,
+                                 conditional_flag)
         ll_val = float(ll)
 
         if ll_val > best_ll:
@@ -244,4 +297,14 @@ def fit_tkf92(counts_path='../data/seed_counts.npz', n_steps=5000, lr=0.01,
 
 
 if __name__ == '__main__':
-    fit_tkf92()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--counts', default='../data/seed_counts.npz')
+    parser.add_argument('--out', default=None)
+    parser.add_argument('--n-steps', type=int, default=5000)
+    parser.add_argument('--lr', type=float, default=0.01)
+    parser.add_argument('--conditional', action='store_true',
+                        help='Maximise P(descendant | ancestor) instead of joint LL.')
+    args = parser.parse_args()
+    fit_tkf92(counts_path=args.counts, n_steps=args.n_steps, lr=args.lr,
+              save_path=args.out, conditional=args.conditional)

@@ -1,0 +1,45 @@
+{
+  "n_val_cherries": 35848,
+  "results": {
+    "gap-trained (joint-native)": {
+      "lam": 0.03137,
+      "mu": 0.032,
+      "kappa": 0.9804,
+      "r": 0.6624,
+      "val_gap_ll": -759294.1875,
+      "val_trans_ll": -770965.0,
+      "val_gap_per_cherry": -21.18093582626646,
+      "val_trans_per_cherry": -21.50649966525329
+    },
+    "trans-trained (same chry)": {
+      "lam": 0.03278291982777528,
+      "mu": 0.033466164243367624,
+      "kappa": 0.9795840237135109,
+      "r": 0.676648668242118,
+      "val_gap_ll": -759007.5625,
+      "val_trans_ll": -770321.25,
+      "val_gap_per_cherry": -21.172940261660344,
+      "val_trans_per_cherry": -21.488541899129658
+    },
+    "trans-trained (OLD chry)": {
+      "lam": 0.045771648251652274,
+      "mu": 0.046763341357333385,
+      "kappa": 0.978793365125403,
+      "r": 0.6862812533634891,
+      "val_gap_ll": -764395.875,
+      "val_trans_ll": -775346.1875,
+      "val_gap_per_cherry": -21.32325025106003,
+      "val_trans_per_cherry": -21.628715339767908
+    },
+    "gap-trained (conditional)": {
+      "lam": 0.05261,
+      "mu": 0.05261,
+      "kappa": 1.0,
+      "r": 0.8107,
+      "val_gap_ll": -3017836.25,
+      "val_trans_ll": -3037254.25,
+      "val_gap_per_cherry": -84.18422924570409,
+      "val_trans_per_cherry": -84.72590521089043
+    }
+  }
+}

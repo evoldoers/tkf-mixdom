@@ -5,6 +5,10 @@
 *.log
 *.out
 *.pdf
+# ...but keep experiment figure PDFs: paper build artifacts consumed by
+# the TKF-DP paper (evoldoers/tkfdp) via submodule \graphicspath. See
+# CLAUDE.md "Canonical (dev) vs. published copy".
+!python/experiments/figures/*.pdf
 *.run.xml
 *.synctex.gz
 *.toc

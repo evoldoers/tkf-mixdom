@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "npz": "/home/yam/tkf-mixdom/python/pfam_gap_counts.npz",
+    "n_families_ok": 19850,
+    "n_families_failed": 0,
+    "n_cherries_skipped": 14038,
+    "n_total_cherries": 364406,
+    "n_total_transitions": 55713508,
+    "gap_totals": {
+      "SM": 364406,
+      "MM": 52503228,
+      "ME": 364406,
+      "SE": 0
+    },
+    "n_tau_bins": 32,
+    "Lmax_npz": 50,
+    "Lmax_fit": 20,
+    "tau_min": 0.0011547820176929235,
+    "tau_max": 8.659643173217773,
+    "dtype": "float32",
+    "n_steps": {
+      "tkf": 6000,
+      "ggi": 4000
+    },
+    "lr": {
+      "tkf": 0.005,
+      "ggi": 0.002
+    }
+  },
+  "tkf92_best": {
+    "ll": -8087642.0,
+    "init": "mu0.04_k0.99_r0.3",
+    "lam": 0.031323058948281544,
+    "mu": 0.03194816700612203,
+    "kappa": 0.9804336800380222,
+    "r": 0.662133536863131,
+    "log_del": -3.4436404705047607,
+    "logit_kappa": 3.9141852855682373,
+    "logit_ext": 0.6728165149688721
+  },
+  "ggi_best": {
+    "ll": -10654387.0,
+    "init": "sym-half-up",
+    "x_branch": "upper",
+    "lam0": 0.010612055659294128,
+    "mu0": 0.010650960728526115,
+    "x": 0.6407231092453003,
+    "y": 0.6376919150352478,
+    "rho_lam0_over_mu0": 0.9963472713660666,
+    "r_boundary": 0.6392264780808117,
+    "r_inf": 0.4697522899911137,
+    "decay_k": 0.08020031387769276,
+    "lam_T_boundary": 0.02941472978072704,
+    "mu_T_boundary": 0.02952256770914547,
+    "log_mu0": -4.542105197906494,
+    "logit_rho": 5.608637809753418,
+    "logit_y": 0.5653603672981262,
+    "param": "stable_mu0_rho_y_branch"
+  },
+  "delta_ll_ggi_minus_tkf92": -2566745.0,
+  "delta_nats_per_cherry": -7.043640884068869
+}

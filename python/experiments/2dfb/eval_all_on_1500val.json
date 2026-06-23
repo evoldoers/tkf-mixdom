@@ -1,0 +1,161 @@
+{
+  "n_val": 1500,
+  "models": {
+    "svi_bw_canonical_seed0": {
+      "mode": "svi_bw",
+      "lam": 0.036521746414102794,
+      "mu": 0.037294681114942115,
+      "ext": 0.5902327589883908,
+      "val_ll_total": -921507.2610441122,
+      "val_ll_per_pair": -614.3381740294082
+    },
+    "svi_bw_canonical_seed1": {
+      "mode": "svi_bw",
+      "lam": 0.034341384586699365,
+      "mu": 0.03506888145046007,
+      "ext": 0.5870025378026744,
+      "val_ll_total": -921514.1842489939,
+      "val_ll_per_pair": -614.3427894993292
+    },
+    "svi_bw_canonical_seed2": {
+      "mode": "svi_bw",
+      "lam": 0.035245455229331854,
+      "mu": 0.03589511491249408,
+      "ext": 0.5782830071194057,
+      "val_ll_total": -921524.5864216334,
+      "val_ll_per_pair": -614.3497242810889
+    },
+    "adam_tkf92_seed0": {
+      "mode": "adam_tkf92",
+      "lam": 0.05809800344751241,
+      "mu": 0.060461356904981514,
+      "ext": 0.7534246671668602,
+      "val_ll_total": -921626.0152034673,
+      "val_ll_per_pair": -614.4173434689782
+    },
+    "adam_tkf92_seed1": {
+      "mode": "adam_tkf92",
+      "lam": 0.05003596283629093,
+      "mu": 0.05196600731396247,
+      "ext": 0.7390892815425595,
+      "val_ll_total": -921580.6476713631,
+      "val_ll_per_pair": -614.3870984475753
+    },
+    "adam_tkf92_seed2": {
+      "mode": "adam_tkf92",
+      "lam": 0.05141770220486529,
+      "mu": 0.05339910974863631,
+      "ext": 0.7500362341415862,
+      "val_ll_total": -921596.3440269242,
+      "val_ll_per_pair": -614.3975626846161
+    },
+    "adam_ggi_upper_seed0_n800": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": true,
+      "lam0": 0.013829571074428218,
+      "mu0": 0.013939618135145222,
+      "x": 0.8133783179469866,
+      "y": 0.8114451611232179,
+      "rho": 0.9921054465301636,
+      "val_ll_total": -922686.9331656941,
+      "val_ll_per_pair": -615.1246221104627
+    },
+    "adam_ggi_upper_seed1_n800": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": true,
+      "lam0": 0.012531699227708491,
+      "mu0": 0.012629422904885569,
+      "x": 0.8063897535870369,
+      "y": 0.8043964476561285,
+      "rho": 0.9922622214876283,
+      "val_ll_total": -922646.6142755524,
+      "val_ll_per_pair": -615.0977428503683
+    },
+    "adam_ggi_upper_seed2_n800": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": true,
+      "lam0": 0.012330570854182986,
+      "mu0": 0.0124256323794894,
+      "x": 0.8094930658247889,
+      "y": 0.8075663461362841,
+      "rho": 0.9923495623882025,
+      "val_ll_total": -922627.7047129245,
+      "val_ll_per_pair": -615.085136475283
+    },
+    "adam_ggi_upper_long2400_seed0": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": true,
+      "lam0": 0.013465642362210527,
+      "mu0": 0.013514342967198405,
+      "x": 0.7743137231116901,
+      "y": 0.7731592955990791,
+      "rho": 0.9963963764197725,
+      "val_ll_total": -921959.2362411625,
+      "val_ll_per_pair": -614.6394908274417
+    },
+    "adam_ggi_upper_long2400_seed1": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": true,
+      "lam0": 0.013726135983049632,
+      "mu0": 0.01377606705219136,
+      "x": 0.7793479155748775,
+      "y": 0.7782260016684003,
+      "rho": 0.9963755207525804,
+      "val_ll_total": -921964.0685330741,
+      "val_ll_per_pair": -614.6427123553827
+    },
+    "adam_ggi_upper_noswap_seed0": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": false,
+      "lam0": 0.014143940694193809,
+      "mu0": 0.01451863596164281,
+      "x": 0.7061714434450563,
+      "y": 0.6923794136499459,
+      "rho": 0.9741921163641736,
+      "val_ll_total": -921464.0285135608,
+      "val_ll_per_pair": -614.3093523423738
+    },
+    "adam_ggi_upper_noswap_seed1": {
+      "mode": "adam_ggi",
+      "segment": "upper",
+      "prior_swap": false,
+      "lam0": 0.013533288912291162,
+      "mu0": 0.013888603483766615,
+      "x": 0.7015244810843109,
+      "y": 0.6873890803614378,
+      "rho": 0.9744168251407886,
+      "val_ll_total": -921462.832260201,
+      "val_ll_per_pair": -614.308554840134
+    },
+    "adam_ggi_lower_seed0": {
+      "mode": "adam_ggi",
+      "segment": "lower",
+      "prior_swap": true,
+      "lam0": 0.018044546035047775,
+      "mu0": 0.018881160293872143,
+      "x": 0.30116018174332815,
+      "y": 0.32743286722822484,
+      "rho": 0.9556905271814312,
+      "val_ll_total": -924607.855148621,
+      "val_ll_per_pair": -616.4052367657473
+    },
+    "aligned_pfam_tkf92_K1": {
+      "mode": "aligned_cherryml",
+      "lam": 0.02969172,
+      "mu": 0.03027204,
+      "ext": 0.6509773,
+      "val_ll_per_pair": -614.3852,
+      "val_ll_total": -921577.8,
+      "source": "pfam/tkf92_K1_train.npz",
+      "fit_n_families": 2880,
+      "fit_n_pairs": 51390,
+      "note": "Alignment-given TKF92 fit via fit_tkf92_cherryml (Maraschino-style). Evaluated on the SAME canonical 1500-pair val as the unaligned fits; the aligned fit itself uses a different Pfam subset for training."
+    }
+  }
+}

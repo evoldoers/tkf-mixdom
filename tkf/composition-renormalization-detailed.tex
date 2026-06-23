@@ -1,0 +1,1274 @@
+% composition-renormalization.tex — TKF92 WFST composition, the
+% relative-entropy (m-projection) fit, and the renormalization-group view.
+% To be \input from tkf.tex.
+
+\providecommand\evolu{u}
+\providecommand\ggigen{G_{\mathrm{GGI}}}
+\providecommand\ggikern{\mathbb{G}}
+\providecommand\compdefect{\Delta_2}
+\providecommand\betafn{\mathcal{B}}
+\providecommand\obskern{K}
+\providecommand\dkl[2]{D\!\left(#1\,\middle\|\,#2\right)}
+\providecommand\ggi{\mathrm{GGI}}
+\providecommand\nfragext{F}
+\providecommand\nfragend{\bar F}
+% --- Triad HMM macros (sec:comp-triad-hmm) ---
+% Use \mathtt{} (math-mode typewriter) so case is distinguishable.
+\providecommand\mat{\mathtt{M}}
+\providecommand\ins{\mathtt{I}}
+\providecommand\del{\mathtt{D}}
+\providecommand\nul{\mathtt{N}}
+\providecommand\wait{\mathtt{W}}
+\providecommand\sta{\mathtt{S}}
+\providecommand\fin{\mathtt{E}}
+\providecommand\ymx{\mathbf{y}}
+\providecommand\zmx{\mathbf{z}}
+\providecommand\ty[1]{y_{#1}}
+\providecommand\tz[1]{z_{#1}}
+\providecommand\triadstart{\mathtt{SS}}
+\providecommand\stains{\mathtt{sI}}
+\providecommand\matmat{\mathtt{MM}}
+\providecommand\matins{\mathtt{mI}}
+\providecommand\matdel{\mathtt{MD}}
+\providecommand\insmat{\mathtt{IM}}
+\providecommand\insins{\mathtt{iI}}
+\providecommand\insdel{\mathtt{ID}}
+\providecommand\delsta{\mathtt{Ds}}
+\providecommand\delmat{\mathtt{Dm}}
+\providecommand\delins{\mathtt{Di}}
+\providecommand\deldel{\mathtt{Dd}}
+\providecommand\triadend{\mathtt{EE}}
+\providecommand\jointpairmatrix{\ymx}
+\providecommand\condpairmatrix{\zmx}
+\providecommand\jointpairhmm{\jointpairmatrix}
+\providecommand\condpairhmm{\condpairmatrix}
+\providecommand\toLower{\mathrm{lc}}
+\providecommand\triadstates{\mathcal{S}_{\rm triad}}
+\providecommand\triadalphabet{\mathcal{A}_{\rm triad}}
+\providecommand\statetype{\tau}
+\providecommand\fragext{\ext}
+
+\section{Composition, Relative-Entropy Fit, and Renormalization of TKF92}
+\label{sec:composition-renorm}
+
+This section studies the \emph{two-machine product} obtained by composing
+the TKF92 conditional WFST
+$\tkfwfst'(\insrate,\delrate,\evoltime,\ext)$ of
+Appendix~\ref{sec:tkf92-wfst} with itself across two successive intervals,
+and asks for the best-fit single TKF92 to that product.  Three results
+organise the section.
+\begin{enumerate}[nosep]
+\item The product is generically \emph{off the TKF92 manifold}: the
+  obstruction is a single closed-form operator $\compdefect$, the
+  non-Markovianity of the observable process, which vanishes iff $\ext=0$
+  (Section~\ref{sec:comp-defect}).
+\item Consequently no TKF92 reproduces the product exactly, and the fit is
+  \emph{not} pinned by matching any one moment: the transition-count
+  expectations are over-determined ($\sim\!16$ counts) against three
+  parameters and the per-moment estimators are mutually inconsistent.  The
+  canonical fit is instead the \emph{relative-entropy projection} from the
+  product to the family, which reduces in closed form to a
+  maximum-likelihood ($m$-)projection --- the Maraschino M-step on the
+  product's expected counts (Section~\ref{sec:comp-kl}).
+\item Iterating the projection defines a renormalization flow whose only
+  fixed line is TKF91 ($\ext=0$) (Section~\ref{sec:comp-flow}).
+\end{enumerate}
+The same projection defines the best-fit TKF92 to the General Geometric
+Indel (GGI) CTMC (Appendix~\ref{sec:varanc-presence-setting},
+\cite{Holmes2020}); replace the product law by GGI's throughout
+Section~\ref{sec:comp-kl}.  Throughout, only the indel process is analysed;
+the substitution process factors out (its emission tensors are unchanged by
+the indel composition) and is suppressed by working over a one-symbol
+alphabet, so ``$\tkfwfst'$'' below denotes the indel (presence/absence)
+WFST.
+
+It is useful to distinguish the WFST from the kernel it computes.  The
+WFST $\tkfwfst'$ is \emph{globally} normalised: for every input sequence
+$X$, $\sum_Z \tkfwfst'(X\!\to\!Z)=1$ (Appendix~\ref{sec:wfst-row-sums}),
+so it represents a proper Markov kernel
+$\obskern(\evoltime)$ on observable sequences --- the conditional law of
+the descendant given the ancestor --- with $\obskern(0)=\mathbb{I}$ (at
+$\evoltime=0$ the descendant equals the ancestor) and
+$\obskern(\evoltime)\obskern(\evolu)$ the Chapman--Kolmogorov (operator)
+product, realised at the WFST level by the transducer composition
+$\tkfwfst'(\evoltime)\circ\tkfwfst'(\evolu)$ (marginalising the
+intermediate sequence $Y$) and the Green's function of
+Section~\ref{sec:comp-greens}.  The one subtlety is representational, not
+probabilistic: the compact $6{\times}6$ \emph{state} matrix of
+Appendix~\ref{sec:tkf92-wfst} is only globally, not locally, normalised
+(its single-step rows do not sum to $1$ --- a state-encoding artefact,
+Appendix~\ref{sec:wfst-row-sums}), so it is a finite representation of the
+kernel rather than the kernel operator itself.  The dynamical questions
+below --- semigroup closure, the embedded generator, the defect operator
+--- are properties of the kernel $\obskern$, whose derivatives are taken on
+the sequence-space operator, not by differentiating the $6{\times}6$
+matrix.
+
+\subsection{The pairwise family at fixed equilibrium}
+\label{sec:comp-family}
+
+Recall (Section~\ref{sec:tkf91-machines}) the TKF91 link-level quantities
+$\alpha = e^{-\delrate\evoltime}$, $\beta$, $\gamma$ and
+$\kappa = \insrate/\delrate$, and the TKF92 wrap (Section~\ref{sec:tkf92-machines}):
+the Pair HMM $\tkftrans'$ adds $\ext$ to each emitting-state self-loop and
+scales the off-diagonal link transitions by $(1-\ext)$.
+
+\begin{lemma}[Two effective indel coordinates]
+\label{lem:two-coords}
+$\beta$ and $\gamma$ depend on $(\insrate,\delrate,\evoltime)$ only through
+$(\kappa,\alpha)$:
+\[
+\beta = \frac{\kappa\,(1-\alpha^{1-\kappa})}{1-\kappa\,\alpha^{1-\kappa}},
+\qquad
+\gamma = 1 - \frac{\beta}{\kappa(1-\alpha)} .
+\]
+Consequently, at fixed $\kappa$ the TKF92 indel Pair HMM
+$\tkftrans'$ (and hence the WFST $\tkfwfst'$) is a \emph{two-parameter}
+family in $(\alpha,\ext)$.
+\end{lemma}
+
+\begin{proof}
+Write $e^{(\insrate-\delrate)\evoltime}
+= e^{\insrate\evoltime} e^{-\delrate\evoltime}
+= \alpha^{-\kappa}\cdot\alpha = \alpha^{1-\kappa}$ and substitute into
+$\beta = \insrate(1-e^{(\insrate-\delrate)\evoltime})
+/(\delrate-\insrate e^{(\insrate-\delrate)\evoltime})$
+(eq.~\eqref{tkf:beta}), dividing numerator and denominator by $\delrate$;
+likewise $\gamma = 1 - \delrate\beta/(\insrate(1-\alpha))
+= 1-\beta/(\kappa(1-\alpha))$ (eq.~\eqref{tkf:gamma}).
+The Pair HMM entries are built from $(\alpha,\beta,\gamma,\kappa,\ext)$,
+so at fixed $\kappa$ they are functions of $(\alpha,\ext)$ alone.
+\end{proof}
+
+Lemma~\ref{lem:two-coords} fixes the bookkeeping for the fit:
+of the four TKF92 parameters $(\insrate,\delrate,\ext,\evoltime)$, the
+pairwise indel law sees only the three identifiable coordinates
+$(\kappa,\alpha,\ext)$, with $(\insrate,\delrate,\evoltime)$ carrying one
+gauge direction ($\delrate\evoltime$ fixed, $\insrate=\kappa\delrate$).
+We fix the gauge by the convention $\evoltime' = \evoltime+\evolu$ for the
+matched time; then all three of $(\kappa',\alpha',\ext')$ are genuine
+outputs of the fit --- in particular $\kappa'$ is \emph{not} pinned to
+$\kappa$ (Section~\ref{sec:comp-kl}).
+
+\subsection{Composition as a Green's function}
+\label{sec:comp-greens}
+
+Composing $\tkfwfst'(\evoltime)$ and $\tkfwfst'(\evolu)$ marginalises the
+intermediate sequence $Y$.  Each shared $Y$-site is, in branch~1, a
+$\mat$ or $\ins$ column, and in branch~2 a $\mat$ or $\del$ column; the
+four combinations give an $X\!\to\!Z$ match, delete, insert, or a
+\emph{ghost} ($\ins$ then $\del$, leaving no trace) respectively.  Between
+two consecutive shared $Y$-sites, branch-1 deletions and branch-2
+insertions interleave in arbitrary order, and ghosts may be interposed.
+Summing over all interleavings and ghost counts is a geometric path-sum
+
+\begin{equation}
+\label{eq:comp-greens}
+(\mathbb{I} - \nonemptytrans_{\mathrm{int}})^{-1},
+\end{equation}
+
+where $\nonemptytrans_{\mathrm{int}}$ is the substochastic matrix of
+$Y$-non-advancing transitions (branch-1 $\del$, branch-2 $\ins$, and
+ghost cycles) on the product state space of the two machines.  This is
+the same object as the TKF92 gap-block sum of
+Section~\ref{sec:tkf92-gapprob} (whose closed form is the Gauss
+hypergeometric ${}_2F_1$ expression there), and structurally identical to
+the effective-transition path-sum inverses $(\mathbb{I}-\effT)^{-1}$ that
+recur in the closed-form treatment of these models.
+
+\begin{proposition}[Rational composite]
+\label{prop:rational-composite}
+Every transition probability of the composite WFST
+$\tkfwfst'(\evoltime)\circ\tkfwfst'(\evolu)$, and every expected
+transition count it induces under an equilibrium ancestor, is a rational
+function of $(\kappa,\alpha_\evoltime,\ext)$ and
+$(\kappa,\alpha_\evolu,\ext)$ obtained by evaluating the finite
+Green's function~\eqref{eq:comp-greens}.
+\end{proposition}
+
+\begin{proof}
+The product state space is finite and $\nonemptytrans_{\mathrm{int}}$ is a
+fixed substochastic matrix whose entries are products of $\tkftrans'$
+entries, hence rational in the stated arguments
+(Lemma~\ref{lem:two-coords}).  The path-sum~\eqref{eq:comp-greens} is the
+adjugate over the determinant, a rational function; expected counts are
+bilinear forms in the stationary vector, the kernel, and a further
+count-Green's function, all rational.
+\end{proof}
+
+\subsection{Two structural facts}
+
+\begin{proposition}[The equilibrium is preserved but does not pin the fit]
+\label{prop:equilibrium}
+The composite preserves the full TKF92 stationary length law --- the
+zero-inflated geometric with $P(L{=}0)=1-\kappa$ and
+$P(L{=}\ell\mid L{\geq}1)=(1-p)p^{\ell-1}$,
+$p=\ext+(1-\ext)\kappa$, mean
+$\mathbb{E}[L]=\kappa/[(1-\kappa)(1-\ext)]$
+(Section~\ref{sec:tkf92-machines}).  This law is a \emph{two}-parameter
+object in $(\kappa,\ext)$, exactly the two indel degrees of freedom.
+Consequently:
+\begin{enumerate}[nosep]
+\item Requiring the fit to reproduce the equilibrium forces
+  $(\kappa',\ext')=(\kappa,\ext)$ --- nothing runs, and the entire
+  composition defect is pushed into the (off-manifold) dynamics.
+\item Matching the dynamics instead leaves the equilibrium free; since the
+  equilibrium length carries the fragment factor $1/(1-\ext)$, any change
+  in $\ext'$ must be compensated by $\kappa'$ to keep $\mathbb{E}[L]$
+  sensible.  In particular $\kappa'\neq\kappa$ in general.
+\end{enumerate}
+There is therefore no fit that preserves equilibrium \emph{and} matches
+dynamics: TKF92 ties both to the same $(\kappa,\ext)$.  Which features to
+trade is exactly what the loss of Section~\ref{sec:comp-kl} adjudicates.
+\end{proposition}
+
+\begin{proof}
+$\tkfwfst'(s)$ is reversible with respect to the stationary law $\pi$, so
+the kernel composition preserves $\pi$ (if $\pi\obskern(s)=\pi$ then
+$\pi\obskern(\evoltime)\obskern(\evolu)=\pi$).  The law $\pi$ is the
+displayed singlet distribution, determined by $(\kappa,\ext)$.  A TKF92's
+stationary law equals $\pi$ iff its $(\kappa',\ext')$ equals $(\kappa,\ext)$,
+giving (1); (2) is the statement that $\mathbb{E}[L]$ depends on $\ext'$
+only through $1/(1-\ext')$, so fixing $\mathbb{E}[L]$ while changing $\ext'$
+forces $\kappa'$ to move.
+\end{proof}
+
+\begin{proposition}[TKF91 is an exact semigroup]
+\label{prop:tkf91-closed}
+At $\ext = 0$,
+$\tkfwfst(\evoltime)\circ\tkfwfst(\evolu) = \tkfwfst(\evoltime+\evolu)$
+exactly, and the fit is $(\insrate,\delrate,0,\evoltime+\evolu)$ with zero
+residual.
+\end{proposition}
+
+\begin{proof}
+At $\ext=0$ every character is its own link, so the intermediate sequence
+$Y$ carries no latent fragment structure beyond $Y$ itself.  Composing the
+conditional WFSTs and marginalising $Y$ therefore reproduces the true
+two-branch marginal.  The TKF91 link process is a CTMC, so by
+Chapman--Kolmogorov its marginal over the intermediate state equals the
+TKF91 process at time $\evoltime+\evolu$.  Hence the composite equals
+$\tkfwfst(\evoltime+\evolu)$, in the family with $\ext'=0$, and the
+relative entropy of Section~\ref{sec:comp-kl} is zero there.
+\end{proof}
+
+The entire non-closure phenomenon is therefore a property of $\ext>0$,
+driven by the hidden fragment boundaries.  In the strict TKF92 process
+fragments are indivisible; the composed WFST, having integrated fragment
+boundaries out, lets a residue inserted on branch~1 be partially deleted on
+branch~2 (cf.\ Appendix~\ref{sec:varanc-presence-setting}).  Equivalently,
+the TKF92 constraint that the $\mat$- and $\ins$-rows of $\tkftrans'$
+coincide is generically broken by the composite, which is then provably
+off the TKF92 manifold --- quantified next.
+
+\subsection{The defect operator and the unification}
+\label{sec:comp-defect}
+
+Work now with the kernel $\obskern(s)$, for which $\obskern(0)=\mathbb{I}$.
+Define the \emph{embedded generator} $\ggigen := \dot\obskern(0)$, the
+unique CTMC generator agreeing with $\obskern$ at first order, and write
+$\ggikern(s) := e^{s\ggigen}$ for its semigroup and
+$\delta(s) := \obskern(s) - \ggikern(s)$ for the gap.  By construction
+$\delta(0)=0$ and $\dot\delta(0)=0$, so the leading deviation is second
+order.  Define the \emph{defect operator}
+
+\begin{equation}
+\label{eq:defect-def}
+\compdefect \;:=\; \ddot\obskern(0) - \dot\obskern(0)^2
+\;=\; \ddot\delta(0),
+\end{equation}
+
+the amount by which the two-step behaviour of $\obskern$ departs from
+that of its own first-order generator (for a true CTMC,
+$\ddot{\obskern}(0) = \dot{\obskern}(0)^2 = \ggigen^2$, so
+$\compdefect=0$).
+
+\begin{remark}[Identification with GGI]
+\label{rem:embedded-is-ggi}
+The embedded generator $\ggigen$ inserts one geometric-$\ext$ fragment and
+deletes one (imputed) geometric run per infinitesimal step, at the rates
+set by $(\insrate,\delrate)$.  Over the constraint set of fixed expected
+per-site insertion and deletion rates and fixed expected insertion and
+deletion lengths, the maximum-entropy CTMC has geometric event lengths
+(geometric being the maximum-entropy law on $\{1,2,\dots\}$ for a given
+mean); calibrating those four moments to $\obskern$'s first-order
+behaviour identifies $\ggigen$ with the GGI generator of
+Appendix~\ref{sec:varanc-presence-setting} \cite{Holmes2020}.  The
+(latent-boundary) correction of Section~\ref{sec:tkf92-machines}, which
+makes the imputed deletion-length parameter differ from the insertion
+$\ext$, is a first-order property already captured by $\ggigen$; the
+\emph{second}-order disagreement between fragment indivisibility and
+flat-run deletion is what $\compdefect$ measures.
+\end{remark}
+
+\begin{theorem}[Defect unification]
+\label{thm:defect-unification}
+The single matrix $\compdefect$ of~\eqref{eq:defect-def} governs all three
+of the following, and each vanishes if and only if $\compdefect = 0$:
+\begin{enumerate}[nosep]
+\item \textbf{Non-Markovianity.} $\obskern$ agrees with the semigroup
+  $\ggikern$ to second order if and only if $\compdefect=0$; $\compdefect$
+  is the obstruction to $\obskern$ being the kernel of a sequence-level
+  CTMC.
+\item \textbf{GGI gap.} The leading approximation error is
+  $\delta(s) = \tfrac12 s^2\,\compdefect + O(s^3)$.
+\item \textbf{Self-composition defect.} With
+  $\Delta_{\mathrm{self}}(\evoltime,\evolu) =
+   \obskern(\evoltime)\,\obskern(\evolu) -
+   \obskern(\evoltime+\evolu)$,
+  \[
+  \Delta_{\mathrm{self}}(\evoltime,\evolu)
+  = -\,\evoltime\,\evolu\,\compdefect + O(s^3),
+  \]
+  where $s=\max(\evoltime,\evolu)$; the defect is bilinear in the two
+  times and linear in $\compdefect$.
+\end{enumerate}
+Moreover $\compdefect = 0$ if and only if $\ext = 0$.
+\end{theorem}
+
+\begin{proof}
+$\obskern$ is a Markov kernel with $\obskern(0)=\mathbb{I}$, and
+$\obskern(\evoltime)\obskern(\evolu)$ is its Chapman--Kolmogorov
+composition (kernel product), so the matrix algebra below is the kernel
+algebra.  Write the Taylor expansion
+$\obskern(s) = \mathbb{I} + s\,\ggigen + \tfrac12 s^2 B + O(s^3)$ with
+$\ggigen=\dot\obskern(0)$, $B=\ddot\obskern(0)$, so
+$\compdefect = B - \ggigen^2$.
+\emph{(1)}~A semigroup satisfies $\ddot{\obskern}(0)=\dot{\obskern}(0)^2$
+exactly, so $\compdefect=\ddot\delta(0)$ is the first nonvanishing Taylor
+obstruction to $\obskern=\ggikern$.
+\emph{(2)}~$\delta(0)=0$, $\dot\delta(0)=0$ by construction and
+$\ddot\delta(0)=\compdefect$.
+\emph{(3)}~Multiply the expansions:
+\[
+\obskern(\evoltime)\obskern(\evolu)
+= \mathbb{I} + (\evoltime+\evolu)\ggigen
++ \tfrac12\evoltime^2 B + \tfrac12\evolu^2 B + \evoltime\evolu\,\ggigen^2
++ O(s^3),
+\]
+while $\obskern(\evoltime+\evolu) = \mathbb{I} + (\evoltime+\evolu)\ggigen
++ \tfrac12(\evoltime+\evolu)^2 B + O(s^3)$.  Subtracting,
+$\Delta_{\mathrm{self}} = \evoltime\evolu(\ggigen^2 - B) + O(s^3)
+= -\evoltime\evolu\,\compdefect + O(s^3)$.
+For the last claim, $\ext=0$ gives $\compdefect=0$ by
+Proposition~\ref{prop:tkf91-closed}, and $\ext>0$ gives
+$\compdefect\neq 0$ by Proposition~\ref{prop:minimal-defect} below, which
+exhibits a two-site marginal of $\obskern$ on which
+$\compdefect = \delrate^2 p(1-p)\,[\,{+}1,{-}1,{-}1,{+}1\,]\neq 0$.
+\end{proof}
+
+Theorem~\ref{thm:defect-unification} is the precise sense in which the two
+exercises coincide: \emph{TKF92's failure to be closed under its own
+composition is the same defect as its deviation from the embedded CTMC, and
+both equal its non-Markovianity, all measured by $\compdefect$.}  Because
+$\compdefect\neq 0$ for $\ext>0$, no TKF92 reproduces the composite; the
+best-fit parameters are whatever the loss of Section~\ref{sec:comp-kl}
+selects, and the irreducible residual of that fit is $O(\|\compdefect\|^2)$,
+i.e.\ fourth order in the times.
+
+The following gives the defect in closed form on the smallest marginal that
+exhibits it, and proves the forward direction $\ext>0 \Rightarrow
+\compdefect\neq 0$ of Theorem~\ref{thm:defect-unification}.
+
+\begin{proposition}[Explicit defect on a two-site marginal]
+\label{prop:minimal-defect}
+Consider two adjacent ancestral residues and the kernel $\obskern(t)$ that
+$\obskern$ induces on their presence indicators
+$(b_1,b_2)\in\{11,10,01,00\}$.  At equilibrium their bond is intra-fragment
+with probability $p = \ext/(\ext+(1-\ext)\kappa)$ (the latent-boundary
+weight of Section~\ref{sec:tkf92-machines}); conditioned on this they
+either share one fragment (deleted together at rate $\delrate$) or lie in
+independent fragments (each deleted at rate $\delrate$).  Then
+$\obskern(0)=\mathbb{I}$, and the embedded generator and defect are
+\[
+\ggigen = \delrate\!\begin{pmatrix}
+   p-2 & 1{-}p & 1{-}p & p\\ 0&-1&0&1\\ 0&0&-1&1\\ 0&0&0&0
+ \end{pmatrix},
+\qquad
+\compdefect = \ddot\obskern(0)-\ggigen^2
+ = \delrate^2\,p(1-p)\!
+   \begin{pmatrix} {+}1&{-}1&{-}1&{+}1\\ 0&0&0&0\\ 0&0&0&0\\ 0&0&0&0
+   \end{pmatrix}.
+\]
+Hence $\compdefect = 0$ iff $p\in\{0,1\}$ iff $\ext\in\{0,1\}$; for
+$\ext\in(0,1)$, $\kappa>0$ we have $\compdefect\neq 0$, so $\obskern$ is
+not the kernel of a CTMC.  The nonzero scale
+\[
+\delrate^2 p(1-p)
+= \frac{\kappa\,\delrate^2\,\ext(1-\ext)}{(\ext+(1-\ext)\kappa)^2}
+\]
+is the variance of the latent fragment-assignment indicator times
+$\delrate^2$, and
+$\obskern(\evoltime)\obskern(\evolu)-\obskern(\evoltime+\evolu)
+= -\evoltime\evolu\,\compdefect + O(s^3)$, consistent with
+Theorem~\ref{thm:defect-unification}(3).
+\end{proposition}
+
+\begin{proof}
+The kernel is the mixture
+$\obskern(t)=p\,\obskern_{\mathrm A}(t)+(1-p)\,\obskern_{\mathrm B}(t)$,
+where $\obskern_{\mathrm A}$ (joint death) and $\obskern_{\mathrm B}$
+(independent death, a Kronecker product of two-state chains) are each
+genuine CTMCs with survival $e^{-\delrate t}$.  Differentiating at $t=0$
+gives $\ggigen$ and $\ddot\obskern(0)$; the displayed $\compdefect$ and the
+self-composition identity follow by direct (computer-algebra-verified)
+evaluation.  A mixture of two CTMCs with distinct generators is a CTMC iff
+the generators coincide, i.e.\ iff $p\in\{0,1\}$.
+\end{proof}
+
+\begin{remark}[Structure of $\compdefect$]
+$\dot\obskern(0)$ is the instantaneous indel generator: in time $ds$ it
+opens one geometric-$\ext$ insertion or one geometric-$\ext$ deletion at
+the rates set by $(\insrate,\delrate)$.  $\ddot\obskern(0)$ adds the
+two-event terms, and $\compdefect$ retains only those in which the second
+event \emph{interferes} with the first fragment (abutting or splitting it),
+since for non-interfering events the geometric TKF92 fragment and the flat
+GGI run are indistinguishable.  Proposition~\ref{prop:minimal-defect} is
+the smallest instance: there the interference is the two residues sharing a
+fragment, and $\compdefect$ is the latent-assignment variance, of order
+$\ext$ as $\ext\to 0$ (since $p\sim\ext/\kappa$).  The full-kernel entries
+follow from the Green's function~\eqref{eq:comp-greens} on the larger
+$(\mat,\ins,\del)$ adjacency state space, by the same closed-form route
+(Section~\ref{sec:comp-algebraic}).
+\end{remark}
+
+\subsection{The fit as a relative-entropy projection}
+\label{sec:comp-kl}
+
+Since $\compdefect\neq0$ for $\ext>0$ the composite is off the manifold, so
+``best fit'' requires a loss, and matching individual moments is ill-posed.
+There are $\sim\!16$ transition-count expectations $\bar N_{ss'}$ (indexed
+by $\{\sta,\mat,\ins,\del\}\to\{\mat,\ins,\del,\fin\}$), with derived
+quantities such as mean indel length functions of them, against three
+parameters; the per-collection estimators are mutually inconsistent.  For
+example, matching the per-residue deletion rate fixes $\delrate'=\delrate$;
+matching the equilibrium length $\kappa/[(1-\kappa)(1-\ext)]$ forces
+$\kappa'$ up as $\ext'$ falls; matching the per-event residue throughput
+$\delrate/(1-\ext)$ scales both rates by $1/(1-\ext)$.  These do not agree,
+even to leading order.  The canonical resolution is the relative entropy
+from the true product law to the family.
+
+Let $P_{\evoltime,\evolu}$ be the distribution over $X\!\to\!Z$ alignments
+(state paths in $\{\sta,\mat,\ins,\del,\fin\}$) induced by the two-machine
+product, and $Q_\theta$ the alignment law of
+$\tkfwfst'(\theta,\evoltime+\evolu)$, $\theta=(\insrate',\delrate',\ext')$.
+The fit is the forward (true-to-fit) projection
+\begin{equation}
+\label{eq:kl-fit}
+\theta^* \;=\; \arg\min_\theta\, \dkl{P_{\evoltime,\evolu}}{Q_\theta}.
+\end{equation}
+
+\begin{proposition}[KL reduces to a closed-form $m$-projection]
+\label{prop:kl-mprojection}
+$\dkl{P}{Q_\theta} = -H(P) - \sum_{s,s'}\bar N_{ss'}\,
+ \log\tkftrans'_{ss'}(\theta)$, where
+$\bar N_{ss'}=\expect_P[\#\{s\to s'\}]$ are the product's expected
+transition counts (rational in $(\kappa,\alpha_\evoltime,\alpha_\evolu,\ext)$
+by Proposition~\ref{prop:rational-composite}).  As $H(P)$ is
+$\theta$-independent,
+\[
+\theta^* = \arg\max_\theta \sum_{s,s'} \bar N_{ss'}\,
+ \log\tkftrans'_{ss'}(\theta),
+\]
+the population maximum-likelihood fit of TKF92 to the product's expected
+counts.  Its stationary condition is the score system
+$\sum_{s,s'}\bar N_{ss'}\,\partial_\theta\log\tkftrans'_{ss'}(\theta)=0$;
+for the curved exponential family $Q_\theta$ this is the
+information-geometric $m$-projection, matching the TKF92 sufficient
+statistics $T$ (the BDI counts of eq.~\eqref{eq:bdi-complete}) in the three
+score directions, $\expect_{Q_{\theta^*}}[\partial_\theta T]
+= \expect_P[\partial_\theta T]$.
+\end{proposition}
+
+\begin{proof}
+$Q_\theta$ is a pair HMM, so
+$\log Q_\theta(a)=\sum_n\log\tkftrans'_{s_{n-1}s_n}(\theta)$ (emissions are
+constant over the one-symbol alphabet).  Taking $\expect_P$ and collecting
+transitions gives the cross-entropy; $H(P)$ drops from the $\arg\min$.  The
+score equations are $\partial_\theta$ of the cross-entropy.  Writing
+$Q_\theta$ in the count exponential family $\log Q_\theta = \langle
+\eta(\theta),N\rangle - A(\eta(\theta))$ with $\eta_{ss'}=\log\tkftrans'_{ss'}$,
+the stationary condition is $\partial_\theta\eta\cdot(\bar N -
+\expect_{Q_\theta}[N])=0$: $P$ and $Q_{\theta^*}$ agree on the sufficient
+statistics in the tangent directions $\partial_\theta\eta$.
+\end{proof}
+
+Three consequences.  \emph{(i) The arbitrariness is gone.}  All sixteen
+$\bar N_{ss'}$ enter, but only through the three combinations the
+parameters can move ($\partial_\theta\log\tkftrans'$); the Fisher metric
+supplies the weighting.  The inconsistent single-moment estimates above are
+the projections onto individual coordinates; \eqref{eq:kl-fit} is the unique
+simultaneous projection, and it sets $\kappa',\alpha',\ext'$ jointly so the
+equilibrium-length factor $1/(1-\ext)$ is absorbed wherever the projection
+dictates rather than by hand.  \emph{(ii) Closed form.}  The maximiser is
+the TKF92 (Maraschino) M-step (Section~\ref{sec:maraschino-around-em})
+applied to $\bar N$; the latent fragEnd/new-fragment split
+(Section~\ref{sec:bw-tkf92}) is resolved in closed form, so $\theta^*$ needs
+no outer EM once $\bar N$ is computed from the Green's
+function~\eqref{eq:comp-greens}.  \emph{(iii) Why this direction.}  Forward
+KL places the factorising family in the log, making the cross-entropy
+\emph{linear} in $\log\tkftrans'$ with coefficients $\bar N$ from $P$ ---
+both computable.  The reverse, $\dkl{Q_\theta}{P}$, needs
+$\expect_{Q_\theta}[\log P]$, the log of the product's marginalisation
+averaged over the fit, which is not a sufficient-statistic match; the
+true-to-fit direction is the tractable one, and is also the mass-covering
+$m$-projection appropriate when $Q$ stands in for $P$.  The irreducible
+residual is $\min_\theta\dkl{P}{Q_\theta}=O(\|\compdefect\|^2)$, the part of
+$P$ that no TKF92 represents.
+
+Replacing $P$ by the GGI alignment law gives the best-fit TKF92 to GGI by
+the identical reduction, with $\bar N$ then the GGI expected counts.
+
+\subsection{The renormalization flow}
+\label{sec:comp-flow}
+
+Iterating the projection~\eqref{eq:kl-fit} defines a flow on the TKF92
+manifold.  Write $\theta^*(\evoltime,\evolu)$ for the fit; in the gauge
+$\evoltime'=\evoltime+\evolu$ it is a curve in $(\kappa,\alpha,\ext)$ ---
+\emph{all three} coordinates move in general (Proposition~\ref{prop:equilibrium}).
+Set $\evoltime$ finite and $\evolu\to0$: one machine becomes the identity
+kernel, so $P\to Q_{(\insrate,\delrate,\ext)}$ exactly,
+$\theta^*\to(\insrate,\delrate,\ext)$ with zero residual, and the leading
+change is the renormalization vector field
+\begin{equation}
+\label{eq:beta-function}
+\frac{d\theta}{d\evoltime} \;=\; \betafn(\theta)
+\;:=\; \partial_\evolu\theta^*\big|_{\evolu=0}
+\;=\; F(\theta)^{-1}\,
+ \partial_\evolu\!\Big[\textstyle\sum_{s,s'}\bar N_{ss'}(\evoltime,\evolu)\,
+   \partial_\theta\log\tkftrans'_{ss'}\Big]_{\evolu=0},
+\end{equation}
+the Fisher-natural-gradient of the cross-entropy: the score-projection of
+the product's first-order defect $\partial_\evolu P|_{\evolu=0}$ (the
+$\compdefect$ direction of Theorem~\ref{thm:defect-unification}) onto the
+three TKF92 score directions, preconditioned by the Fisher metric $F$.
+This is the principled replacement for projecting onto any single moment.
+
+\begin{corollary}[TKF91 is the only fixed line]
+\label{cor:fixed-line}
+At $\ext=0$, $P=Q$ exactly (Proposition~\ref{prop:tkf91-closed}), so
+$\betafn=0$: the line $\ext=0$ (one TKF91 per $\kappa$) is fixed.  For
+$\ext>0$, $\compdefect\neq0$ and has nonzero score-projection (it changes
+the run-length statistics the parameters control), so $\betafn\neq0$ and
+$\ext$ runs.  The sign of $\dot\ext$ and the induced motion of
+$(\kappa,\alpha)$ are the entries of $F^{-1}$ acting on the score-projected
+$\compdefect$ --- a closed-form linearisation left to the symbolic
+evaluation.
+\end{corollary}
+
+\begin{remark}[On-manifold truncation]
+\eqref{eq:beta-function} is the on-manifold projection of the flow: the
+irreducible $O(\|\compdefect\|^2)$ part of each composite, which no TKF92
+carries, is discarded at every step.  This is the standard
+renormalization-group truncation of irrelevant operators, and is what makes
+the flow autonomous on the three-dimensional TKF92 manifold.  A scalar
+$\ext$-only flow at fixed $\kappa$ --- the projection onto a single
+arbitrarily chosen moment --- is \emph{not} this flow and is inconsistent
+with conserving the equilibrium (Proposition~\ref{prop:equilibrium}).
+\end{remark}
+
+\subsection{What is algebraic}
+\label{sec:comp-algebraic}
+
+The tractability mirrors the closed-form Maraschino machinery
+(Section~\ref{sec:maraschino-main}) and the gap-block sums
+(Section~\ref{sec:tkf92-gapprob}).
+
+\begin{proposition}[Closed-form structure]
+\label{prop:comp-algebraic}
+With the substitution process factored out:
+\begin{enumerate}[nosep]
+\item The composite kernel and its expected transition counts are
+  closed-form rational functions of $(\kappa,\alpha_\evoltime,\ext)$ and
+  $(\kappa,\alpha_\evolu,\ext)$ (Proposition~\ref{prop:rational-composite}).
+\item The defect operator $\compdefect$ and the
+  $\beta$-function~\eqref{eq:beta-function} are closed-form rational
+  functions of $(\kappa,\alpha,\ext)$, being derivatives of (1) evaluated
+  at $\evolu=0$.
+\item The KL fit~\eqref{eq:kl-fit} is the closed-form Maraschino M-step
+  (Section~\ref{sec:maraschino-around-em}) applied to the rational expected
+  counts $\bar N$ of (1); the matched $(\kappa',\alpha',\ext')$ are
+  algebraic functions of the inputs (a resultant / Gr\"obner system,
+  solvable in radicals only at low degree), with no parameter held fixed
+  a priori.
+\end{enumerate}
+The only transcendental dependence on time enters through
+$\alpha = e^{-\delrate\evoltime}$ (and, when reinstated, the substitution
+matrix exponential $e^{\revsub\evoltime}$, which does not couple to the
+indel composition).  Finite composition over an extended interval is the
+integral of the rational vector field~\eqref{eq:beta-function} and is not
+in general elementary.
+\end{proposition}
+
+\begin{proof}
+(1) is Proposition~\ref{prop:rational-composite}.  (2) follows because
+$\compdefect$ and $\betafn$ are partial derivatives of the rational kernel
+of (1) in $\evolu$ at $\evolu=0$, and derivatives of rational functions
+are rational.  (3): the score system of
+Proposition~\ref{prop:kl-mprojection},
+$\sum_{ss'}\bar N_{ss'}\,\partial_\theta\log\tkftrans'_{ss'}(\theta)=0$,
+is a set of rational equations in $(\kappa',\alpha',\ext')$; the self-loop
+resolution (Section~\ref{sec:bw-tkf92}) makes the Maraschino M-step that
+solves it closed-form.
+\end{proof}
+
+\subsection{Renormalization interpretation}
+\label{sec:comp-rg}
+
+The construction is a real-space decimation renormalization group on the
+space of sequence transducers.  Marginalising the intermediate sequence
+$Y$ is decimation of internal degrees of freedom; the exact decimation
+generates correlations outside the TKF92 family (cross-branch fragment
+memory, the broken $\mat/\ins$-row equality), just as decimating a
+one-dimensional chain generates longer-range couplings.  The KL
+projection~\eqref{eq:kl-fit} is truncation back onto the retained operator
+basis --- and because it is the information-geometric $m$-projection onto
+the TKF92 manifold (Proposition~\ref{prop:kl-mprojection}), the truncation
+is the optimal one rather than an ad hoc choice of moment.
+
+In this language all three couplings $(\kappa,\alpha,\ext)$ run in general:
+the off-manifold decimation defect $\compdefect$ has a nonzero
+score-projection onto each.  The line $\ext=0$ is the free,
+exactly-renormalizable fixed line --- TKF91 is infinitely divisible and a
+genuine semigroup (Proposition~\ref{prop:tkf91-closed}), the analogue of
+exactly-closed one-dimensional Ising decimation
+$K' = \tfrac12\ln\cosh 2K$ --- and is the only fixed line
+(Corollary~\ref{cor:fixed-line}); $\ext>0$ is the interacting regime whose
+truncation error is the defect $\compdefect$ of
+Theorem~\ref{thm:defect-unification}.  TKF92 ties its equilibrium and its
+dynamics to the same two couplings $(\kappa,\ext)$, so it has no spare
+direction to absorb $\compdefect$ while holding the equilibrium fixed
+(Proposition~\ref{prop:equilibrium}); the genuinely closed object is the
+GGI CTMC, which carries indel rate and mean length independently and which
+is the $\evoltime\to0$ embedded generator $\ggigen$ of $\tkfwfst'$ itself.
+The same trade-off recurs throughout this work: latent decoration must
+either be promoted to explicit interface symbols (exact, larger state space
+--- keeping all generated couplings) or integrated out (approximate ---
+truncating), exactly as in Section~\ref{sec:tkf92-machines} and the MixDom
+WFSTs.  This section quantifies the truncation error of the
+integrated-out choice for TKF92, and relates it, through the closed-form
+$m$-projection, to the GGI model that the truncation silently approximates.
+
+\subsection{The Triad HMM}
+\label{sec:comp-triad-hmm}
+
+The composite that the instantaneous flow projects from is a $13$-state
+\emph{Triad HMM}
+$\jointpairhmm(\theta,\evoltime)\circ\condpairhmm(\theta_\ggi,d\evoltime)$,
+whose state and transition structure we record here for reference.  Let
+$\ymx=\jointpairmatrix$ be the TKF92 joint Pair HMM's transition matrix (at
+surrogate parameters $(\insrate,\delrate,\fragext)$ and branch length
+$\evoltime$) and let $\zmx=\condpairmatrix$ be the GGI generator's
+conditional Pair HMM transition matrix for one infinitesimal step
+$d\evoltime$ at GGI parameters $(\insrate,\delrate,x,y)$.  The conditional
+matrix $\zmx$ has entries
+\begin{align*}
+\tz{\sta\mat} = \tz{\mat\mat} &= 1 - (\insrate+\delrate)\,d\evoltime + o(d\evoltime^2), &
+\tz{\sta\ins} = \tz{\mat\ins} &= \insrate\,d\evoltime, \\
+\tz{\sta\del} = \tz{\mat\del} &= \delrate\,d\evoltime, &
+\tz{\sta\fin} = \tz{\mat\fin} &= 1 - \insrate\,d\evoltime, \\
+\tz{\ins\ins} &= x, & \tz{\ins\mat} = \tz{\ins\fin} &= 1-x, \\
+\tz{\del\del} &= y, & \tz{\del\mat} &= 1-y, \\
+\tz{\del\fin} &= 1, & \tz{\ins\del} = \tz{\del\ins} &= 0.
+\end{align*}
+
+Each Triad state is a two-component tuple comprising a joint Pair HMM state
+$X \xrightarrow{\evoltime_1} Y$ and a conditional state
+$Y \xrightarrow{\evoltime_2} Z$.  The first leg uses $\jointpairhmm$ rather
+than $\condpairhmm$ because $X$ has no parent in the Triad: its length
+distribution is supplied by the implicit singlet inside the joint Pair HMM.
+The upper/lower case symbols in the state name indicate which component(s)
+change on transition into the state.  For example, transitions into $\matdel$
+change both components, but transitions into $\insins$ only change the
+second component.  (The cases are introduced to make the states and
+transitions more comprehensible; they do not have any other effect.  The
+transition rules can be stated without reference to cases, and all state
+names remain unique even if they are all converted to the same case.)
+
+The transducer update rules are as follows.
+\begin{itemize}
+\item If the second component has just been updated, then both components
+get a chance to update; otherwise (if the second component has not just
+been updated), only the first component can update.
+\item When it is the second component that is updated, it can only enter an
+$\ins$ state; the first component does not update.  The $\ins\to\ins$
+self-loop is available with weight $x$ from $\condpairmatrix$.
+\item When it is the first component that is updated, the second component
+can only update if the first component enters a $\mat$, $\ins$, or $\fin$
+state.  In the former two cases (first component goes to $\mat$ or $\ins$)
+the second component must go to a $\mat$ or $\del$ state; in the latter
+case (first component goes to $\fin$) the second component must also go to
+$\fin$.
+\item If a component does not update, it is converted to lower-case.
+\end{itemize}
+
+Thus, the Triad transition matrix has the general form
+\[
+t_{ik,jl} = \left\{ \begin{array}{ll}
+0 & \mbox{if $jl=\triadstart$ or $ik=\triadend$} \\
+\tz{kl} & \mbox{if $i \neq \del$, $l = \ins$, and $j=\toLower(i)$} \\
+\ty{ij}\tz{kl} & \mbox{if $j \in \{ \mat,\ins \}$ and $l \in \{ \mat,\del \}$} \\
+\ty{ij} & \mbox{if $j = \del$ and $l = \toLower(k)$} \\
+\ty{ij}\tz{kl} & \mbox{if $jl=\triadend$} \\
+0 & \mbox{otherwise.}
+\end{array} \right.
+\]
+
+In detail, the $13{\times}13$ matrix $\mathbf t$ is
+\[
+\mathbf{t} \;=\;
+\]
+\noindent\resizebox{\textwidth}{!}{$
+\left( \begin{array}{r|ccccccccccccc}
+& \triadstart & \stains & \matmat & \matins & \matdel & \insmat & \insins & \insdel & \delsta & \delmat & \delins & \deldel & \triadend \\
+\hline
+\triadstart & 0 & \tz{\sta\ins} & \ty{\sta\mat}\tz{\sta\mat} & 0 & \ty{\sta\mat}\tz{\sta\del} & \ty{\sta\ins}\tz{\sta\mat} & 0 & \ty{\sta\ins}\tz{\sta\del} & \ty{\sta\del} & 0 & 0 & 0 & \ty{\sta\fin}\tz{\sta\fin}
+\\ \stains & 0 & \tz{\ins\ins} & \ty{\sta\mat}\tz{\ins\mat} & 0 & \ty{\sta\mat}\tz{\ins\del} & \ty{\sta\ins}\tz{\ins\mat} & 0 & \ty{\sta\ins}\tz{\ins\del} & 0 & 0 & \ty{\sta\del} & 0 & \ty{\sta\fin}\tz{\ins\fin}
+\\ \matmat & 0 & 0 & \ty{\mat\mat}\tz{\mat\mat} & \tz{\mat\ins} & \ty{\mat\mat}\tz{\mat\del} & \ty{\mat\ins}\tz{\mat\mat} & 0 & \ty{\mat\ins}\tz{\mat\del} & 0 & \ty{\mat\del} & 0 & 0 & \ty{\mat\fin}\tz{\mat\fin}
+\\ \matins & 0 & 0 & \ty{\mat\mat}\tz{\ins\mat} & \tz{\ins\ins} & \ty{\mat\mat}\tz{\ins\del} & \ty{\mat\ins}\tz{\ins\mat} & 0 & \ty{\mat\ins}\tz{\ins\del} & 0 & 0 & \ty{\mat\del} & 0 & \ty{\mat\fin}\tz{\ins\fin}
+\\ \matdel & 0 & 0 & \ty{\mat\mat}\tz{\del\mat} & \tz{\del\ins} & \ty{\mat\mat}\tz{\del\del} & \ty{\mat\ins}\tz{\del\mat} & 0 & \ty{\mat\ins}\tz{\del\del} & 0 & 0 & 0 & \ty{\mat\del} & \ty{\mat\fin}\tz{\del\fin}
+\\ \insmat & 0 & 0 & \ty{\ins\mat}\tz{\mat\mat} & 0 & \ty{\ins\mat}\tz{\mat\del} & \ty{\ins\ins}\tz{\mat\mat} & \tz{\mat\ins} & \ty{\ins\ins}\tz{\mat\del} & 0 & \ty{\ins\del} & 0 & 0 & \ty{\ins\fin}\tz{\mat\fin}
+\\ \insins & 0 & 0 & \ty{\ins\mat}\tz{\ins\mat} & 0 & \ty{\ins\mat}\tz{\ins\del} & \ty{\ins\ins}\tz{\ins\mat} & \tz{\ins\ins} & \ty{\ins\ins}\tz{\ins\del} & 0 & 0 & \ty{\ins\del} & 0 & \ty{\ins\fin}\tz{\ins\fin}
+\\ \insdel & 0 & 0 & \ty{\ins\mat}\tz{\del\mat} & 0 & \ty{\ins\mat}\tz{\del\del} & \ty{\ins\ins}\tz{\del\mat} & \tz{\del\ins} & \ty{\ins\ins}\tz{\del\del} & 0 & 0 & 0 & \ty{\ins\del} & \ty{\ins\fin}\tz{\del\fin}
+\\ \delsta & 0 & 0 & \ty{\del\mat}\tz{\sta\mat} & 0 & \ty{\del\mat}\tz{\sta\del} & \ty{\del\ins}\tz{\sta\mat} & 0 & \ty{\del\ins}\tz{\sta\del} & \ty{\del\del} & 0 & 0 & 0 & \ty{\del\fin}\tz{\sta\fin}
+\\ \delmat & 0 & 0 & \ty{\del\mat}\tz{\mat\mat} & 0 & \ty{\del\mat}\tz{\mat\del} & \ty{\del\ins}\tz{\mat\mat} & 0 & \ty{\del\ins}\tz{\mat\del} & 0 & \ty{\del\del} & 0 & 0 & \ty{\del\fin}\tz{\mat\fin}
+\\ \delins & 0 & 0 & \ty{\del\mat}\tz{\ins\mat} & 0 & \ty{\del\mat}\tz{\ins\del} & \ty{\del\ins}\tz{\ins\mat} & 0 & \ty{\del\ins}\tz{\ins\del} & 0 & 0 & \ty{\del\del} & 0 & \ty{\del\fin}\tz{\ins\fin}
+\\ \deldel & 0 & 0 & \ty{\del\mat}\tz{\del\mat} & 0 & \ty{\del\mat}\tz{\del\del} & \ty{\del\ins}\tz{\del\mat} & 0 & \ty{\del\ins}\tz{\del\del} & 0 & 0 & 0 & \ty{\del\del} & \ty{\del\fin}\tz{\del\fin}
+\\ \triadend & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0
+\end{array} \right)
+$}
+
+\paragraph{Note on the $\stains$ state.}
+$\stains$ represents the composite $(Y=\sta, Z=\ins)$: $Z$ has just opened an
+insert at the very start, before $X$ has emitted any $Y$ residue.  The
+canonical ordering enforced in the update rules (only $Y$ updates from
+states where $Z$ has not just updated) suppresses the alternative path
+$\triadstart\to\delsta\to(d,\ins)$ in favour of
+$\triadstart\to\stains\to\delins$, which enumerates the equivalent alignment
+with the same total weight.  The merged $\delins$ state covers both
+$(Y=\del,Z=\ins)$ reachings: from a body state via $Z$ extending into an
+insert, and from $\stains$ via $Y\to\del$ while $Z$ remains at the
+start-side insert.
+
+The state set, alphabet, joint and conditional matrices, state-type function
+(used to classify emission behaviour: $\sta$ start, $\fin$ end, $\nul$ null,
+$\ins$ inserts a column), and emission distribution are
+\begin{align*}
+\triadstates &= \{ \triadstart,\stains,\matmat,\matins,\matdel,\insmat,\insins,\insdel,\delsta,\delmat,\delins,\deldel,\triadend \}, \\
+\triadalphabet &= \{ \mat, \ins, \del \}, \\
+\ymx &= \jointpairmatrix(\insrate,\delrate,\fragext,\evoltime), \\
+\zmx &= \condpairmatrix(\insrate,\delrate,\fragext,d\evoltime), \\
+\statetype(k) &= \left\{ \begin{array}{ll}
+ \sta & \mbox{if $k = \triadstart$} \\
+ \fin & \mbox{if $k = \triadend$} \\
+ \nul & \mbox{if $k = \insdel$} \\
+ \ins & \mbox{otherwise,}
+ \end{array} \right. \\
+e_k(\omega,\omega') &= \delta(\omega=\epsilon) \times \left\{ \begin{array}{ll}
+ \delta(\omega'=\mat) & \mbox{if $k = \matmat$} \\
+ \delta(\omega'=\ins) & \mbox{if $k \in \{ \stains,\matins,\insmat,\insins \}$} \\
+ \delta(\omega'=\del) & \mbox{if $k \in \{ \matdel,\delsta,\delmat,\delins,\deldel \}$} \\
+ \delta(\omega'=\epsilon) & \mbox{if $k = \insdel.$}
+ \end{array} \right.
+\end{align*}
+
+\paragraph{The coarse-graining map.}
+The forward-KL projection onto TKF92 is governed by the coarse-graining
+$C:\triadstates\to\{\sta,\mat,\ins,\del,\fin\}$ that retains the first
+component (modulo case):
+$C(\triadstart)=\sta$, $C(\stains)=\sta$,
+$C(\matmat)=C(\matins)=C(\matdel)=\mat$,
+$C(\insmat)=C(\insins)=C(\insdel)=\ins$,
+$C(\delsta)=C(\delmat)=C(\delins)=C(\deldel)=\del$,
+$C(\triadend)=\fin$.
+Provided the Triad has unit partition function $Z=\sum_{\rm paths}=1$, the
+expected $A\to B$ transition counts are
+\begin{equation}
+\label{eq:triad-counts}
+n_{AB}\;=\;\bigl[(I-{\bf t})^{-1}\bigr]_{\triadstart\,A}\;t_{AB}\;
+       \bigl[(I-{\bf t})^{-1}\bigr]_{B\,\triadend},
+\end{equation}
+and the coarse-grained TKF92 counts feeding the m-projection are
+\begin{equation}
+\label{eq:triad-pullback}
+m_{XY}\;=\;\sum_{A:\,C(A)=X}\;\sum_{B:\,C(B)=Y}\;n_{AB}.
+\end{equation}
+The matched TKF92 parameters at $\evoltime+d\evoltime$ are the M-step on
+$\{m_{XY}\}$.  For $\ext$ specifically, the M-step exploits the structural
+factorisation $u_{XX}=\ext+(1-\ext)v_{XX}$ of every TKF92 self-loop weight
+(where $v_{XX}$ is the corresponding TKF91 self-loop weight), so that the
+posterior over fragment extension vs.\ termination splits every $m_{XX}$
+self-loop into expected counts
+$\ext/[\ext+(1-\ext)v_{XX}]$ (extension) and
+$(1-\ext)v_{XX}/[\ext+(1-\ext)v_{XX}]$ (termination), and cross-transitions
+$m_{XY}$ ($X\neq Y$) count entirely as terminations:
+\begin{equation}
+\label{eq:triad-frag-decomp}
+\nfragext = \sum_X m_{XX}\,\frac{\ext}{\ext+(1-\ext)v_{XX}},\quad
+\nfragend = \sum_X m_{XX}\,\frac{(1-\ext)v_{XX}}{\ext+(1-\ext)v_{XX}}\,+\,\sum_{X\neq Y}m_{XY}.
+\end{equation}
+Since $\nfragext+\nfragend$ equals the total transition count $\sum_{X,Y}m_{XY}$,
+independent of $\ext$, the M-step $\ext^\ast=\nfragext/(\nfragext+\nfragend)$
+reduces to the implicit equation
+\begin{equation}
+\label{eq:triad-r-implicit}
+\sum_X \frac{m_{XX}}{\ext^\ast+(1-\ext^\ast)v_{XX}}\;=\;\sum_{X,Y} m_{XY},
+\end{equation}
+one equation in one unknown $\ext^\ast$.
+
+\paragraph{Born--Oppenheimer separation.}
+Eq.~\eqref{eq:triad-r-implicit} is the M-step for $\ext$ alone.  The companion
+M-steps for $(\insrate,\delrate)$ are not algebraically independent: in
+principle, the projection is a coupled system in $(\insrate(\evoltime),
+\delrate(\evoltime),\ext(\evoltime))$, with the chain rule between them
+feeding back into $d\ext/d\evoltime$.  We adopt a Born--Oppenheimer / adiabatic
+decoupling in which $\ext$ is the \emph{fast} coordinate that the m-projection
+actively tracks, while $(\insrate,\delrate)$ are \emph{slow} coordinates whose
+sole role is to maintain conserved background quantities (the GGI equilibrium
+length $\ell_\ggi=x/(y-x)$ and the per-residue deletion rate, which in
+TKF92's standard convention is simply $\delrate_0/(1-y)$ since residues die
+independently regardless of fragment membership).  Concretely this fixes
+$\delrate(\evoltime)=\delrate_0/(1-y)$ (constant in $\ext$) and
+$\insrate(\evoltime)=\kappa(\evoltime)\delrate(\evoltime)$ with
+$\kappa$ determined by length conservation, so $\insrate$ is the explicit
+function of $\ext$; the BO approximation neglects the back-coupling
+$\partial\ext^\ast/\partial(\insrate,\delrate)\cdot(d\insrate/d\ext,d\delrate/d\ext)$
+in the $r$-dynamics.  The leading-order analysis below uses this
+approximation; the back-coupling enters at higher order in the small
+parameter $|x-y|$ that measures GGI's departure from TKF92-shape.
+
+\subsection{The instantaneous flow toward GGI}
+\label{sec:comp-ggi-flow}
+
+Section~\ref{sec:comp-flow} ran the projection against the TKF92
+self-composition, whose only fixed line is TKF91.  We now run the
+\emph{same} projection against the true GGI process, which is the object of
+practical interest.  This is the relative-entropy reading of a known
+construction: \citet{Holmes2020} composes a generic three-state Pair HMM with
+the GGI generator and coarse-grains back to a three-state Pair HMM, obtaining
+ODEs for its $3{\times}3$ transition matrix in $\evoltime$.  That coarse-graining
+is precisely a forward-KL ($m$-)projection --- composition leaves the Markov
+Pair-HMM family (the non-Markovianity $\compdefect$ of
+Theorem~\ref{thm:defect-unification}), and projecting back by matching the
+counting-process moments (the expected transition counts) is the $m$-projection
+of Proposition~\ref{prop:kl-mprojection}.  What follows is that same projection
+\emph{restricted to the TKF92 manifold}: instead of a free $3{\times}3$ matrix
+we flow the three BDI/fragment coordinates $(\insrate,\delrate,\ext)$, trading
+flexibility for rate interpretability, so that
+$\dkl{\mathrm{GGI}}{\text{ours}}\ge\dkl{\mathrm{GGI}}{\text{Holmes 2020 flow}}$
+with both bounded below by the same TKF91-only-vanishing defect $\compdefect$.
+This is distinct from the cruder one-shot \emph{stationary parameter map} of
+Section~\ref{sec:varanc-presence-setting} ($\delrate_0/(1-y)=\delrate$,
+$x=\ext$, equilibrium-length match), which is \emph{not} a flow and which we use
+below only as a baseline.  We thus obtain the \emph{instantaneous} best-fit
+TKF92 as a function of branch length $\evoltime$, an autonomous flow on the
+sufficient statistics.
+
+Fix the true GGI parameters $(\insrate_0,\delrate_0,x,y)$ with the
+reversibility constraint $\insrate_0\,y(1-x)=\delrate_0\,x(1-y)$
+(Section~\ref{sec:composition-renorm}): insertions of $k$ residues occur at any
+site at rate $\insrate_0 x^{k-1}(1-x)$ and deletions of $k$ contiguous residues
+at rate $\delrate_0 y^{k-1}(1-y)$, so the mean inserted run is $1/(1-x)$, the
+mean deleted run is $1/(1-y)$, and the per-residue deletion rate is
+$\delrate_0/(1-y)$.  Let $\ggigen$ denote the GGI generator.  We track an
+\emph{inhomogeneous} TKF92 surrogate with parameters
+$\big(\insrate(\evoltime),\delrate(\evoltime),\ext(\evoltime)\big)$, defined by
+the requirement that, at each instant, advancing the surrogate by one more
+true GGI step and re-projecting returns the surrogate itself.  Concretely, with
+$\evolu\to0$,
+\begin{equation}
+\label{eq:ggi-triad}
+\theta(\evoltime+d\evoltime)
+  = \arg\min_\theta\,
+    \dkl{\;\tkfwfst'(\theta(\evoltime),\evoltime)\circ\ggikern_{\!\ggi}(d\evoltime)\;}
+        {\;\tkfwfst'(\theta,\evoltime+d\evoltime)\;},
+\end{equation}
+the two-machine product of the current surrogate Pair HMM with a true GGI
+$d\evoltime$-step (the ``triad''), projected back onto TKF92.  By
+Proposition~\ref{prop:kl-mprojection} the $\arg\min$ is the Maraschino M-step on
+the triad's expected $X\!\to\!Z$ transition counts, so the flow is governed by
+the GGI generator's first-order perturbation of those counts.
+
+\paragraph{The sufficient-statistic state.}
+The natural coordinates are the TKF92 sufficient statistics themselves
+(eq.~\eqref{eq:bdi-complete} and Section~\ref{sec:bw-tkf92}): the link birth,
+death and time-integrated-length statistics $B,D,S$, the immortal-link exposure
+$T=\evoltime$, and the fragment-extension and fragment-end counts
+$\nfragext,\nfragend$ (with $\nfragext+\nfragend$ the total number of
+link-level events).  These are \emph{link}-level, not site-level.  The TKF92
+parameters are read off algebraically by the closed-form M-step:
+\begin{equation}
+\label{eq:ggi-readoff}
+\insrate=\frac{B}{S+\evoltime},\qquad
+\delrate=\frac{D}{S},\qquad
+\ext=\frac{\nfragext}{\nfragext+\nfragend}.
+\end{equation}
+This is the \emph{conditional} (rate) M-step --- the score equations
+$\partial_\insrate\log P=B/\insrate-S-T=0$, $\partial_\delrate\log P=D/\delrate-S=0$
+of eq.~\eqref{eq:bdi-complete} --- not the joint $\kappa$-quadratic M-step that
+adds the length-prior $L\log\kappa+M\log(1-\kappa)$ and couples
+$(\insrate,\delrate)$; the equilibrium $\kappa$ is left to track the dynamics
+(cf.\ Proposition~\ref{prop:equilibrium}).
+The flow is then the autonomous system
+\begin{equation}
+\label{eq:ggi-suffstat-ode}
+\frac{d}{d\evoltime}(B,D,S,\nfragext,\nfragend)
+  = (b_\ggi,\,d_\ggi,\,s_\ggi,\,f_\ggi,\,e_\ggi),
+\qquad \frac{dT}{d\evoltime}=1,
+\end{equation}
+where the increments on the right are functions of the current state (through
+the surrogate $\theta$ recovered by~\eqref{eq:ggi-readoff}) and the fixed GGI
+parameters, defined next.  Integrating~\eqref{eq:ggi-suffstat-ode} and
+applying~\eqref{eq:ggi-readoff} at each $\evoltime$ traces the instantaneous
+best-fit TKF92.
+
+\paragraph{The GGI count increment (the algebraic engine).}
+Write $\bar N^{\circ}$ for the surrogate Pair HMM's own expected transition
+counts (closed-form rational in $(\kappa,\alpha,\ext)$ by the fundamental
+matrix $(\mathbb I-\effT)^{-1}$).  The triad's count increment
+$\dot{\bar N}:=\partial_\evolu \bar N|_{\evolu=0}$ is the sum of an insertion and
+a deletion term, both closed form.  A GGI insertion drops a geometric-$x$ run of
+fresh residues just after each emitting column; summing over run lengths gives
+\begin{equation}
+\label{eq:ggi-ins}
+\dot{\bar N}^{\mathrm{ins}}
+  = \insrate_0\!\!\sum_{p\in\{\sta,\mat,\ins\}}\sum_{q}
+    \bar N^{\circ}_{pq}\,
+    \Big[\,e_{p\ins}+\tfrac{x}{1-x}\,e_{\ins\ins}+e_{\ins q}-e_{pq}\,\Big],
+\end{equation}
+$e_{ss'}$ the unit matrix in transition $s\!\to\!s'$ and $q$ ranging over
+$\{\mat,\ins,\del,\fin\}$ (an insertion may precede the terminal transition).
+A GGI deletion removes a
+geometric-$y$ run of $k$ contiguous descendant residues: each covered match
+becomes a delete ($\mat\!\to\!\del$) and each covered insert becomes a
+\emph{ghost} (removed), while interspersed ancestral deletes are unchanged.
+The expected increment is a Green's-function sum over the surrogate alignment
+chain --- the geometric run length is summed by a resolvent
+$(\mathbb I-y\,\Phi)^{-1}$, where $\Phi$ is the $\{\mat,\ins\}$ ``advance to the
+next descendant residue'' kernel with the interspersed-delete self-loop
+marginalised, $\Phi_{pp'}=\tkftrans'_{pp'}+\tkftrans'_{p\del}\tkftrans'_{\del
+p'}/(1-\tkftrans'_{\del\del})$ --- and each run's contribution is committed only
+on termination, so over-length runs (which do not fit the finite descendant)
+contribute nothing.  The result $\dot{\bar N}^{\mathrm{del}}$ is again a
+closed-form rational function of $(\kappa,\alpha,\ext)$ and $(\delrate_0,y)$.
+Both terms were verified against Gillespie simulation of the true composite and,
+exactly, against the closed-form length/insert/delete balance
+($d\,\#\del/d\evolu$, $d\,\#\ins/d\evolu$, $d\,\mathrm{len}/d\evolu$).
+
+\paragraph{From the count increment to the flow.}
+The projection~\eqref{eq:ggi-triad} is the score system
+$\sum_{ss'}\bar N_{ss'}\,\partial_\theta\log\tkftrans'_{ss'}(\theta)=0$ in the
+surrogate coordinates $\theta=(\kappa,\alpha,\ext)$, which carry \emph{no}
+explicit dependence on the total time $T$ ($T$ enters only through
+$\alpha=e^{-\delrate(T)\,T}$ once $\theta$ is mapped back to
+$(\insrate,\delrate,\ext)$).  Differentiating the score identity along the flow
+(implicit-function theorem) therefore gives the parameter velocity as the
+Fisher-natural gradient of the cross-entropy in the $\dot{\bar N}$ direction ---
+the explicit form of the renormalization vector field~\eqref{eq:beta-function},
+and the self-contained engine of the flow:
+\begin{equation}
+\label{eq:ggi-natgrad}
+\frac{d\theta}{d\evoltime}
+  = F(\theta)^{-1}\,\dot g(\theta),
+\qquad
+\dot g_a(\theta)=\sum_{s,s'}\dot{\bar N}_{ss'}(\theta)\,
+   \partial_{\theta_a}\log\tkftrans'_{ss'}(\theta),
+\end{equation}
+$F=-\,\partial_\theta^2\big(\sum_{ss'}\bar N_{ss'}\log\tkftrans'_{ss'}\big)$ the
+Fisher metric of the surrogate Pair HMM (positive definite at the projection).
+Equation~\eqref{eq:ggi-natgrad} depends on the closed-form count increment
+$\dot{\bar N}$ alone; it was validated numerically against the direct M-step
+projection of the triad.
+
+The sufficient-statistic increments $(b_\ggi,\dots,e_\ggi)$ of
+\eqref{eq:ggi-suffstat-ode} are then the \emph{total} time-derivatives of the
+read-off~\eqref{eq:ggi-readoff} along this flow.  They are \emph{not} the bare
+count-Jacobian of the BDI map in the $\dot{\bar N}$ direction: because $B,D,S$
+are read off with the immortal-link exposure $T=\evoltime$ present
+(eq.~\eqref{eq:ggi-readoff}, $B=\insrate(S+T)$ etc.), each increment carries
+three pieces --- the count perturbation $\dot{\bar N}$, the clock term
+$\partial_T(\cdot)$ with $dT/d\evoltime=1$ (which dominates $b_\ggi,d_\ggi,s_\ggi$,
+contributing the ongoing indel accumulation $\partial_T S\approx\expect[\text{length}]$,
+$\partial_T B\approx\partial_T D\approx\insrate(S{+}T)'$), and the
+parameter-drift term $\partial_\theta(\cdot)\,\dot\theta$.  Concretely,
+\eqref{eq:ggi-suffstat-ode} is the image of the parameter
+flow~\eqref{eq:ggi-natgrad} under~\eqref{eq:ggi-readoff}, and the parameter
+form~\eqref{eq:ggi-param-ode} below is its inverse image; all three are
+equivalent and were validated against the natural-gradient projection.
+
+\subsection{Parameter form of the flow}
+\label{sec:comp-ggi-param}
+
+Differentiating the read-off~\eqref{eq:ggi-readoff} along the sufficient-statistic
+flow~\eqref{eq:ggi-suffstat-ode} (with $dT/d\evoltime=1$) gives the equivalent
+system directly in the TKF92 parameters:
+\begin{equation}
+\label{eq:ggi-param-ode}
+\frac{d\insrate}{d\evoltime}
+  = \frac{b_\ggi-\insrate\,(s_\ggi+1)}{S+\evoltime},
+\qquad
+\frac{d\delrate}{d\evoltime}
+  = \frac{d_\ggi-\delrate\,s_\ggi}{S},
+\qquad
+\frac{d\ext}{d\evoltime}
+  = \frac{(1-\ext)\,f_\ggi-\ext\,e_\ggi}{\nfragext+\nfragend}.
+\end{equation}
+Each parameter relaxes toward a GGI-set target at a rate damped by the
+accumulated history: the $1/(S+\evoltime)$ in the $\insrate$ equation is the
+immortal-link exposure (the ``$+1$'' is the clock $dT/d\evoltime$), so the
+longer the branch, the stiffer the fit.
+
+\begin{proposition}[TKF91 is a fixed line of the GGI flow]
+\label{prop:ggi-fixed-line}
+When the GGI process is itself TKF91 ($x=y=0$, single-residue indels) and the
+surrogate is TKF91 ($\ext=0$) with $(\insrate,\delrate)=(\insrate_0,\delrate_0)$,
+the triad~\eqref{eq:ggi-triad} is the exact Chapman--Kolmogorov composition
+$\tkfwfst(\insrate_0,\delrate_0,\evoltime)\circ\tkfwfst(\insrate_0,\delrate_0,d\evoltime)
+=\tkfwfst(\insrate_0,\delrate_0,\evoltime+d\evoltime)$
+(Proposition~\ref{prop:tkf91-closed}), so the projection is exact and the flow
+vanishes: $d(\insrate,\delrate,\ext)/d\evoltime=0$.
+\end{proposition}
+
+\noindent For $\ext>0$ or $x>0$ the flow is nonzero, and its fixed point need
+not equal the stationary parameter map of
+Section~\ref{sec:varanc-presence-setting} (the one-shot baseline above, not the
+Holmes-2020 flow); the way TKF92 reconciles GGI's
+\emph{different} insertion and deletion lengths is worth spelling out, because
+it is not a single compromise parameter.  TKF92 inserts fragments with a
+geometric-$\ext$ \emph{prior} (mean $1/(1-\ext)$), but a deletion removes a whole
+link's fragment, and marginalising the latent parse weights a deleted run of $k$
+residues by the \emph{posterior} that they share a fragment --- geometric in
+$p=\ext/(\ext+(1-\ext)\kappa)$, the latent-boundary weight of
+Section~\ref{sec:tkf92-machines}.  The effective deletion length is thus
+$1/(1-p)$, \emph{distinct} from the insertion length $1/(1-\ext)$ and governed by
+$\kappa$, not $\ext$.  Matching GGI's two lengths therefore uses two knobs:
+$\ext=x$ (insertion), and $\kappa$ set so $p\to y$ (deletion).  The moment match
+does exactly this --- its equilibrium-length equation fixes $\kappa$ so that
+$p\to y$ (numerically $p_{\mathrm{mm}}=0.46,0.49,0.50$ as
+$\ell_\ggi=x/(y-x)=1.5,9,24$ at $y=0.5$), matching both lengths.  Its remaining
+equation sets $\delrate=\delrate_0/(1-y)$, GGI's \emph{asymptotic} per-residue
+deletion rate, and this is the only place the relative-entropy fit departs --- by
+a \emph{finite-size} amount.  In a sequence of equilibrium length $\ell_\ggi$ a
+deletion run cannot extend past the ends, so the \emph{realised} per-residue
+deletion rate falls below $\delrate_0/(1-y)$, and the KL projection, fitting the
+actual alignment, lands at a correspondingly lower $\delrate$.  The gap closes as
+$\ell_\ggi$ grows: $\delrate_{\mathrm{fit}}/[\delrate_0/(1-y)]=0.46,0.62,0.74,0.85$
+at $\ell_\ggi=1.5,4,9,24$, so the moment match is asymptotically correct and the
+KL fit's advantage is concentrated at short (protein-domain) lengths --- exactly
+the regime where the excess KL $\Delta D$ of
+Section~\ref{sec:comp-ggi-portrait} is largest.  The genuinely irreducible part,
+present at all lengths, is the $O(\|\compdefect\|^2)$ defect residual
+(Theorem~\ref{thm:defect-unification}), small by comparison.  Imposing GGI
+reversibility $\insrate_0 y(1-x)=\delrate_0 x(1-y)$ (assumed throughout, and
+necessary for a stationary law) does \emph{not} make the fit exact: it constrains
+the rates but not the indivisible-fragment-versus-divisible-run mismatch, so
+$\compdefect\neq0$ for $\ext>0$; the fit is exact only in the TKF91 limit
+$x=y=0$ ($\ext=0$, Proposition~\ref{prop:ggi-fixed-line}).  The two limits
+bracket the flow: as
+$\evoltime\to0$ the
+surrogate tends to the identity and~\eqref{eq:ggi-natgrad} reduces to the
+projection of the bare GGI generator $\ggigen$ onto the TKF92 score directions
+(the instantaneous, generator-level match), while as $\evoltime\to\infty$ the
+read-off~\eqref{eq:ggi-readoff} tends to the equilibrium fit; the
+$\evoltime$-dependent interpolation between them is the content that the single
+moment match discards.
+
+\begin{remark}[Solvable limits]
+\label{rem:ggi-solvable}
+The full system~\eqref{eq:ggi-suffstat-ode}/\eqref{eq:ggi-param-ode} is
+non-autonomous (through $\alpha=e^{-\delrate\evoltime}$ and the
+$S+\evoltime$ denominator) and is not expected to integrate in elementary
+functions --- the same intractability that prevents a closed form for the GGI
+finite-time aligned-pair law itself \cite{Holmes2020}.  Closed form is available
+at the boundaries, however.  \emph{(i)}~The TKF91 line is exactly solvable:
+$\theta(\evoltime)\equiv(\insrate_0,\delrate_0,0)$
+(Proposition~\ref{prop:ggi-fixed-line}).  \emph{(ii)}~As $\evoltime\to0$ the
+flow reduces to the algebraic projection of the bare generator $\ggigen$ (the
+instantaneous match).  \emph{(iii)}~As $\evoltime\to\infty$ the surrogate descendant reaches
+stationarity ($\alpha\to0$) and $X,Z$ become independent equilibrium draws, so
+the fit reduces to matching the equilibrium \emph{length} law.  GGI's is a plain
+geometric ($P(\ell)\propto(x/y)^\ell$); TKF91's marginal is \emph{exactly} plain
+geometric, whereas TKF92's is zero-altered (PGF $(1-\kappa)(1-\ext z)/(1-wz)$,
+$w=\ext+(1-\ext)\kappa$).  The length match forces $\kappa=x/y$.  The limiting
+fragment parameter $\ext^\infty$ is \emph{not} fixed by this argument: the length
+marginal alone is matched by $\ext=0$ (TKF91, plain geometric), but the
+alignment-count m-projection need not agree at full divergence, where the
+alignment is degenerate (no homology, the ordering a free convention) and $\ext$
+is ill-conditioned.  The direct fits (below) settle it empirically: $\ext^\infty$
+is \emph{shape-dependent} --- the flow washes out to TKF91 ($\ext^\infty\!\to\!0$)
+at low indel density, but retains an interior fragment floor ($\ext^\infty\!>\!0$,
+up to $\approx0.3$) at high $\kappa$.
+\emph{(iv)}~The practical regime is moderate $\evoltime$ (real branch lengths),
+where $\ext$ is substantial; there the flow is captured by the empirical
+relaxation of the next paragraph.
+\end{remark}
+
+\paragraph{The rate scale as a first-order generator step.}
+The flow's rate scale has a one-line operator origin.  Infinitesimally, the
+composition that defines the flow is a single application of the GGI generator to
+the surrogate pair distribution --- the construction of \cite[Fig.~3]{Holmes2020},
+in which an infinitesimal evolutionary generator acts on a pair-HMM alignment
+distribution.  Advancing the descendant leg by $d\evoltime$ right-multiplies the
+surrogate kernel $\tkftrans'(\theta)$ by the GGI single step
+$I+d\evoltime\,\ggigen$,
+\begin{equation}
+\label{eq:ggi-step}
+\tkftrans'\;\longmapsto\;\tkftrans'\,(I+d\evoltime\,\ggigen)
+   =\tkftrans'+d\evoltime\,\tkftrans'\ggigen,
+\end{equation}
+so to first order the matched expected statistics move by the surrogate-averaged
+backward action of $\ggigen$ (Dynkin's formula),
+\begin{equation}
+\label{eq:ggi-dynkin}
+\dot{\bar N}_a=\mathbb E_{Q_\theta}\!\big[\ggigen^{\dagger}s_a\big],
+\qquad\dot\theta=J^{-1}\dot{\bar N},
+\end{equation}
+with $s_a$ the sufficient statistics and $J=\partial\bar N/\partial\theta$.  The
+rate scale is then an eigenvalue of $\ggigen^{\dagger}$.  Take the link count
+$L$: GGI's indel rates are affine in $L$ ($L{+}1$ gaps to insert into, $L$
+residues to delete), so the first moment closes and the centred length is an
+\emph{exact eigenfunction},
+\begin{equation}
+\label{eq:ggi-eigenmode}
+\ggigen^{\dagger}L=\insrate(L+1)-\delrate L=\insrate-(\delrate-\insrate)L
+\;\;\Longleftrightarrow\;\;
+\ggigen^{\dagger}\!\big(L-\ell_\infty\big)=-(\delrate-\insrate)\big(L-\ell_\infty\big),
+\quad\ell_\infty=\tfrac{\insrate}{\delrate-\insrate},
+\end{equation}
+with eigenvalue $-(\delrate-\insrate)$: the centred length relaxes at the spectral
+gap $\delrate-\insrate$.  In the length sector $\ggigen^{\dagger}$ has the exact
+spectrum $\{-n(\delrate-\insrate)\}_{n\ge0}$,\footnote{$\ggigen^{\dagger}$ maps
+polynomials in $L$ of degree $n$ to degree $n$, lower-triangularly: for $f=L^n$,
+$f(L{\pm}1)-f(L)=\pm nL^{n-1}+\cdots$, so the degree-$n$ coefficient of
+$\ggigen^{\dagger}L^n$ is $\insrate\,nL^n-\delrate\,nL^n=-n(\delrate-\insrate)L^n$.
+A triangular operator's eigenvalues are its diagonal, giving
+$-n(\delrate-\insrate)$ with monic eigenpolynomials $p_n$ of degree $n$ (the
+Meixner family of the geometric equilibrium): $p_0=1$ (eigenvalue $0$, probability
+conservation) and $p_1=L-\ell_\infty$.} the mean length ($n{=}1$) being the
+slowest.  This governs $\insrate,\delrate$: the m-projection pins the equilibrium
+length, so $\delrate\approx\bar\delrate$ and $\kappa$ (hence $\insrate$) are tied
+to a length that relaxes at $\delrate-\insrate$ and barely moves.
+
+The fragment parameter $\ext$, however, does \emph{not} inherit this rate.  $\ext$
+is \emph{intensive} --- a fragment-boundary density, invariant under uniform
+rescaling of length --- so it has essentially zero overlap with the
+\emph{extensive} $n{=}1$ mode $L-\ell_\infty$ ($\partial\ext/\partial L\approx0$).
+It couples instead to the shape modes ($n\ge2$, at $-2(\delrate-\insrate)$ and
+faster) and to local fragment-boundary churn (substitutions decouple, being
+content-independent; boundary rearrangements relax at the per-site rate
+$O(\delrate)$).  Direct measurement confirms $\ext$ relaxes \emph{faster} than
+$\delrate-\insrate$ and with no clean coefficient: across a GGI shape sweep the
+dimensionless ratio $k/(\delrate-\insrate)$ of the fitted $\ext$-rate to the
+length gap runs from $\approx0.9$ (low $\kappa$) to $\approx2.7$ (high $\kappa$),
+not unity and not a clean multiple.  So $\ext$ is the genuine running coordinate;
+$\insrate,\delrate$ merely follow the slow length, while $\ext$'s rate is
+$O(\delrate-\insrate)$ \emph{in scale only}.
+
+\paragraph{An empirical conversion.}
+Over the moderate-$\evoltime$ band the flow is effectively one-dimensional in
+$\ext$, with $\delrate\approx\bar\delrate$ constant and $\kappa,\insrate$ fixed by
+length conservation,
+\begin{equation}
+\label{eq:ggi-conserve}
+\kappa(\evoltime)=\frac{\ell_\ggi\,(1-\ext(\evoltime))}{1+\ell_\ggi\,(1-\ext(\evoltime))},
+\quad \insrate=\bar\delrate\,\kappa,\quad \ell_\ggi=\frac{x}{y-x}.
+\end{equation}
+Direct Gillespie fits $\theta^\ast(\evoltime)=\arg\min
+\dkl{\mathrm{GGI}(\evoltime)}{\mathrm{TKF92}}$ show $\ext(\evoltime)$ following a
+simple exponential relaxation to a floor,
+\begin{equation}
+\label{eq:ggi-closedform}
+\ext(\evoltime)=\ext_\infty+(\ext_0-\ext_\infty)\,e^{-k\evoltime},
+\end{equation}
+which tracks the measured trajectory to $\sim0.01$ in $\ext$.  The functional
+\emph{form} is robust; its three constants are \emph{empirical and
+shape-dependent}, with no closed form:
+\begin{itemize}
+\item the rate $k=O(\delrate-\insrate)$ in scale only --- the dimensionless ratio
+$k/(\delrate-\insrate)$ runs from $\approx0.9$ to $\approx2.7$ across GGI shapes
+(rising with $\kappa$), since $\ext$ is intensive and does not ride the length
+gap (above);
+\item the floor $\ext_\infty$ \emph{rises with $\kappa$}, from $\ext_\infty\!\approx\!0$
+at low indel density (the flow washes out to TKF91, $\ext\to0$) to
+$\ext_\infty\!\approx\!0.3$ at high $\kappa$ (a genuine fragment floor).  This
+settles the limiting-$\ext$ question of remark~(iii): \textbf{$\ext^\infty$ is
+shape-dependent}, neither universally $0$ nor universally interior;
+\item the generator match $\ext_0$ sets the $\evoltime\to0$ start.
+\end{itemize}
+Even as an empirical fit the conversion is worth having: it tracks the optimal
+$\theta^\ast(\evoltime)$ closely, so it inherits the optimal fit's KL advantage
+over the static moment match --- the avoidable excess $\Delta D(\evoltime)$ of
+eq.~\eqref{eq:ggi-excess}, which the homogeneous match pays and the
+$\evoltime$-dependent conversion removes.  (For
+$(\insrate_0,\delrate_0,x,y)=(0.55,1,0.4,0.55)$: $\ext_0\!\approx\!0.29$,
+$\ext_\infty\!\approx\!0.15$, $k\!\approx\!0.6$.)
+
+\subsection{What runs, what it costs, and what is universal}
+\label{sec:comp-ggi-portrait}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.74\textwidth]{ggi_flow_portrait}
+\caption{The GGI$\to$TKF92 flow in the $(\delrate,\ext)$ plane, for three GGI
+shapes (Gillespie direct fits $\theta^\ast(\evoltime)=\arg\min
+\dkl{\mathrm{GGI}(\evoltime)}{\mathrm{TKF92}}$).  Each trajectory descends in
+$\ext$ at nearly fixed $\delrate$, from the generator match $\ext(0)$ (open
+circle, $\evoltime\!\to\!0$) to a moderate-$\evoltime$ fit (filled circle,
+$\evoltime{=}4$).  The static moment match (stars) sits far away at much larger
+$\delrate$ and $\ext=x$.  Both flows descend in $\ext$ over the band; the figure
+shows the practical moderate-$\evoltime$ regime, where $\ext$ is still
+substantial.  The long-time floor $\ext^\infty$ is shape-dependent ($\to0$ at low
+indel density, interior at high $\kappa$).  The distance $\ext$ travels over the
+band shrinks as the GGI mean length $\ell_\ggi=x/(y-x)$ grows.}
+\label{fig:ggi-flow-portrait}
+\end{figure}
+
+Two features of the flow are robust across GGI parameters
+(Figure~\ref{fig:ggi-flow-portrait}).
+
+\emph{The flow is effectively one-dimensional.}  Numerically $\insrate,\delrate$
+move by only a few percent between $\evoltime=0$ and $\evoltime=\infty$, while
+$\ext$ carries essentially all of the running --- the baseline accrual rates
+$\insrate/(1-\kappa),\ \delrate\kappa/(1-\kappa),\ \kappa/(1-\kappa)$ that
+dominate $b_\ggi,d_\ggi,s_\ggi$ nearly cancel in the parameter
+ODE~\eqref{eq:ggi-param-ode}, leaving $\ext$ as the running coupling and
+$(\insrate,\delrate)$ tied to it (via length conservation,
+eq.~\eqref{eq:ggi-conserve}).  Across a shape sweep $\ext$ decreases from the
+generator match $\ext(0)$ --- already \emph{below} the moment-match value $x$ ---
+toward the shape-dependent floor $\ext^\infty$, relaxing on the indel timescale
+$1/(\delrate-\insrate)$ but at a shape-dependent rate with no clean coefficient
+(eq.~\eqref{eq:ggi-closedform}).  Over any finite band the
+decrease is partial, and
+the distance travelled shrinks as $\ell_\ggi$ grows: for long fragments the flow
+barely moves and a homogeneous (moment-matched) TKF92 suffices; for short
+fragments --- the protein-domain regime --- $\ext$ runs substantially and the
+$\evoltime$-dependence is essential.
+
+\emph{The cost of staying homogeneous is computable even though the residual is
+not.}  The relative entropy of the alignment law decomposes as
+$\dkl{\mathrm{GGI}(\evoltime)}{Q_\theta}=-H(\mathrm{GGI}(\evoltime))-\sum_{ss'}\bar
+N_{ss'}\log\tkftrans'_{ss'}(\theta)$, and the GGI alignment entropy
+$H(\mathrm{GGI})$ --- the intractable object --- is independent of $\theta$.  It
+therefore cancels in the \emph{excess} of the homogeneous moment match over the
+instantaneous best fit,
+\begin{equation}
+\label{eq:ggi-excess}
+\Delta D(\evoltime)
+  := \dkl{\mathrm{GGI}(\evoltime)}{\mathrm{TKF92}_{\mathrm{mm}}}
+   - \dkl{\mathrm{GGI}(\evoltime)}{\mathrm{TKF92}_{\theta^\ast(\evoltime)}}
+   = \sum_{ss'}\bar N_{ss'}\,
+     \log\frac{\tkftrans'_{ss'}(\theta^\ast)}{\tkftrans'_{ss'}(\theta_{\mathrm{mm}})}
+     \;\ge 0,
+\end{equation}
+which is exactly computable.  For the example $(\insrate_0,\delrate_0,x,y)=(0.55,1,0.4,0.55)$,
+$\Delta D$ rises to $\approx0.15$ nats per aligned column (about $10\%$ of the
+per-column cross-entropy) near $\evoltime\approx1$--$2$, and vanishes at both
+ends --- as $\evoltime\to0$ both fits collapse to the near-identity, and as
+$\evoltime\to\infty$ the alignment fully diverges and its law becomes
+insensitive to the parameters (even though $\theta_{\mathrm{mm}}$ stays far from
+$\theta_\infty$).  The \emph{irreducible} residual
+$\dkl{\mathrm{GGI}(\evoltime)}{\mathrm{TKF92}_{\theta^\ast}}$, the part no TKF92
+represents, requires the intractable $H(\mathrm{GGI})$ and is not computed here;
+but it is $O(\|\compdefect\|^2)=O(\evoltime^4)$
+(Theorem~\ref{thm:defect-unification}), so the moment match's penalty is mostly
+the avoidable excess~\eqref{eq:ggi-excess} that the instantaneous flow removes.
