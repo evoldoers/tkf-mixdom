@@ -1,6 +1,6 @@
 % implementations.tex — Appendix: Implementation Status & Validation
 % Auto-maintained by Claude Code. Update when tests/modules change.
-% Last updated: 2026-03-23
+% Last updated: 2026-06-24
 
 \section{Implementation Status and Validation}
 \label{sec:appendix-implementations}
@@ -10,7 +10,7 @@ described in this paper, including module structure, CLI tools,
 and the test suite used for validation.
 The source code is in \texttt{python/tkfmixdom/jax/}.
 All implementations use 64-bit floating point (via \texttt{jax.config.update("jax\_enable\_x64", True)}).
-As of the current revision, the test suite contains 2099 tests (all passing).
+As of the current revision, the test suite contains 2154 tests (all passing).
 The \texttt{vjp.py} module provides custom VJP wrappers for JAX-differentiable
 log-likelihood computation, using Forward--Backward expected counts and analytic
 score function derivatives in the backward pass.
@@ -22,7 +22,7 @@ The \texttt{tkfmixdom} Python package (Python $\geq$ 3.10, JAX $\geq$ 0.4) imple
 the full model hierarchy from TKF91 through the nested MixDom Pair HMM,
 the grammar elaboration framework, order-1 distillation,
 parse tree transducers, and beam-pruned phylogenetic inference.
-Table~\ref{tab:impl-modules} summarizes the 58 modules.
+Table~\ref{tab:impl-modules} summarizes the 100 modules.
 
 \begin{table}[htbp]
 \centering
@@ -35,28 +35,34 @@ Lines of code (LoC) are approximate.}
 \textbf{Module} & \textbf{Purpose} & \textbf{LoC} \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Core (\texttt{core/})}} \\
-\texttt{params.py} & TKF91/92 transition matrices (joint \& conditioned) & 126 \\
-\texttt{bdi.py} & BDI parameters, score derivatives, L'H\^opital limits, \texttt{bdi\_stats\_from\_counts} (eqs exposure-tkf--deaths-tkf), \texttt{m\_step\_indel\_quadratic} (eq kappa-quadratic) & 450 \\
-\texttt{ctmc.py} & JC69 rate matrix, bridge expectations, CTMC prior & 160 \\
+\texttt{params.py} & TKF91/92/MixDom BDI params; Pair/Singlet HMM transition matrices (incl.\ MixFrag) & 211 \\
+\texttt{bdi.py} & BDI parameters, score derivatives, L'H\^opital limits, \texttt{bdi\_stats\_from\_counts}, \texttt{m\_step\_indel\_quadratic} (eq~kappa-quadratic) & 969 \\
+\texttt{ctmc.py} & Finite-state CTMC transitions; Holmes--Rubin expected dwell/transition statistics & 571 \\
 \texttt{ctmc\_irreversible.py} & General eigendecomp.\ matrix exp., irreversible bridge expectations & 156 \\
-\texttt{protein.py} & LG substitution model, amino acid alphabets & 205 \\
-\texttt{protein\_gap.py} & LG+gap model (21-state) with gap as extra character & 219 \\
-\texttt{rna.py} & RNA 4-state alphabet, basepair definitions & 76 \\
-\texttt{types.py} & Shared type definitions, constants & 241 \\
+\texttt{protein.py} & Empirical protein substitution models (WAG, LG); amino-acid alphabets & 279 \\
+\texttt{protein\_gap.py} & 21-state LG08+gap model (gap as extra character) & 458 \\
+\texttt{protein\_gap40.py} & 40-state protein model with hidden gapped states & 420 \\
+\texttt{rna.py} & RNA 4-state alphabet; coarse-grained basepair context classes & 76 \\
+\texttt{site\_class\_profiles.py} & Fixed amino-acid frequency profiles (published sources) & 217 \\
+\texttt{types.py} & Shared typed parameters, sufficient statistics, grammar specs & 368 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Models (\texttt{models/})}} \\
-\texttt{left\_regular.py} & TKF91/92 Pair HMMs as left-regular grammars & 140 \\
-\texttt{mixdom.py} & Nested MixDom Pair HMM with null elimination & 408 \\
-\texttt{elaborated.py} & Elaborated grammar model construction & 783 \\
-\texttt{fully\_exploded.py} & Fully exploded MixDom (all null states explicit) & 446 \\
-\texttt{chi\_free.py} & Autograd-able collapsed chi builder from free params (eqs~\ref{eq:main-counts}--\ref{eq:var-counts} verification) & 200 \\
+\texttt{left\_regular.py} & TKF91/92 (and MixFrag) Pair/Singlet HMMs as left-regular grammars & 180 \\
+\texttt{mixdom.py} & Nested MixDom Pair HMM (domains, fragments, site classes) with null elimination & 423 \\
+\texttt{mixdom\_init.py} & MixDom2 parameter initialization from CLI args and priors & 321 \\
+\texttt{chi\_free.py} & Autograd-able collapsed chi builder from free params (eqs~\ref{eq:main-counts}--\ref{eq:var-counts}) & 243 \\
+\texttt{elaborated.py} & Elaborated-grammar TKF92/MixDom with explicit null states & 800 \\
+\texttt{fully\_exploded.py} & Fully exploded MixDom (all null states explicit) & 458 \\
 \texttt{elimination\_steps.py} & 6-step null elimination chain, vectorized restoration & 124 \\
-\texttt{exact\_suffstats.py} & Exact BDI suff.\ stats via chain restoration & 197 \\
-\texttt{compiled.py} & Compiled model implementations for DP & 899 \\
+\texttt{exact\_suffstats.py} & Exact BDI suff.\ stats via chain restoration & 386 \\
+\texttt{exact\_suffstats\_batch.py} & Batched null-elimination chain for MixDom suff.\ stats & 541 \\
+\texttt{compiled.py} & CompiledModel implementations for TKF91/92, MixDom, TKFST & 922 \\
+\texttt{context\_free.py} & TKFST singlet \& pair SCFGs (Section~7.3); IO, Rate EM, distillation & 2135 \\
+\texttt{order1\_scfg.py} & Order-1 singlet SCFG (10 NTs, 7-class context) & 169 \\
 \texttt{rna\_grammar.py} & RNA stem-loop SCFG, compound terminal encoding & 811 \\
-\texttt{tkf\_grammar.py} & TKF grammar construction via elaboration rules & 584 \\
-\texttt{context\_free.py} & TKFST pair SCFG (Section~7.3), IO, Rate EM, distillation & 2135 \\
-\texttt{order1\_scfg.py} & Order-1 singlet SCFG (10 NTs, 260 rules) & 169 \\
+\texttt{tkf\_grammar.py} & TKF grammar construction via elaboration rules & 596 \\
+\texttt{annabel\_mixdom.py} & Load Annabel-trained MixDom params; build Pair HMM & 944 \\
+\texttt{annabel\_to\_mixdom2.py} & Convert Annabel hierarchical params to MixDom2 flat classes & 221 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Grammar (\texttt{grammar/})}} \\
 \texttt{scfg.py} & WCFG/SCFG: Inside/Outside/CYK, epsilon elimination & 786 \\
@@ -64,73 +70,88 @@ Lines of code (LoC) are approximate.}
 \texttt{compile.py} & Null removal/restoration for grammar compilation & 189 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{DP algorithms (\texttt{dp/})}} \\
-\texttt{hmm.py} & Forward/Viterbi 1D \& 2D, padded FB, \texttt{safe\_log} & 1316 \\
-\texttt{hmm\_beam.py} & Beam forward/backward for Pair HMMs & 563 \\
+\texttt{hmm.py} & Forward/backward/Viterbi 1D \& 2D, antidiagonal wavefront, padded FB & 2525 \\
+\texttt{hmm\_beam.py} & Beam forward/backward for Pair HMMs with envelope & 563 \\
 \texttt{scfg\_beam.py} & Phylogenetic Inside/Outside via WPTT pushing & 2390 \\
 \texttt{scfg\_factored.py} & Factored Inside-Outside for SCFG $\times$ WPTT & 1681 \\
+\texttt{singlet\_forward.py} & Singlet HMM forward for scoring individual sequences & 83 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Training (\texttt{train/})}} \\
-\texttt{em\_tkf.py} & Baum--Welch EM for TKF models & 1028 \\
-\texttt{em\_mixdom.py} & EM for nested MixDom model & 1207 \\
-\texttt{em.py} & Generic EM framework & 188 \\
-\texttt{vjp.py} & Custom VJP wrappers (joint \& conditioned) with log-posterior & 370 \\
-\texttt{adam\_mixdom.py} & Adam optimizer for MixDom training & 416 \\
-\texttt{likelihood.py} & Uniform differentiable LL API (observed + Q-function) & 210 \\
-\texttt{constrained.py} & Constrained optimization utilities & 264 \\
-\texttt{fit.py} & Pairwise TKF fitting pipeline & 167 \\
-\texttt{optimizer.py} & Optimizer abstractions & 107 \\
-\texttt{restricted\_mstep.py} & Rate-rescaling, tied-pi, and banded fragdist/ext M-step variants (sec.~\ref{sec:mstep-rescaling}, \ref{sec:mstep-tied-pi}) & 270 \\
-\texttt{tkf92\_svi\_bw.py} & Pure-TKF92 SVI Baum--Welch (vmap'd batched 2D F--B over a bin-bucketed minibatch + per-pair-$t$ suff stats + closed-form $\kappa$-quadratic M-step) & 756 \\
-\texttt{tkf92\_adam\_fb.py} & Pure-TKF92 Adam-on-F--B (vmap'd batched joint $(\lambda, \mu, \mathrm{ext})$ loss; GGI prior-swap option) & 649 \\
+\texttt{em.py} & Generic EM for CompiledModel with suff-stat aggregation & 190 \\
+\texttt{vjp.py} & Custom VJP wrappers (joint \& conditioned) with analytic score function & 1438 \\
+\texttt{likelihood.py} & Uniform differentiable LL API (observed + Q-function) & 1028 \\
+\texttt{constrained.py} & Alignment-constrained training (TKF91/92, MixDom) via associative scan & 456 \\
+\texttt{fit.py} & Pairwise TKF fitting pipeline (closed-form M-step) & 173 \\
+\texttt{optimizer.py} & EM optimizer abstractions with closed-form M-step & 107 \\
+\texttt{early\_stopping.py} & Patience-based early stopping on a validation metric & 83 \\
+\texttt{pseudocounts.py} & Posterior pseudocounts for SVI Baum--Welch & 332 \\
+\texttt{restricted\_mstep.py} & Rate-rescaling, tied-pi, banded fragdist/ext M-step variants (sec.~\ref{sec:mstep-rescaling}, \ref{sec:mstep-tied-pi}) & 716 \\
+\texttt{adam\_train.py} & Adam over BDI suff stats with parameter transforms & 432 \\
+\texttt{tkf92\_svi\_bw.py} & Pure-TKF92 SVI Baum--Welch (vmap'd batched 2D F--B, bin-bucketed minibatch, per-pair-$t$, $\kappa$-quadratic M-step) & 756 \\
+\texttt{tkf92\_adam\_fb.py} & Pure-TKF92 Adam-on-F--B (joint $(\lambda, \mu, \mathrm{ext})$ loss; GGI prior-swap) & 653 \\
+\texttt{tkf92\_padded\_elbo.py} & Padded ELBO for plain-TKF92 svi-VarAnc (GPU-friendly JIT caching) & 433 \\
+\texttt{tkf92\_vbem.py} & VBEM training for plain TKF92 ancestral reconstruction & 506 \\
+\texttt{tree\_vbem.py} & Tree-VBEM for MixDom (per-family E-step, closed-form M-step) & 2457 \\
+\texttt{mixfrag\_svi\_bw.py} & MixFrag SVI Baum--Welch (per-fragtype $F_f,E_f$; Beta/Dirichlet M-steps) & 454 \\
+\texttt{mixfrag\_cherry\_em.py} & MixFrag summarised-count exact EM (supp.~B.6; associative-scan run factor, lax.scan gap DP) & 624 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Distillation (\texttt{distill/})}} \\
 \texttt{hmm.py} & Order-1 HMM/WFST distillation & 473 \\
-\texttt{maraschino.py} & Algebraic distillation via Woodbury identity & 713 \\
-\texttt{maraschino\_fit.py} & MixDom cherry-count likelihood + raw $\leftrightarrow$ linear param conversion & 510 \\
-\texttt{tkf92\_mixture.py} & K-component TKF92 mixture EM (Maraschino-style) & 700 \\
-\texttt{banded\_mixture.py} & K-component banded MixDom mixture EM (Phase 2 of FragStart/FragMid/FragEnd pipeline; sec.~\ref{sec:mstep-tied-pi}) & 360 \\
-\texttt{scfg.py} & Order-1 SCFG distillation with 4-position context & 813 \\
+\texttt{maraschino.py} & Algebraic distillation of MixDom to order-1 WFST + singlet HMM (Woodbury) & 1680 \\
+\texttt{maraschino\_fit.py} & MixDom2 cherry-count likelihood with class-mixture emissions & 898 \\
+\texttt{tkf92\_mixture.py} & K-component mixture-of-TKF92 fit on per-family cherry counts & 694 \\
+\texttt{banded\_mixture.py} & K-component banded MixDom2 mixture fit (hard assignment; sec.~\ref{sec:mstep-tied-pi}) & 771 \\
+\texttt{scfg.py} & Order-1 SCFG distillation with context dependence & 813 \\
 \texttt{wptt.py} & Weighted Parse Tree Transducer (246 states) & 424 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Tree algorithms (\texttt{tree/})}} \\
-\texttt{felsenstein.py} & Felsenstein pruning, tree likelihood & 169 \\
-\texttt{ancestor.py} & Viterbi \& progressive ancestral reconstruction & 649 \\
-\texttt{progrec\_felsenstein.py} & Profile-based ProgRec with order-1 WFST DP & 2163 \\
-\texttt{progrec\_dag\_dp.py} & DAG-aware Viterbi/Forward for recognizer profiles & 729 \\
-\texttt{progrec\_recognizer.py} & DAG recognizer for ProgRec (construction, compression) & 831 \\
-\texttt{beam\_msa.py} & Beam-pruned MSA likelihood & 301 \\
-\texttt{compose\_intersect.py} & WFST composition+intersection for ProgRec & 420 \\
-\texttt{fsa\_anneal.py} & FSA sequence annealing (pairwise posteriors) & 600 \\
-\texttt{constrained\_beam\_msa.py} & BeamMSA with ancestral gap constraints & 331 \\
-\texttt{beam\_msa\_labeled.py} & Labeled BeamMSA with domain annotations & 350 \\
-\texttt{progrec\_labeled.py} & Labeled ProgRec with domain annotations & 450 \\
-\texttt{guide\_tree.py} & NJ, UPGMA, and star guide trees & 360 \\
-\texttt{compose.py} & Transducer composition for trees & 257 \\
-\texttt{compose\_wptt\_rec.py} & WPTT $\times$ Recognizer factored DP & 308 \\
-\texttt{recognizer.py} & Leaf recognizer (span-based, consensus fallback) & 437 \\
-\texttt{intersect.py} & Sibling recognizer intersection & 112 \\
+\texttt{felsenstein.py} & Felsenstein pruning, TKF91 tree likelihood & 169 \\
+\texttt{ancestor.py} & Pairwise/progressive/marginal ancestral reconstruction (Viterbi) & 874 \\
 \texttt{progressive.py} & Progressive reconstruction pipeline (SCFG) & 144 \\
+\texttt{progrec\_felsenstein.py} & Profile-based ProgRec with Felsenstein optimization & 2145 \\
+\texttt{recognizer.py} & Leaf recognizer (span-based, consensus fallback) & 437 \\
 \texttt{transducer.py} & Parse tree transducer, Pair SCFG Inside & 554 \\
-\texttt{profile\_compress.py} & Profile SCFG compression (subtree sharing) & 612 \\
-\texttt{partition\_recon.py} & Partition-conditioned reconstruction with $D{\times}F$ fragment tracking (ref) & 1388 \\
-\texttt{partition\_recon\_jax.py} & Partition-conditioned reconstruction (JAX vectorised) & 459 \\
+\texttt{compose.py} & SCFG $\times$ WPTT $\times$ Recognizer composition & 257 \\
+\texttt{compose\_wptt\_rec.py} & WPTT $\times$ Recognizer factored DP & 308 \\
+\texttt{intersect.py} & Sibling recognizer intersection & 112 \\
+\texttt{profile\_compress.py} & Profile SCFG compression (hash-consing, minimization, span merging) & 612 \\
+\texttt{partition\_recon.py} & Partition-conditioned reconstruction with $D{\times}F$ fragment tracking (ref) & 1408 \\
+\texttt{partition\_recon\_jax.py} & Partition-conditioned reconstruction (JAX vectorised) & 1012 \\
+\texttt{composite\_beam.py} & Composite-likelihood beam search for ancestral reconstruction & 612 \\
+\texttt{composite\_beam\_jax.py} & JAX-vectorized composite-likelihood beam search & 815 \\
+\texttt{msa\_constrained\_viterbi.py} & MSA-constrained Viterbi (associative-scan tropical DP) & 334 \\
+\texttt{fsa\_anneal.py} & FSA sequence annealing for progressive MSA & 2433 \\
+\texttt{guide\_tree.py} & NJ/UPGMA/star guide trees from pairwise TKF92 distances & 431 \\
+\texttt{tree\_varanc.py} & Product-of-trees variational ancestral inference with WFST factors & 2587 \\
+\texttt{varanc\_presence.py} & Mixture-of-trees VarAnc for TKF92 (presence/absence posteriors) & 808 \\
+\texttt{varanc\_presence\_mixdom.py} & Mixture-of-trees VarAnc for MixDom (presence, domain tuples) & 843 \\
+\texttt{triad\_1d.py} & 1D triad HMM for MSA-indexed parent-presence inference & 217 \\
+\texttt{triad\_gap\_inference.py} & Triad HMM for phylogenetic gap/presence inference (sibling pairs) & 722 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Simulation (\texttt{simulate/})}} \\
-\texttt{simulate.py} & Stochastic TKF91/92 sequence evolution & 374 \\
+\texttt{simulate.py} & Stochastic TKF91/92 sequence evolution & 429 \\
 \texttt{evolve.py} & Pair HMM evolver via Forward traceback (plain TKF) & 174 \\
-\texttt{pair\_hmm.py} & Pair HMM simulation utilities & 269 \\
-\texttt{msa.py} & MSA generation from simulated evolution & 145 \\
-\texttt{labeled\_utils.py} & Shared utilities for the MixDom fully-labeled simulators & 230 \\
-\texttt{collapsed\_mixdom.py} & Simulator A: collapsed pair-HMM categorical sampler & 379 \\
-\texttt{labeled\_mixdom.py} & Simulator B: hierarchical Gillespie with full sufficient-statistic tracking & 602 \\
+\texttt{pair\_hmm.py} & Generic Pair HMM simulator (backward-guided forward sampling) & 269 \\
+\texttt{msa.py} & MSA likelihood by scanning alignment columns along a tree & 145 \\
+\texttt{labeled\_utils.py} & Shared utilities for fully-labeled MixDom2 simulators & 234 \\
+\texttt{collapsed\_mixdom2.py} & Simulator A: collapsed pair-HMM categorical sampler (labeled trajectory) & 379 \\
+\texttt{mixdom\_gillespie.py} & Simulator B: hierarchical Gillespie for MixDom2 on trees & 1672 \\
+\texttt{tree\_mixdom.py} & Tree-based MixDom2/TKF92 simulator with labeled lineage tracking & 267 \\
+\texttt{mixture\_sites.py} & Mixture-of-sites GTR substitution simulator (per-site classes) & 163 \\
+\texttt{mixfrag\_sim.py} & Forward-generative MixFrag cherry sampler (latent fragtypes; true alignment) & 117 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Evaluation (\texttt{evaluate/})}} \\
 \texttt{metrics.py} & Centralized scoring: NW identity, SP/TC scores, annotation accuracy & 251 \\
 \texttt{io.py} & Pipeline intermediate file I/O (NPZ+JSON, no data leakage) & 165 \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Utilities (\texttt{util/})}} \\
-\texttt{io.py} & FASTA, Stockholm, Newick I/O & 324 \\
+\texttt{io.py} & FASTA, Stockholm, Newick I/O; sequence-integer conversion & 331 \\
 \texttt{data.py} & Pfam/Rfam/UniProt data download & 459 \\
+\texttt{bio\_datasets.py} & Bio-datasets integration for reproducible fetching/symlinking & 121 \\
+\texttt{padding.py} & Geometric-bin padding for JIT cache reuse & 61 \\
+\texttt{pair\_format.py} & Compact X/A/Y encoding for precompiled MixDom training pairs & 223 \\
+\texttt{pair\_loader.py} & Streaming loader for zstd-compressed precompiled pair shards & 329 \\
+\texttt{sto\_index.py} & Fast random-access Stockholm via byte-offset indexing & 83 \\
 \texttt{timing.py} & Timing utilities for benchmarks & 123 \\
 \bottomrule
 \end{tabular}
@@ -171,6 +192,17 @@ to sequence evolution:
   \texttt{fit} (optimize MixDom params via Adam/L-BFGS),
   \texttt{distill} (generate order-1 Pair WFST / Singlet HMM),
   \texttt{fetch} (download Pfam Stockholm alignments).
+
+\item[\texttt{build\_mixfrag\_cherry\_counts.py} / \texttt{train\_mixfrag\_cherry\_em.py}]
+  Two-step MixFrag training (supp.~B.6). The builder turns Pfam cherry
+  alignments into per-family alignment-summary count tensors
+  ($N_{\mathrm{match}}(k)$, $N_{\mathrm{gap}\to M}(i,j)$, $N_{\mathrm{gap}\to E}(i,j)$,
+  start/end/empty, substitution counts; sparse, $\tau$-binned, multiprocessed).
+  The trainer aggregates the chosen families and fits $(\lambda,\mu,\{r_f\},\{w_f\})$
+  by the exact summarised-count EM with $(Q,\pi)$ fixed (LG08), in time
+  independent of corpus size.
+  Options: \texttt{-{}-split-file}, \texttt{-{}-split}, \texttt{-{}-val-split},
+  \texttt{-{}-n-fragtypes}, \texttt{-{}-max-gap}, \texttt{-{}-checkpoint}.
 \end{description}
 
 \subsection{Key Algorithms and Their Implementation}
@@ -380,8 +412,13 @@ $t$ — the central test condition for the per-pair-$t$ regression suite.
 \subsection{Test Suite}
 \label{sec:impl-tests}
 
-The test suite (2099 tests, all passing) validates correctness
-at multiple levels.
+The test suite (2154 tests, all passing) validates correctness
+at multiple levels, organised into \texttt{level1\_smoke/} (fast unit
+checks), \texttt{level2\_structural/} (model construction and DP
+properties), \texttt{level3\_thorough/} (recovery, cross-validation,
+and the \texttt{statistical/} subsuite), and \texttt{level4\_rigorous/}
+(autodiff/score-identity gradient identities), plus \texttt{benchmarks/}
+and a few top-level files.
 Tests are run with \texttt{python3.12 -m pytest tests/} from the
 \texttt{python/} directory.
 Table~\ref{tab:impl-tests} lists all test files with counts and descriptions.
@@ -389,94 +426,150 @@ Table~\ref{tab:impl-tests} lists all test files with counts and descriptions.
 \begin{table}[htbp]
 \centering
 \small
-\caption{Test suite summary. Statistical tests are in \texttt{tests/statistical/}.}
+\caption{Test suite summary, grouped by rigour level (\texttt{tests/levelN\_*/}).}
 \label{tab:impl-tests}
 \begin{tabular}{@{}lrl@{}}
 \toprule
 \textbf{Test file} & \textbf{$n$} & \textbf{What is validated} \\
 \midrule
-\multicolumn{3}{@{}l}{\emph{Core model}} \\
-\texttt{test\_params} & 9 & $\alpha, \beta, \gamma, \kappa$; row sums; TKF92$\to$91 \\
-\texttt{test\_indel} & 42 & L'H\^opital limits; finite diff; Gillespie BDI; conservation law \\
-\texttt{test\_subst} & 10 & JC69 rate matrix; $P(t)$ properties; bridge expectations \\
-\texttt{test\_subst\_irreversible} & 17 & General eigendecomp.; irreversible bridge expectations; $\eqm$ recovery \\
-\texttt{test\_dp} & 13 & Forward on identical/different; Fwd $\geq$ Viterbi \\
-\texttt{test\_dp\_sampling} & 5 & Stochastic traceback validity and diversity \\
-\texttt{test\_msa} & 4 & Pair emission; fixed-alignment likelihood \\
-\texttt{test\_vjp} & 11 & Custom VJP vs.\ autodiff; TKF91/92 gradients \\
-\texttt{test\_em} & 5 & E-step counts; EM iteration; likelihood progression \\
-\texttt{test\_em\_mixdom} & 4 & MixDom EM training; parameter recovery \\
-\texttt{test\_mixdom} & 5 & Nested Pair HMM; $n\_\text{states}(D,F)$; row sums \\
-\texttt{test\_protein\_models} & 16 & WAG/LG rate matrices; reversibility \\
-\texttt{test\_protein\_gap} & 12 & LG+gap model; gap-as-character vs.\ gap-as-missing \\
+\multicolumn{3}{@{}l}{\emph{Level 1 --- Smoke (\texttt{level1\_smoke/})}} \\
+\texttt{test\_adam\_loss\_phase5} & 11 & Adam loss and step updates in E-step/SVI-BW training \\
+\texttt{test\_adam\_mixdom2\_param\_transforms} & 2 & MixDom2 unconstrained$\leftrightarrow$constrained parameter transform roundtrips \\
+\texttt{test\_compiled\_model} & 22 & CompiledModel aligned pytrees, BDI scoring, exact EM M-steps \\
+\texttt{test\_constrained\_emit\_jax\_vs\_numpy} & 1 & JAX 1D constrained emission vs.\ NumPy reference \\
+\texttt{test\_constrained\_log\_prob\_mixdom1} & 4 & 1D MixDom alignment-aware log-likelihood and gradients \\
+\texttt{test\_constrained\_log\_prob\_mixdom2} & 3 & 1D MixDom2 per-fragment site-class log-likelihood and gradients \\
+\texttt{test\_ctmc\_pade} & 4 & Pad\'e matrix exponential removes \texttt{eigh}-VJP symmetrization artifact \\
+\texttt{test\_ctmc\_S\_pi\_parameterization} & 14 & GTR $Q{=}Q(S,\pi)$ composition and transition-matrix derivatives \\
+\texttt{test\_data} & 4 & Sequence-pair preparation utilities; \texttt{max\_pairs} limiting \\
+\texttt{test\_evaluate\_metrics} & 17 & Alignment metrics: Needleman--Wunsch, domain/frag/class accuracy \\
+\texttt{test\_fb\_1d\_scan\_mode} & 3 & Sequential 1D-FB scan-mode equivalence with associative-scan path \\
+\texttt{test\_fb\_scan\_mode} & 7 & FB scan-mode flag resolution and cross-mode equivalence \\
+\texttt{test\_integration} & 7 & Full pipeline: simulate, fit, reconstruct, Viterbi consistency \\
+\texttt{test\_io} & 15 & FASTA/Stockholm/Newick I/O; alphabet conversions \\
+\texttt{test\_jax\_vs\_numpy\_constrained\_emit} & 2 & Per-class/per-domain JAX emissions match NumPy reference \\
+\texttt{test\_log\_prior} & 5 & Log-prior matches M-step pseudocounts for objective verification \\
+\texttt{test\_maraschino\_freeze} & 5 & Freeze flags preserve parameter groups in Maraschino MixDom2 fit \\
+\texttt{test\_mixdom2\_checkpoint\_migration} & 2 & Legacy shared-$S$ checkpoint loads as per-class $S$ \\
+\texttt{test\_mixdom\_init\_refactor} & 5 & Shared MixDom2 init gives deterministic seed-comparable params \\
+\texttt{test\_pair\_format} & 19 & RLE encoding, pair-format roundtrips, alignment-to-states consistency \\
+\texttt{test\_partition\_recon\_felsenstein\_pt\_cache} & 22 & Felsenstein $P(t)$-cache matches reference computation \\
+\texttt{test\_t\_grad\_phase5b} & 10 & Chi-side $d_t$ in public-API wrapper VJPs across all seven models \\
+\texttt{test\_train\_pfam\_loads\_mixdom2\_warm\_init} & 2 & \texttt{train\_pfam} loads Maraschino per-class params from checkpoint \\
+\texttt{test\_unit\_normalized\_warning} & 4 & Unit-normalized rate-matrix warning per \texttt{acknowledged\_lossy} flag \\
+\texttt{test\_wildcard} & 8 & Wildcard residue maps unknown AAs to marginalized probabilities \\
 \midrule
-\multicolumn{3}{@{}l}{\emph{Grammar \& elaboration}} \\
-\texttt{test\_grammar} & 19 & WCFG construction; nullability; Inside/Outside/CYK \\
-\texttt{test\_grammar\_lr} & 16 & Left-linear, LR-linear production types \\
-\texttt{test\_grammar\_dp} & 4 & JAX Inside matches numpy; differentiability \\
-\texttt{test\_tkf\_grammar} & 22 & TKF singlet/pair grammars; Inside $=$ Forward \\
-\texttt{test\_elaborated} & 159 & Elaborated grammar; exact suff.\ stats; phantom events \\
-\texttt{test\_compiled\_model} & 17 & Compiled model DP; forward/backward consistency \\
-\texttt{test\_tree\_transducer} & 22 & Parse trees; CYK$\to$tree; Pair SCFG Inside \\
-\texttt{test\_rna\_scfg} & 37 & RNA stem-loop SCFG; compound terminals \\
-\texttt{test\_scfg\_distill} & 13 & Context-dependent distillation; beam Inside \\
-\texttt{test\_distill} & 18 & Null closure; order-1 HMM distillation \\
-\texttt{test\_tkfst\_grammar} & 92 & TKFST singlet/pair SCFG; Inside/Outside; EM; distillation \\
-\texttt{test\_maraschino} & 53 & CherryML-like MixDom training; Woodbury distillation \\
-\midrule
-\multicolumn{3}{@{}l}{\emph{Parse tree transducers}} \\
-\texttt{test\_rna\_context} & 12 & 7-class basepair context; canonical pairs \\
-\texttt{test\_order1\_scfg} & 18 & 10-NT SCFG; production types; weights \\
-\texttt{test\_wptt} & 23 & 246-state WPTT; rule types; TKF weights \\
-\texttt{test\_recognizer} & 27 & Leaf recognizer; banding; consensus fallback \\
-\texttt{test\_compose\_wptt\_rec} & 7 & WPTT $\times$ Recognizer composition \\
-\texttt{test\_scfg\_compose} & 7 & SCFG $\times$ WPTT materialized composition \\
-\texttt{test\_factored\_dp} & 64 & Factored SCFG $\times$ WPTT Inside-Outside; detailed counts \\
-\texttt{test\_intersect} & 5 & Sibling recognizer intersection \\
-\texttt{test\_progressive} & 7 & Progressive reconstruction pipeline \\
-\midrule
-\multicolumn{3}{@{}l}{\emph{Beam inference}} \\
+\multicolumn{3}{@{}l}{\emph{Level 2 --- Structural (\texttt{level2\_structural/})}} \\
+\texttt{test\_banded\_mixture} & 11 & Banded MixDom2 mixture fit: init, LL, counts, checkpoint stacking \\
 \texttt{test\_beam} & 19 & Beam $\leq$ exact; wider $\to$ tighter; envelope \\
-\texttt{test\_beam\_scfg} & 120 & Phylo Inside/CYK; CYK traceback; Outside; \\
-& & posteriors; SCFG weights; cross-validation \\
-\texttt{test\_beam\_msa} & 11 & Beam-pruned MSA likelihood; profile scoring \\
+\texttt{test\_dp} & 13 & TKF91/92 forward, backward, Viterbi, banding \\
+\texttt{test\_dp\_sampling} & 5 & Stochastic forward traceback path validity and diversity \\
+\texttt{test\_em} & 4 & Baum--Welch E-step/M-step via CompiledModel protocol \\
+\texttt{test\_evolve} & 10 & Sequence evolution via stochastic forward traceback \\
+\texttt{test\_extract\_full\_msa} & 9 & MSA extraction with internal-node presence integration \\
+\texttt{test\_grammar\_dp} & 4 & JAX grammar DP Inside/logprob cross-verification \\
+\texttt{test\_grammar\_lr} & 16 & Left-linear and LR-linear production types \\
+\texttt{test\_grammar} & 19 & WCFG Inside/Outside/CYK, nullability, epsilon elimination \\
+\texttt{test\_guide\_tree} & 13 & TKF92 distance-based guide tree and pairwise distances \\
+\texttt{test\_guide\_trees} & 19 & UPGMA ultrametric and star tree topology construction \\
+\texttt{test\_likelihood} & 30 & Uniform likelihood API (observed/expected LL, E-step, subst suff stats) \\
+\texttt{test\_ll\_consistency} & 3 & Training-E-step LL consistency with val-eval LL on same pairs \\
+\texttt{test\_maraschino\_banded\_fit} & 3 & Maraschino banded-frag-init Adam loop preserving structural zeros \\
+\texttt{test\_mixdom2\_per\_class\_capacity} & 3 & Per-class $S$ generalises shared-$S$ with independent exchangeability \\
+\texttt{test\_mixdom2} & 15 & $F{=}1$/diagonal MixDom2 equivalence to MixDom1; non-diagonal stochasticity \\
+\texttt{test\_mixdom} & 35 & MixDom nested Pair HMM construction and compound state indexing \\
+\texttt{test\_mixture\_mstep} & 8 & Per-class gamma + shared-$S$ M-step via Holmes--Rubin stats \\
+\texttt{test\_mstep\_monotone\_pseudocount} & 37 & M-step monotonicity: closed-form updates maximise fixed-pseudocount objective \\
+\texttt{test\_params} & 9 & TKF $\alpha/\beta/\gamma/\kappa$ computations and row normalization \\
+\texttt{test\_per\_pair\_t\_coherence} & 8 & Per-pair-$t$ coherence in chi and substitution emissions \\
+\texttt{test\_protein\_gap} & 12 & LG08+gap 21-state model properties and rate-matrix structure \\
+\texttt{test\_protein\_models} & 16 & WAG/LG rate matrices and reversibility \\
+\texttt{test\_recognizer} & 27 & Leaf recognizer state count and span computation \\
+\texttt{test\_rescale\_class\_S} & 5 & Rate-rescale parameterization: log-sigma only, frozen $S$ shape \\
+\texttt{test\_rescaling} & 5 & Felsenstein rescaling on deep trees prevents underflow \\
+\texttt{test\_restricted\_mstep} & 32 & Substitution M-step variants: rescaling, tied-pi blocks, banded masks \\
+\texttt{test\_rna\_context} & 12 & RNA base-pair context classification (WC, wobble, non-canonical) \\
+\texttt{test\_rna\_scfg} & 37 & RNA SCFG infrastructure: stem-loop grammar, profiles, pair evolution \\
+\texttt{test\_subst\_irreversible} & 17 & Irreversible CTMC stationary distribution and Holmes--Rubin integrals \\
+\texttt{test\_subst} & 15 & Substitution Holmes--Rubin integrals and class responsibilities \\
+\texttt{test\_svi\_ema\_prior\_equivalence} & 4 & Prior-inside-EMA vs.\ prior-at-M-step equivalence (conjugate updates) \\
+\texttt{test\_tree} & 8 & Tree Felsenstein pruning and pairwise log-probability \\
+\texttt{test\_vectorized\_felsenstein} & 9 & Vectorized (vmap) Felsenstein matches column-by-column loop \\
 \midrule
-\multicolumn{3}{@{}l}{\emph{Phylogenetics \& progressive alignment}} \\
-\texttt{test\_tree} & 8 & Felsenstein pruning; gap-as-missing \\
-\texttt{test\_rescaling} & 5 & Deep trees (20--50 taxa) without underflow \\
-\texttt{test\_ancestor} & 14 & Viterbi/sampling reconstruction; tree traversal \\
-\texttt{test\_partition\_recon} & 29 & Partition-conditioned reconstruction: forward $=$ backward; TKF92 cross-validation; Python $=$ JAX; $D{\times}F$ fragment tracking; intra-block backward $F{\cdot}B = G$; class-dependent emission; ext$>$0 consistency \\
-\texttt{test\_inside\_guided} & 15 & Posterior ancestral; beam refinement \\
-\texttt{test\_progrec\_felsenstein} & 25 & ProgRec profile alignment; MSA extraction; recognizer sampling \\
-\texttt{test\_progrec\_mixdom} & 21 & Order-1 WFST distillation; context-dependent DP; MixDom ProgRec \\
-\texttt{test\_progrec\_dag\_dp} & 18 & DAG-aware Viterbi/Forward; leaf DAG; MSA extraction \\
-\texttt{test\_progrec\_recognizer} & 29 & DAG recognizer; construction; compression; MSA invariant \\
-\texttt{test\_guide\_tree} & 13 & TKF92 distance estimation; NJ tree; guide tree pipeline \\
-\texttt{test\_evolve} & 10 & Stochastic evolution; TKF92$\to$91; length dist.\ \\
-\texttt{test\_io} & 15 & FASTA/Stockholm/Newick roundtrip \\
-\texttt{test\_data} & 4 & Sequence encoding; data fetch \\
-\texttt{test\_fit} & 7 & Pairwise fitting; branch length estimation \\
-\texttt{test\_integration} & 7 & Simulate $\to$ Fit $\to$ Reconstruct roundtrip \\
-\texttt{test\_cross\_validation} & 15 & Grammar $=$ Forward; JAX $=$ numpy \\
-\texttt{test\_benchmark} & 15 & Benchmark framework; performance regression \\
+\multicolumn{3}{@{}l}{\emph{Level 3 --- Thorough (\texttt{level3\_thorough/}, incl.\ \texttt{statistical/})}} \\
+\texttt{statistical/test\_bdi\_stats} & 16 & BDI conservation law and score derivatives across regimes \\
+\texttt{statistical/test\_general\_bdi} & 35 & General BDI expected statistics and conservation law \\
+\texttt{statistical/test\_holmes\_rubin} & 8 & Holmes--Rubin analytic expected stats vs.\ CTMC path simulation \\
+\texttt{test\_ancestor} & 14 & Ancestral reconstruction: pairwise and progressive \\
+\texttt{test\_beam\_scfg} & 120 & Beam SCFG Inside/Outside via WPTT pushing; posteriors \\
+\texttt{test\_compose\_wptt\_rec} & 7 & WPTT $\times$ leaf-recognizer composition structure \\
+\texttt{test\_cross\_validation} & 15 & Grammar/HMM/pair-SCFG/evolver implementation consistency \\
+\texttt{test\_distillation\_adjacency} & 3 & MixDom distillation vs.\ order-1 HMM adjacency frequencies \\
+\texttt{test\_distill} & 18 & Order-1 distillation null-state elimination and effective emission \\
+\texttt{test\_elaborated} & 123 & TKF92/MixDom elaboration null elimination and count decomposition \\
+\texttt{test\_em\_around\_cherryml} & 3 & EM-around-CherryML site-class mixture recovery \\
+\texttt{test\_em\_around\_cherryml\_recovery} & 2 & Synthetic recovery of site-class mixture parameters \\
+\texttt{test\_fsa\_anneal} & 39 & FSA sequence annealing pair selection, posterior, alignment \\
+\texttt{test\_fsa\_consistency} & 13 & ProbCons consistency transform of FSA pair posteriors (formula, fast-path, sharpening, integration) \\
+\texttt{test\_fsa\_debug} & 19 & FSA DAG column merging and BAliBASE alignment quality \\
+\texttt{test\_inside\_guided} & 15 & Inside-guided progressive reconstruction with posterior matching \\
+\texttt{test\_intersect} & 5 & Sibling intersection under WPTT composition \\
+\texttt{test\_maraschino} & 53 & Maraschino algebraic distillation cross-validation with MixDom \\
+\texttt{test\_mixdom1\_mixdom2\_equivalence} & 12 & MixDom1 vs.\ MixDom2 class-mixture forward likelihood \\
+\texttt{test\_mixdom2\_fb\_count\_recovery} & 6 & Sample-vs-FB count recovery for MixDom2 structural params \\
+\texttt{test\_mixdom2\_offdiag\_ext\_recovery} & 2 & Off-diagonal extension-rate count recovery (MixDom2) \\
+\texttt{test\_mixdom2\_per\_class\_inference} & 6 & MixDom2 per-class checkpoint loading and emission tables \\
+\texttt{test\_mixdom\_tree\_gillespie} & 46 & TKF91 tree Gillespie BDI moments and edge inference \\
+\texttt{test\_msa\_constrained\_viterbi} & 20 & MSA-constrained Viterbi (associative scan) and reconstruction \\
+\texttt{test\_msa} & 4 & MSA alignment-to-states and pairwise log-likelihood \\
+\texttt{test\_order1\_scfg} & 18 & Order-1 singlet SCFG structure, productions, normalization \\
+\texttt{test\_partition\_recon} & 29 & Partition-conditioned reconstruction forward$=$backward; $D{\times}F$ tracking \\
+\texttt{test\_per\_pair\_t\_msstep} & 7 & Per-pair-$t$ count conversion and Holmes--Rubin BDI M-step \\
+\texttt{test\_progrec\_felsenstein} & 25 & Profile-based ProgRec with Felsenstein optimization \\
+\texttt{test\_progrec\_mixdom} & 17 & MixDom progressive alignment with algebraic-distillation WFST \\
+\texttt{test\_progressive} & 7 & Progressive reconstruction pipeline: leaf recognizers, merging \\
+\texttt{test\_scfg\_compose} & 7 & SCFG $\times$ WPTT composition nonterminal/rule counts \\
+\texttt{test\_scfg\_distill} & 13 & Order-1 SCFG distillation context-dependent weights \\
+\texttt{test\_svi\_pseudocount\_equivalence} & 7 & Pseudocount-space SVI equivalence to data-EMA plus prior \\
+\texttt{test\_tkf92\_mixture\_fsa} & 7 & K-component TKF92 mixture posterior concentration and Q-function \\
+\texttt{test\_tkf92\_mixture\_recovery} & 1 & K-component TKF92 mixture EM recovery from simulated cherries \\
+\texttt{test\_tkf92\_padded\_elbo} & 19 & Plain-TKF92 padded ELBO numerical equality and padding invariance \\
+\texttt{test\_tkf92\_svi\_bw\_batched} & 7 & Batched TKF92 E-step equivalence; padding invariance; M-step gradient zero \\
+\texttt{test\_tkf92\_svi\_bw} & 3 & Pure-TKF92 SVI-BW recovery from Gillespie simulations \\
+\texttt{test\_tkf92\_vbem\_oracle} & 5 & TKF92-VBEM M-step oracle-counts phase with exact alignment \\
+\texttt{test\_tkf92\_vbem} & 7 & TKF92-VBEM tree-training parameter recovery within tolerance \\
+\texttt{test\_tkf\_grammar} & 22 & TKF grammar construction and Inside$=$Forward equivalence \\
+\texttt{test\_tkfst\_grammar} & 92 & TKFST grammar terminal encoding; Inside/Outside; EM; distillation \\
+\texttt{test\_tree\_mixdom\_simulator} & 4 & TKF92 tree simulator empirical rates and MSA consistency \\
+\texttt{test\_tree\_transducer} & 22 & Parse-tree transducer and pair SCFG from singlet grammar \\
+\texttt{test\_tree\_vbem} & 38 & Tree-VBEM training pipeline M-step and ELBO optimization \\
+\texttt{test\_triad\_gap\_inference} & 32 & Triad parent-gap inference and Viterbi--FB consistency \\
+\texttt{test\_varanc\_presence\_mixdom\_kernel} & 36 & MixDom reduced-WFST kernel matches \texttt{build\_nested\_trans} ground truth \\
+\texttt{test\_varanc\_presence\_mixdom} & 13 & TreeVarAnc-MixDom ELBO optimization and Adam convergence \\
+\texttt{test\_wptt} & 23 & WPTT state-space bijectivity, ready states, rule normalization \\
 \midrule
-\multicolumn{3}{@{}l}{\emph{Training validation}} \\
-\texttt{test\_bw\_vs\_grad} & 22 & Baum--Welch vs.\ gradient consistency \\
-\texttt{test\_grad\_consistency} & 18 & Gradient correctness across parameterizations \\
-\texttt{test\_bdi\_new} & 28 & \texttt{bdi\_stats\_from\_counts} conservation/non-negativity/L'H\^opital; \texttt{m\_step\_indel\_quadratic} validity/LL improvement/NaN regression; Q\_exploded+prior monotonicity per parameter group across 4 edge-case configs; autograd count verification; aggregate EM \\
-\texttt{test\_tkf92\_svi\_bw\_batched} & 7 & vmap'd batched E-step equivalence vs.\ independent pre-refactor numpy reference; padding-invariance (Adam-fix analogue); forward-only val\_eval; Q-function gradient zero at M-step solution (catches L/M coefficient mis-grouping) \\
+\multicolumn{3}{@{}l}{\emph{Level 4 --- Rigorous (\texttt{level4\_rigorous/})}} \\
+\texttt{test\_bdi\_lhopital} & 78 & BDI L'H\^opital limit at $\lambda{=}\mu$ with FB continuity and conservation \\
+\texttt{test\_bdi\_new} & 33 & BDI params and M-step indel counts via FB transitions; quadratic optimization \\
+\texttt{test\_constrained\_vjp} & 6 & Custom-VJP tight gradient identity for 1D constrained MixDom \\
+\texttt{test\_em\_score\_identity} & 12 & EM score identity: $\nabla$LL via $Q(\theta)$ vs.\ FB at machine precision \\
+\texttt{test\_indel} & 42 & TKF BDI formula, L'H\^opital limit, score derivatives, conservation law \\
+\texttt{test\_mixdom2\_struct\_count\_autodiff} & 15 & MixDom2 structural-parameter counts by Fisher identity via autodiff \\
+\texttt{test\_subst\_count\_autodiff} & 21 & Substitution suff stats ($V,W,U$) match autodiff Fisher identity \\
+\texttt{test\_vjp} & 22 & Custom-VJP forward-backward log-prob and gradient identity vs.\ autodiff \\
+\texttt{test\_wrapper\_grad\_vs\_fd} & 69 & Public-API wrapper gradient finite-difference validation, all params \\
+\texttt{test\_wrapper\_vs\_expected\_ll} & 4 & Custom-VJP wrapper gradient identity with \texttt{expected\_ll} suff-stat formula \\
 \midrule
-\multicolumn{3}{@{}l}{\emph{Statistical validation (\texttt{statistical/})}} \\
-\texttt{test\_bdi\_stats} & 16 & Conservation law $E[B]-E[D]=j-i$; score derivs. \\
-\texttt{test\_general\_bdi} & 35 & General BDI ($\nu$ free); reduces to TKF91 \\
-\texttt{test\_baum\_welch} & 14 & EM monotonicity; parameter convergence; L-BFGS fallback \\
-\texttt{test\_alignment\_recovery} & 5 & Viterbi alignment accuracy (sens., PPV) \\
-\texttt{test\_holmes\_rubin} & 8 & Substitution expected dwell/transition counts \\
-\texttt{test\_tree\_discrimination} & 3 & Phylogenetic signal detection \\
-\texttt{test\_estep\_vs\_simulation} & 11 & E-step expected counts match simulation \\
-\texttt{test\_mixdom\_simulation\_recovery} & 14 & Per-pair-$t$ parameter and count recovery via Simulators A and B (single- and multi-fragchar; mixed-$t$ batches); BDI/HR conversion $t$-sensitivity \\
+\multicolumn{3}{@{}l}{\emph{Benchmarks \& top-level (\texttt{tests/})}} \\
+\texttt{benchmarks/test\_benchmark} & 15 & BAliBase/BRaliBase benchmark-proxy infrastructure and scoring \\
+\texttt{test\_expected\_pair\_f1} & 22 & Expected pairwise F1/precision/recall identities and sparse suff stats \\
+\texttt{test\_varanc\_presence} & 18 & VarAnc WFST matrices, conditionals, belief propagation, ELBO \\
+\texttt{test\_mixfrag} & 13 & MixFrag transfers; row sums; $F{=}1$ reduction to TKF92 (matrix, FB, E-step, FSA posteriors) \\
+\texttt{test\_mixfrag\_cherry\_counts} & 10 & Alignment-summary count decomposition and invariants; sparse round-trip \\
+\texttt{test\_mixfrag\_cherry\_em} & 16 & DECISIVE oracle (1e-9); \texttt{run\_factor\_scan}$\equiv$power-sum; recovery; score-identity \\
+\texttt{test\_train\_mixfrag\_cherry\_em} & 3 & Multi-file aggregate+fit+val; save round-trip; split resolution \\
 \midrule
-\textbf{Total} & \textbf{1693} & \\
+\textbf{Total} & \textbf{2154} & \\
 \bottomrule
 \end{tabular}
 \end{table}

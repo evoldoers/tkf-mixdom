@@ -1,0 +1,47 @@
+{
+  "n_train": 20000,
+  "n_val": 500,
+  "seed": 42,
+  "max_len": 600,
+  "max_aln_len": 256,
+  "n_pfam_t_pool": 975500,
+  "t_train_stats": {
+    "mean": 8.678010235,
+    "median": 7.67623,
+    "min": -0.0,
+    "max": 39.6825
+  },
+  "t_val_stats": {
+    "mean": 8.78999208,
+    "median": 7.5379950000000004,
+    "min": 1.5529499999999998,
+    "max": 26.42158
+  },
+  "tkf92_gen": {
+    "lam": 0.0709,
+    "mu": 0.072,
+    "ext": 0.5882
+  },
+  "ggi_gen": {
+    "lam0": 0.0292,
+    "mu0": 0.0297,
+    "x": 0.5882,
+    "y": 0.560262959158801,
+    "segment": "upper",
+    "rho": 0.9831649831649831,
+    "rho_GGI": 0.9207032896133686,
+    "mean_anc_len_GGI_prior": 11.610863617472196
+  },
+  "tkf92_train_lengths": {
+    "mean_anc": 151.0707,
+    "mean_des": 150.42475,
+    "max_anc": 600,
+    "max_des": 600
+  },
+  "ggi_train_lengths": {
+    "mean_anc": 12.88415,
+    "mean_des": 13.99175,
+    "max_anc": 128,
+    "max_des": 134
+  }
+}

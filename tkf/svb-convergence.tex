@@ -86,14 +86,17 @@ At stationarity with $\kappa = \insrate/\delrate < 1$:
   $\Var[i] = \kappa/(1-\kappa)^2$.
 \item $\expect[B \mid i] \approx \insrate\,\expect[S \mid i]$, \quad
   $\expect[S \mid i] \approx i/({\delrate - \insrate})$ for $t \gg 1/(\delrate-\insrate)$.
-\item The relative variance $v_\insrate$ is $O(1)$ in the number of links
-  (it does \emph{not} decrease as sequences get longer, because the
-  M-step aggregates over the pair, not per-link).
+\item Conditioned on $i$, the links evolve as independent sub-lineages,
+  so $v_\insrate(i) = \Theta(1/i)$. The relative variance \emph{does}
+  fall as a pair gets longer, and the Fisher information for $\insrate$
+  grows linearly in $i$. What is fixed is not the information per link
+  but the equilibrium length, pinned at $\expect[i] = \kappa/(1-\kappa)$.
 \end{itemize}
-Thus the per-pair Fisher information is $O(1)$ in sequence length ---
-longer sequences do not help much for indel parameter estimation
-(in contrast to substitution parameters, where Fisher information
-grows linearly with alignment length).
+Thus the per-pair Fisher information grows linearly in $i$, as it does
+for substitution parameters. Indels differ only in the constant and in
+the fact that the stationary length is not a free variable, so at
+stationarity extra precision comes from processing more pairs rather
+than from lengthening a given one.
 
 \begin{proposition}[Per-pair Fisher information, long-time limit]
 For $\delta = \delrate - \insrate > 0$ and $t \to \infty$:

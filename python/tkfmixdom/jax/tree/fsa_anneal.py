@@ -264,6 +264,109 @@ def _pairwise_posteriors_tkf92_jax(x, y, real_Lx, real_Ly,
     return match_posteriors, tau_opt, log_prob
 
 
+# ============================================================
+# MixFrag (TKF92 fragment-mixture) pairwise posteriors.
+#
+# Identical architecture to the TKF92 path: one FB at tau_init -> reduce to
+# sufficient statistics (now an (3F+2)x(3F+2) transition-count tensor plus the
+# same (A,A) match-emission counts, because the M_f states all emit the shared
+# substitution model) -> Newton-Raphson on the per-pair E[LL(tau)] -> re-run FB
+# at tau_opt. The ONLY model-specific swap is tkf92_trans -> mixfrag_trans and
+# make_tkf92_pair_hmm -> make_mixfrag_pair_hmm; the per-pair tau estimation is
+# unchanged because is_match=(state_types==M) sums over all M_f.
+# ============================================================
+def _mixfrag_expected_ll(log_tau, n_trans_fixed, match_W_fixed,
+                         ins_rate, del_rate, exts, weights, Q, pi):
+    """E[LL(tau)] for MixFrag with reduced sufficient statistics (module-level
+    so the JIT cache survives across pairs; all pair-specific tensors explicit).
+    Same form as _tkf92_expected_ll with chi = mixfrag_trans (the (3F+2)^2 joint
+    transition matrix); the match-emission term is the shared (pi, Q) model."""
+    from ..core.params import mixfrag_trans
+    tau = jnp.exp(log_tau)
+    chi = mixfrag_trans(ins_rate, del_rate, tau, exts, weights)
+    log_chi = jnp.log(jnp.maximum(chi, 1e-300))
+    trans_term = jnp.sum(n_trans_fixed * log_chi)
+    P_t = transition_matrix(Q, tau)
+    log_P = jnp.log(jnp.maximum(P_t, 1e-300))
+    emit_term = jnp.sum(
+        match_W_fixed * (jnp.log(jnp.maximum(pi, 1e-300))[:, None] + log_P))
+    return trans_term + emit_term
+
+
+_mixfrag_tau_grad = jax.jit(jax.grad(_mixfrag_expected_ll, argnums=0))
+_mixfrag_tau_hess = jax.jit(jax.grad(jax.grad(_mixfrag_expected_ll, argnums=0),
+                                     argnums=0))
+
+
+def _pairwise_posteriors_mixfrag_jax(x, y, real_Lx, real_Ly,
+                                     ins_rate, del_rate, exts, weights, Q, pi,
+                                     n_newton=5, tau_init=1.0):
+    """vmap-safe core of pairwise_posteriors_mixfrag (cf.
+    _pairwise_posteriors_tkf92_jax). Per-pair tau is estimated by NR on
+    E[LL(tau)] reduced from a single FB, then FB is re-run at tau_opt."""
+    from ..models.left_regular import make_mixfrag_pair_hmm
+
+    A = Q.shape[0]
+    Lx, Ly = x.shape[0], y.shape[0]
+
+    # Step 1: FB at tau_init.
+    log_trans0, st0, sub0, pi0 = make_mixfrag_pair_hmm(
+        ins_rate, del_rate, tau_init, exts, weights, Q, pi)
+    _, posteriors0, n_trans0 = forward_backward_2d(
+        log_trans0, st0, x, y, sub0, pi0, real_Lx=real_Lx, real_Ly=real_Ly)
+
+    # Step 2: reduce to sufficient statistics (pure JAX).
+    n_trans_fixed = jax.lax.stop_gradient(n_trans0)
+    post_fixed = jax.lax.stop_gradient(posteriors0)
+    st_j = jnp.asarray(st0)
+    is_M_j = (st_j == M).astype(jnp.float64)
+    X_oh = jax.nn.one_hot(x, A, dtype=jnp.float64)
+    Y_oh = jax.nn.one_hot(y, A, dtype=jnp.float64)
+    post_MM = post_fixed[1:Lx + 1, 1:Ly + 1, :]
+    match_post = jnp.einsum('ijs,s->ij', post_MM, is_M_j)
+    match_W_fixed = jnp.einsum('ij,ia,jb->ab', match_post, X_oh, Y_oh)
+
+    # Step 3: NR on per-pair tau via module-level JIT-cached grad/hess.
+    log_tau = jnp.log(jnp.float64(tau_init))
+    for _ in range(n_newton):
+        g = _mixfrag_tau_grad(log_tau, n_trans_fixed, match_W_fixed,
+                              ins_rate, del_rate, exts, weights, Q, pi)
+        h = _mixfrag_tau_hess(log_tau, n_trans_fixed, match_W_fixed,
+                              ins_rate, del_rate, exts, weights, Q, pi)
+        safe_neg_h = jnp.where(jnp.abs(h) > 1e-10, -h, 1.0)
+        step = jnp.clip(g / safe_neg_h, -1.0, 1.0)
+        log_tau = log_tau + step
+    tau_opt = jnp.exp(jnp.clip(log_tau, jnp.log(1e-4), jnp.log(10.0)))
+
+    # Step 4: FB at optimal tau.
+    log_trans, state_types, sub_matrix, pi_out = make_mixfrag_pair_hmm(
+        ins_rate, del_rate, tau_opt, exts, weights, Q, pi)
+    log_prob, posteriors, _ = forward_backward_2d(
+        log_trans, state_types, x, y, sub_matrix, pi_out,
+        real_Lx=real_Lx, real_Ly=real_Ly)
+
+    is_match = (state_types == M)
+    match_posteriors = jnp.sum(
+        posteriors[1:Lx + 1, 1:Ly + 1, :] * is_match[None, None, :],
+        axis=-1)
+    return match_posteriors, tau_opt, log_prob
+
+
+def pairwise_posteriors_mixfrag(x_seq, y_seq, ins_rate, del_rate, exts, weights,
+                                Q, pi, n_newton=5, tau_init=1.0):
+    """MixFrag pairwise residue alignment posteriors (cf.
+    pairwise_posteriors_tkf92). ``exts`` (F,) and ``weights`` (F,) are the
+    fitted fragtype extension/weight vectors; at F=1 this reduces to TKF92."""
+    x_j = jnp.asarray(x_seq)
+    y_j = jnp.asarray(y_seq)
+    mp, tau, lp = _pairwise_posteriors_mixfrag_jax(
+        x_j, y_j, jnp.int32(x_j.shape[0]), jnp.int32(y_j.shape[0]),
+        jnp.float64(ins_rate), jnp.float64(del_rate),
+        jnp.asarray(exts), jnp.asarray(weights),
+        jnp.asarray(Q), jnp.asarray(pi), n_newton=n_newton, tau_init=tau_init)
+    return np.asarray(mp), float(tau), float(lp)
+
+
 def pairwise_posteriors_tkf92_batched(xs, ys, real_Lxs, real_Lys,
                                        ins_rate, del_rate, ext, Q, pi,
                                        n_newton=5, tau_init=1.0):
@@ -1459,6 +1562,113 @@ def compute_pairwise_posteriors(sequences, pairs, model='tkf92',
 
 
 # ============================================================
+# ProbCons-style probabilistic consistency transformation
+# ============================================================
+
+def consistency_transform(pair_posteriors, n_iters=1, n_seqs=None):
+    """ProbCons probabilistic-consistency transformation of pair posteriors.
+
+    Given pairwise residue-match posteriors P^{xy} (entry [a,b] = P(residue a
+    of seq x aligned to residue b of seq y)), reweight each pair by routing
+    through every other sequence z (a "third witness"):
+
+        P'^{xy} = (1/|S|) * ( P^{xy}  +  sum_{z != x,y} P^{xz} @ P^{zy} )
+
+    where |S| is the number of sequences, ``@`` is matrix multiply, and the
+    direct term P^{xy} is included once (the z==x and z==y self/identity terms
+    of ProbCons both collapse to the direct term P^{xy}). This is exactly the
+    ProbCons transform (Do et al. 2005): a simple AVERAGE over witnesses, with
+    NO renormalisation — posteriors stay sub-stochastic (rows/cols sum <= 1).
+
+    The transform is applied ``n_iters`` times (each iteration uses the output
+    of the previous one). It is deterministic but NOT idempotent.
+
+    Input/output convention:
+      - ``pair_posteriors`` is a dict {(i,j): (Li, Lj) array}. Keys may use any
+        index convention and may store only ONE of (i,j) / (j,i); the missing
+        orientation is taken as the transpose. Diagonal keys (i,i) are ignored.
+      - The returned dict uses the SAME keys as the input (P'^{ji} is the
+        transpose of P'^{ij}, so storing one orientation is sufficient).
+      - dtype is preserved as float64 (the repo runs jax_enable_x64).
+
+    Vectorisation note: sequences have different (ragged) lengths, so a single
+    padded vmap would waste memory on the longest pair. Instead we accumulate
+    the witness sum with jnp matmuls (GPU-accelerated BLAS) per (x,y) pair,
+    looping z in Python. The inner ``P^{xz} @ P^{zy}`` matmuls are the heavy
+    work and run on-device; only the Python pair/witness iteration is
+    un-vectorised. No ``.at[]`` scatter is used (XLA-CPU LLVM JIT can SIGILL
+    on it — see project notes), and nothing here is jitted.
+
+    Args:
+        pair_posteriors: dict {(i,j): (Li, Lj) array} of match posteriors.
+        n_iters: number of times to apply the transform (default 1).
+        n_seqs: number of sequences |S|. If None, inferred as
+            (max sequence index seen in the keys) + 1.
+
+    Returns:
+        dict {(i,j): (Li, Lj) numpy float64 array} in the same key convention
+        as the input.
+    """
+    if not pair_posteriors:
+        return {}
+
+    input_keys = [k for k in pair_posteriors.keys() if k[0] != k[1]]
+
+    # Build a dense lookup P[(x, y)] for BOTH orientations of every supplied
+    # pair, as float64 jnp arrays. (j,i) defaults to the transpose of (i,j).
+    def _build_dense(src):
+        # Supplied orientations win; the missing one defaults to the transpose
+        # (the input is assumed symmetric, P^{yx} = (P^{xy})^T).
+        dense = {(i, j): jnp.asarray(arr, dtype=jnp.float64)
+                 for (i, j), arr in src.items() if i != j}
+        for (i, j) in list(dense.keys()):
+            dense.setdefault((j, i), dense[(i, j)].T)
+        return dense
+
+    dense = _build_dense(pair_posteriors)
+
+    # Set of sequence indices present.
+    seqs = sorted({k for key in dense for k in key})
+    if n_seqs is None:
+        n_seqs = max(seqs) + 1
+    inv_n = 1.0 / float(n_seqs)
+
+    for _ in range(int(n_iters)):
+        new_dense = {}
+        # Transform each UNORDERED pair once, then fill the transpose.
+        done = set()
+        for (x, y) in dense.keys():
+            if (x, y) in done or (y, x) in done:
+                continue
+            P_xy = dense[(x, y)]                       # (Lx, Ly)
+            acc = P_xy                                 # direct term, once
+            for z in seqs:
+                if z == x or z == y:
+                    continue
+                P_xz = dense.get((x, z))
+                P_zy = dense.get((z, y))
+                if P_xz is None or P_zy is None:
+                    # Witness z not connected to both x and y: skip (its
+                    # contribution would be 0 anyway under absent posteriors).
+                    continue
+                acc = acc + P_xz @ P_zy                 # (Lx, Lz) @ (Lz, Ly)
+            P_new = acc * inv_n
+            new_dense[(x, y)] = P_new
+            new_dense[(y, x)] = P_new.T
+            done.add((x, y))
+        dense = new_dense
+
+    # Return in the SAME key convention as the input.
+    out = {}
+    for (i, j) in input_keys:
+        if (i, j) in dense:
+            out[(i, j)] = np.asarray(dense[(i, j)], dtype=np.float64)
+        elif (j, i) in dense:
+            out[(i, j)] = np.asarray(dense[(j, i)].T, dtype=np.float64)
+    return out
+
+
+# ============================================================
 # Sequence annealing
 # ============================================================
 
@@ -1499,7 +1709,7 @@ def _score_alignment(col_assignments, seq_lengths, pair_posteriors):
 def sequence_annealing(n_seqs, seq_lengths, pair_posteriors,
                         n_iterations=5, verbose=False,
                         gap_factor=1.0, edge_weight_threshold=0.0,
-                        seed=42):
+                        seed=42, consistency_iters=0):
     """Build MSA via AMAP sequence annealing (DAG column merging).
 
     Port of the AMAP algorithm from DART (MultiSequenceDag.h). Each residue
@@ -1530,12 +1740,21 @@ def sequence_annealing(n_seqs, seq_lengths, pair_posteriors,
         gap_factor: TGF gap factor (1.0 = AMA accuracy, >1 = fewer gaps)
         edge_weight_threshold: minimum edge weight to consider
         seed: int seed for the refinement-sweep permutation (default 42).
+        consistency_iters: if > 0, apply the ProbCons probabilistic-consistency
+            transformation (``consistency_transform``) to ``pair_posteriors``
+            this many times BEFORE building the MSA. Default 0 (OFF — behaviour
+            is unchanged). The standalone ``consistency_transform`` is the
+            primary API; this param is a convenience opt-in.
 
     Returns:
         col_assignments: list of arrays, col_assignments[i][k] = column
             assigned to residue k of sequence i
         msa_length: total number of columns in the alignment
     """
+    if consistency_iters and consistency_iters > 0:
+        pair_posteriors = consistency_transform(
+            pair_posteriors, n_iters=consistency_iters, n_seqs=n_seqs)
+
     col_assignments = _amap_align(
         n_seqs, seq_lengths, pair_posteriors,
         gap_factor=gap_factor,

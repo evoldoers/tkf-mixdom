@@ -42,6 +42,27 @@ closed-form M-step at every level.
 | **MixDom2** | 2 + 5KF | + Markovian *fragchars* and per-site classes (current focus) |
 | **TKFST** | ~49 NTs | + RNA secondary structure (SCFG) |
 
+### Trained indel parameters (Pfam v1 train split)
+
+Reference indel parameters fit by the **summarised-count cherry EM**
+(supplement B.6; `python/train_mixfrag_cherry_em.py`) on the Pfam v1
+**train** split (19,660 families, 361,930 cherries; LG08 substitution
+fixed) are committed under [`python/params/best/`](python/params):
+
+| File | Model | λ | μ | extension(s) | weights | held-out val LL |
+|------|-------|---|---|--------------|---------|-----------------|
+| `cem_tkf92_pfamTrain.npz` | TKF92 (MixFrag F=1) | 0.0311 | 0.0317 | 0.674 | — | −23.061 M |
+| `cem_mixfrag_F2_pfamTrain.npz` | MixFrag F=2 | 0.0339 | 0.0347 | 0.414 / 0.860 | 0.701 / 0.299 | −23.051 M |
+
+Both are fit by the *same* EM and priors on the *same* count tensors
+(F=1 reduces exactly to TKF92), so the comparison is matched. The F=2
+mixture splits TKF92's single fragment extension into a short type
+(r≈0.41, 70% of fragments) and a long type (r≈0.86, 30%), and improves
+held-out validation log-likelihood by ≈ +9,900 — beyond the
+2-extra-parameter penalty. Each `.npz` has a sibling `.json` with the EM
+history. Rebuild with `build_mixfrag_cherry_counts.py` then
+`train_mixfrag_cherry_em.py --n-fragtypes {1,2}`.
+
 Capabilities used in the active workflow:
 - **Differentiable DP**: forward/backward with custom VJPs via the
   score-function identity; geometric-bin padding so JAX reuses compiled

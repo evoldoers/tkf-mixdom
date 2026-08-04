@@ -1,0 +1,25 @@
+# Order-summed vs path-conditioned val LL/pair — raw provenance
+# generated from score_matchaligned_val.py runs, 2026-08-03T21:00:24Z
+# DP fixes: rowscan-fix branch HEAD 20768cb23 (assoc-scan rowscan + linear-space wavefront)
+
+## MODEL=d3f1
+[d3f1] MATCH-ALIGNED (ordering-summed) RESULT
+  n_pairs=116640  n_bad=0
+  total_ll = -83678581.8704
+  LL/pair  = -717.408967
+============================================================
+
+## MODEL=mixfrag
+[mixfrag] MATCH-ALIGNED (ordering-summed) RESULT
+  n_pairs=116640  n_bad=0
+  total_ll = -83990770.8714
+  LL/pair  = -720.085484
+============================================================
+
+## MODEL=tkf92
+[tkf92] MATCH-ALIGNED (ordering-summed) RESULT
+  n_pairs=116640  n_bad=0
+  total_ll = -84210195.8868
+  LL/pair  = -721.966700
+============================================================
+

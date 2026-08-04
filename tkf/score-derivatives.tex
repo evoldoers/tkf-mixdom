@@ -27,7 +27,7 @@ Using $\log\beta = \log\insrate + \log(\eta - \alpha) - \log\Delta$:
 Using $\log(1-\gamma) = \log\delrate + \log\beta - \log\insrate - \log(1-\alpha)$:
 \begin{eqnarray*}
 \frac{\partial \log(1-\gamma)}{\partial \insrate} & = & \frac{\partial\log\beta}{\partial\insrate} - \frac{1}{\insrate} \\
-\frac{\partial \log(1-\gamma)}{\partial \delrate} & = & \frac{1}{\delrate} + \frac{\partial\log\beta}{\partial\delrate} + \frac{\evoltime\alpha}{1-\alpha}
+\frac{\partial \log(1-\gamma)}{\partial \delrate} & = & \frac{1}{\delrate} + \frac{\partial\log\beta}{\partial\delrate} - \frac{\evoltime\alpha}{1-\alpha}
 \end{eqnarray*}
 and $\frac{\partial\log\gamma}{\partial\theta} = -\frac{1-\gamma}{\gamma}\frac{\partial\log(1-\gamma)}{\partial\theta}$ for $\theta \in \{\insrate,\delrate\}$.
 

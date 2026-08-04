@@ -18,22 +18,27 @@ test fixtures belong here.
 {method}_d{N}f{F}_{dataset}_{iters}iter.npz
 ```
 
-- **method**: `bw` (Baum-Welch EM) or `mara` (Maraschino CherryML)
+- **method**: `bw` (Baum-Welch EM), `mara` (Maraschino CherryML), or `cem`
+  (summarised-count cherry EM, supplement B.6 — single domain, F fragtypes)
 - **N**: number of domains
 - **F**: number of fragments per domain
-- **dataset**: `pfam100` (100 seed families), `pfamSeed` (full ~27K seed), etc.
+- **dataset**: `pfam100` (100 seed families), `pfamSeed` (full ~27K seed),
+  `pfamTrain` (the v1.json train split, ~19.7K usable families), etc.
 - **iters**: number of training iterations
 
 Examples:
 - `bw_d3f2_pfam100_20iter.npz` — BW, 3 domains, 2 fragments, 100 Pfam families, 20 iterations
 - `bw_d8f2_pfam100_15iter.npz` — BW, 8 domains, 2 fragments
 - `mara_d3_pfamSeed_5000step.npz` — Maraschino Adam, 3 domains, 5000 steps
+- `cem_mixfrag_F2_pfamTrain.npz` — cherry-EM MixFrag, 2 fragtypes, v1 train split
 
 ## Current Best-Fit Parameters
 
 | File | Domains | Data | Method | Notes |
 |------|---------|------|--------|-------|
 | `best/bw_d3f2_pfam100_20iter.npz` | 3×2 | 100 Pfam families (98 used) | BW+subst | Per-domain π, pi_pseudo=3, 11456 pairs |
+| `best/cem_tkf92_pfamTrain.npz` | 1×1 | Pfam v1 train (19660 fams, 361930 cherries) | cherry-EM (B.6), LG08 fixed | TKF92 (MixFrag F=1): λ=0.0311 μ=0.0317 r=0.674; val LL −23.061M |
+| `best/cem_mixfrag_F2_pfamTrain.npz` | 1×2 | Pfam v1 train (19660 fams, 361930 cherries) | cherry-EM (B.6), LG08 fixed | MixFrag F=2: λ=0.0339 μ=0.0347 exts=[0.414,0.860] w=[0.701,0.299]; val LL −23.051M (matched F=1≡TKF92, +9.9k) |
 
 ## Adding New Best-Fits
 

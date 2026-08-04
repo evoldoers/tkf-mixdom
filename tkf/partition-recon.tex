@@ -127,31 +127,68 @@ identical presence profiles extends to $j$).
 
 \paragraph{Per-branch TKF state.}
 Let $S_{\mathrm{tkf}}(r, i, j)$ be the TKF Pair HMM emit state for
-row (branch) $r$ at column $j$, given block start $i$. This is a
-deterministic function of the presence/absence pattern: if all entries
-are zero for columns $i..j$ on branch $r$, the state is $\sta$;
-otherwise, the state depends on
-$(\text{ancestor\_present}_r(j),\; \text{descendant\_present}_r(j))$,
-mapping to $\mat$, $\ins$, or $\del$ as appropriate.
+row (branch) $r$ at column $j$, given block start $i$. It is a
+deterministic function of the presence/absence pattern, defined by the
+following cases. Write
+$(\text{anc}_r(j),\text{desc}_r(j)) =
+(\text{ancestor\_present}_r(j),\,\text{descendant\_present}_r(j))$
+for the parent/child presence of branch $r$ at column $j$. We say
+column $j$ \emph{touches} branch $r$ when at least one of
+$\text{anc}_r(j),\text{desc}_r(j)$ is $1$; a column with
+$(\text{anc}_r(j),\text{desc}_r(j))=(0,0)$ leaves branch $r$
+\emph{untouched}. Then
+\[
+  S_{\mathrm{tkf}}(r, i, j) =
+  \begin{cases}
+    \mat & (\text{anc}_r(j),\text{desc}_r(j)) = (1,1), \\
+    \del & (\text{anc}_r(j),\text{desc}_r(j)) = (1,0), \\
+    \ins & (\text{anc}_r(j),\text{desc}_r(j)) = (0,1), \\
+    \sta & (\text{anc}_r(j),\text{desc}_r(j)) = (0,0)\ \text{and branch
+           $r$ is untouched for all of } i..j, \\
+    S_{\mathrm{tkf}}(r, i, j{-}1) & (\text{anc}_r(j),\text{desc}_r(j)) = (0,0)\ \text{otherwise
+           (\emph{last-touched carry}).}
+  \end{cases}
+\]
+The last case is the key subtlety: a column in which branch $r$ is gapped
+at \emph{both} its parent and child node is not part of that branch's
+pairwise (parent,\,child) alignment at all, so its TKF Pair HMM neither
+emits nor moves --- the branch simply retains the state from the most
+recent column that touched it (still $\sta$ if no earlier column in the
+block did). The fourth case (all-untouched-so-far) is the special case of
+this carry in which the carried state has never advanced past $\sta$.
 
 \paragraph{Per-branch TKF transitions.}
 Let $B_{\mathrm{tkf}}(\dom, r, s, s')$ be the TKF91 branch transition
 matrix entry for domain $\dom$, branch $r$, from state $s$ to state $s'$.
-Define
+Crucially, each per-branch product below runs over the rows
+\emph{touched} at the column in question, i.e.\ those $r$ for which
+$(\text{anc}_r(j),\text{desc}_r(j)) \neq (0,0)$; an untouched branch
+contributes the identity factor $1$ (equivalently, $B_{\mathrm{tkf}}$ is
+taken to be $1$ for it). Writing $\mathrm{Touched}(j) = \{r : \text{column $j$
+touches branch } r\}$, define
 \[
-T_{\mathrm{tkf}}(\dom, i, j) = \prod_r B_{\mathrm{tkf}}(\dom, r, S_{\mathrm{tkf}}(r, i, j{-}1),\; S_{\mathrm{tkf}}(r, i, j))
+T_{\mathrm{tkf}}(\dom, i, j) = \prod_{r \in \mathrm{Touched}(j)} B_{\mathrm{tkf}}(\dom, r, S_{\mathrm{tkf}}(r, i, j{-}1),\; S_{\mathrm{tkf}}(r, i, j)).
 \]
-as the product of TKF91 transitions across all rows from column $j{-}1$
-to column $j$ within a block starting at column $i$.
-Similarly define
+The source state $S_{\mathrm{tkf}}(r, i, j{-}1)$ is the branch's
+\emph{last-touched} state (which, by the carry rule above, may pre-date
+column $j{-}1$ if intervening columns left $r$ untouched), so a branch's
+TKF transition is charged exactly once, at the next column that touches
+it, and never at the both-gapped columns it skips over. Omitting the
+untouched rows is essential: charging them a self-transition
+$B_{\mathrm{tkf}}(s,s)$ would double-count fragment extensions that never
+occurred, while forcing them to $\sta$ would inject invalid transitions
+such as $B_{\mathrm{tkf}}(\mat,\sta)$. Similarly define
 \[
-T_{\mathrm{tkf,start}}(\dom, j) = \prod_r B_{\mathrm{tkf}}(\dom, r, \sta,\; S_{\mathrm{tkf}}(r, j, j))
+T_{\mathrm{tkf,start}}(\dom, j) = \prod_{r \in \mathrm{Touched}(j)} B_{\mathrm{tkf}}(\dom, r, \sta,\; S_{\mathrm{tkf}}(r, j, j))
 \]
 for block-start transitions and
 \[
 T_{\mathrm{tkf,end}}(\dom, i, j) = \prod_r B_{\mathrm{tkf}}(\dom, r, S_{\mathrm{tkf}}(r, i, j),\; \fin)
 \]
-for block-closing transitions.
+for block-closing transitions, where the block-end product runs over
+\emph{all} rows using each branch's last-touched state
+$S_{\mathrm{tkf}}(r, i, j)$ (every branch must close, whether or not the
+final column $j$ touched it).
 
 \paragraph{Felsenstein emission likelihood.}
 Let $U(j, \class)$ be the Felsenstein pruning likelihood for column $j$

@@ -367,10 +367,13 @@ as well as the compositional statistics for inserted sequences that are already 
 \\
 \expect[V_i \mid x,y] & = & \sum_b \hat{e}^\mat_{(i,b)} + \hat{e}^\ins_{(\epsilon,i)} + \hat{e}^\del_{(i,\epsilon)} + \agecorrection^V_i (x,y)
 \end{eqnarray*}
-where the three observable terms count, respectively, ancestral residues at match positions (drawn from $\eqm$ at time $0$ and surviving until $t$), descendant residues at insert positions (drawn from $\eqm$ at the time of insertion), and ancestral residues at delete positions (drawn from $\eqm$ at time $0$ and deleted before $t$);
-$\agecorrection^V_i$ is a similar genealogical correction term,
+where the three observable terms count, respectively, the expected number of
+ancestral sequence extensions $L$,
+ancestral sequence terminations $M$ (always one for a single training alignment),
+and positions $V_i$ initially having residue $i$ (including ancestral, descendant, and transiently inserted residues);
+$\agecorrection^V_i$ is another genealogical correction term accounting for these transients,
 the omission of which again corresponds to assuming (for the purposes of the CTMC parameter update) that insertion and deletion events are synchronized with the trajectory endpoints, and that no transient characters are born and die within the trajectory.
-Thus $V_i$ counts every observable equilibrium $\eqm$-draw of character $i$ in the joint pair HMM, regardless of whether the residue subsequently underwent a match-position substitution, was deleted, or never had an ancestor (insertion).
+Thus $V_i$ counts every observable equilibrium $\eqm$-draw of character $i$ in the trajectory, regardless of whether the residue subsequently underwent a match-position substitution, was deleted, or never had an ancestor (i.e. was an insertion).
 The conditional $P(\descendant | \ancestor, t)$ analogue drops the two ancestor-derived terms (matches and deletions), since the ancestral sequence is given.
 
 

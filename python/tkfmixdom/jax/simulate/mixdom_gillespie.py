@@ -727,6 +727,104 @@ def _assign_categories(np_rng, run, weights):
     return assignment
 
 
+def _normalize_mixdom_params(params):
+    """Accept either the CURRENT MixDom2 params format (the one consumed by
+    ``models.mixdom.build_nested_trans`` and produced by
+    ``labeled_utils.default_mixdom2_params``) or the legacy Simulator-B dict,
+    and return a single canonical dict the Gillespie orchestrator uses.
+
+    Current format keys:  ext_rates (D,F,F) fragtype-transition matrices;
+        class_S_exch (C,A,A) exchangeabilities; class_pis (C,A) per-class
+        equilibria; classdist (D,F,C) per-(domain,fragtype) class mixture.
+    Legacy format keys:   ext_rates (D,F) scalar extensions; class_Q (C,A,A)
+        rate matrices; class_pi (C,A) equilibria; class_pis (D,F,C) = the
+        per-(domain,fragtype) class mixture (note the name clash — in the
+        current format that array is called ``classdist`` and ``class_pis``
+        is the per-class equilibrium instead).
+
+    Returns a dict with canonical keys:
+        main_ins, main_del, dom_ins, dom_del, dom_weights, frag_weights,
+        ext_mat (D,F,F), classdist (D,F,C), class_Q (C,A,A), class_pi (C,A).
+    """
+    from .labeled_utils import class_Q_from_pi_and_S
+
+    out = {
+        'main_ins': float(params['main_ins']),
+        'main_del': float(params['main_del']),
+        'dom_ins': np.asarray(params['dom_ins'], dtype=np.float64),
+        'dom_del': np.asarray(params['dom_del'], dtype=np.float64),
+        'dom_weights': np.asarray(params['dom_weights'], dtype=np.float64),
+        'frag_weights': np.asarray(params['frag_weights'], dtype=np.float64),
+    }
+    D, F = out['frag_weights'].shape
+
+    # ext_rates -> (D, F, F): broadcast a (D, F) scalar-extension vector onto
+    # the diagonal (legacy / MixDom1), matching build_nested_trans's own
+    # auto-conversion.  notext[d,f] = 1 - sum_g ext_mat[d,f,g] ends a fragment.
+    ext = np.asarray(params['ext_rates'], dtype=np.float64)
+    if ext.ndim == 2:
+        ext_mat = np.zeros((D, F, F), dtype=np.float64)
+        for d in range(D):
+            np.fill_diagonal(ext_mat[d], ext[d])
+        ext = ext_mat
+    out['ext_mat'] = ext
+
+    is_current = 'class_S_exch' in params
+    if is_current:
+        class_pis_eq = np.asarray(params['class_pis'], dtype=np.float64)  # (C,A)
+        class_S = np.asarray(params['class_S_exch'], dtype=np.float64)    # (C,A,A)
+        C = class_pis_eq.shape[0]
+        out['class_pi'] = class_pis_eq
+        out['class_Q'] = np.stack(
+            [class_Q_from_pi_and_S(class_pis_eq[c], class_S[c])
+             for c in range(C)], axis=0)
+        out['classdist'] = np.asarray(params['classdist'], dtype=np.float64)
+    elif 'class_Q' in params:
+        out['class_Q'] = np.asarray(params['class_Q'], dtype=np.float64)
+        out['class_pi'] = np.asarray(params['class_pi'], dtype=np.float64)
+        out['classdist'] = np.asarray(params['class_pis'], dtype=np.float64)
+    else:
+        # n_classes == 1 with no substitution params supplied: fall back to a
+        # single LG class (matches default_mixdom2_params's S/pi default).
+        from ..core.protein import rate_matrix_lg
+        Q_lg, pi_lg = rate_matrix_lg()
+        out['class_Q'] = np.asarray(Q_lg, dtype=np.float64)[None]
+        out['class_pi'] = np.asarray(pi_lg, dtype=np.float64)[None]
+        out['classdist'] = np.ones((D, F, 1), dtype=np.float64)
+    return out
+
+
+def sample_intra_fragment_fragtypes(np_rng, f0, ext_mat_d, max_length=10000):
+    """Sample the intra-fragment fragtype chain for one fragment, given its
+    first fragtype ``f0`` and the domain's (F, F) fragtype-transition matrix.
+
+    Per the MixDom2 model (``build_nested_trans``): a fragment of initial
+    fragtype f0 extends site-by-site — from fragtype f the next site extends
+    with probability ``sum_g ext_mat_d[f, g]`` (then drawing g proportional to
+    ``ext_mat_d[f, :]``) and the fragment ends with probability
+    ``notext[f] = 1 - sum_g ext_mat_d[f, g]``.  Length L >= 1.
+
+    At a diagonal ext matrix (legacy / MixDom1) this reduces EXACTLY to a
+    constant-fragtype run of shifted-geometric length, as in
+    ``sample_fragchar_chain``.
+
+    Returns:
+        list[int] of per-site fragtypes (length >= 1).
+    """
+    ext_mat_d = np.asarray(ext_mat_d, dtype=np.float64)
+    F = ext_mat_d.shape[0]
+    fragtypes = [int(f0)]
+    f = int(f0)
+    while len(fragtypes) < max_length:
+        ext_p = float(ext_mat_d[f].sum())
+        if ext_p <= 0.0 or np_rng.random() >= ext_p:
+            break
+        g = int(np_rng.choice(F, p=ext_mat_d[f] / ext_p))
+        fragtypes.append(g)
+        f = g
+    return fragtypes
+
+
 def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
                                      root_dom_count=None,
                                      root_dom_count_mean=3):
@@ -754,20 +852,26 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
                     Gillespie under ``params['class_Q'][κ]`` on the
                     fragment subtree.
 
+    Within a fragment the fragtype follows the intra-fragment Markov chain
+    encoded by ``ext_rates`` (the (F,F) matrix per domain); each site's class
+    is then drawn from ``classdist[d, fragtype]``.  At a diagonal ext matrix
+    this reduces to a constant-fragtype geometric run (legacy MixDom1).
+
     Args:
         np_rng:               numpy.random.RandomState.
         tree_root:            TreeNode for the full phylogenetic tree.
-        params:               dict with keys
-                                'main_ins', 'main_del',
-                                'dom_weights' (D,),
-                                'dom_ins' (D,), 'dom_del' (D,),
-                                'frag_weights' (D, F),
-                                'ext_rates' (D, F) — extension probability
-                                  for the fragchar chain.
-                                'class_pis' (D, F, C) — fragdist per (d, f).
-                                'class_Q' (C, A, A) — rate matrices.
-                                'class_pi' (C, A) — stationary distribution
-                                  for sampling root residues.
+        params:               MixDom2 params dict in EITHER format (see
+                              ``_normalize_mixdom_params``):
+                              • Current (build_nested_trans) format:
+                                'main_ins', 'main_del', 'dom_weights' (D,),
+                                'dom_ins'/'dom_del' (D,), 'frag_weights' (D,F),
+                                'ext_rates' (D,F,F) fragtype-transition
+                                matrices, 'class_S_exch' (C,A,A),
+                                'class_pis' (C,A) per-class equilibria,
+                                'classdist' (D,F,C) per-(d,f) class mixture.
+                              • Legacy format: 'ext_rates' (D,F) scalar exts,
+                                'class_Q' (C,A,A), 'class_pi' (C,A),
+                                'class_pis' (D,F,C) class mixture.
         root_dom_count:       deterministic count of root domain lineages.
                               If None, sampled Poisson(root_dom_count_mean).
         root_dom_count_mean:  Poisson mean for root domains.
@@ -779,10 +883,14 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
             'inner_runs'             : dict[lineage_id -> layer-1 sim out].
             'inner_subtrees'         : dict[lineage_id -> TreeNode].
             'frag_assignments'       : dict[(outer_lineage_id,
-                                              inner_lineage_id) -> frag_idx].
+                                              inner_lineage_id) -> frag_idx]
+                                       (each fragment's FIRST fragtype).
             'fragment_subtrees'      : dict[(o_lin, i_lin) -> TreeNode].
+            'fragtype_chains'        : dict[(o_lin, i_lin) -> list[int]]
+                                       (per-site fragtypes; the intra-fragment
+                                       Markov chain through ext_rates).
             'fragchar_chains'        : dict[(o_lin, i_lin) -> list[int]]
-                                       (class indices per fragchar).
+                                       (class indices per site).
             'fragchar_root_residues' : dict[(o_lin, i_lin) -> list[int]]
                                        (root residues per fragchar).
             'subst_runs'             : dict[(o_lin, i_lin, frag_pos) ->
@@ -790,19 +898,22 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
             'total_stats'            : dict — aggregated counts at every
                                        level for parameter recovery tests.
     """
-    main_ins = float(params['main_ins'])
-    main_del = float(params['main_del'])
-    dom_weights = np.asarray(params['dom_weights'], dtype=np.float64)
-    dom_ins = np.asarray(params['dom_ins'], dtype=np.float64)
-    dom_del = np.asarray(params['dom_del'], dtype=np.float64)
-    frag_weights = np.asarray(params['frag_weights'], dtype=np.float64)
-    ext_rates = np.asarray(params['ext_rates'], dtype=np.float64)
-    class_pis = np.asarray(params['class_pis'], dtype=np.float64)
-    class_Q = np.asarray(params['class_Q'], dtype=np.float64)
-    class_pi = np.asarray(params['class_pi'], dtype=np.float64)
+    # Accept either the current MixDom2 params format (ext_rates (D,F,F),
+    # class_S_exch/class_pis/classdist) or the legacy Simulator-B dict.
+    P = _normalize_mixdom_params(params)
+    main_ins = P['main_ins']
+    main_del = P['main_del']
+    dom_weights = P['dom_weights']
+    dom_ins = P['dom_ins']
+    dom_del = P['dom_del']
+    frag_weights = P['frag_weights']
+    ext_mat = P['ext_mat']          # (D, F, F) fragtype-transition matrices
+    classdist = P['classdist']      # (D, F, C) per-(dom,fragtype) class mixture
+    class_Q = P['class_Q']          # (C, A, A)
+    class_pi = P['class_pi']        # (C, A)
     D = dom_weights.shape[0]
     F = frag_weights.shape[1]
-    C = class_pis.shape[2]
+    C = classdist.shape[2]
     A = class_pi.shape[1]
 
     # ----- Layer 0: top-level TKF91 over domains. -----
@@ -830,8 +941,15 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
         for i_lin, frag_sub in extract_lineage_subtrees(sub, inner):
             fragment_subtrees[(o_lin, i_lin)] = frag_sub
 
-    # ----- Layer 2: fragchar chain + per-class substitution. -----
-    fragchar_chains = {}
+    # ----- Layer 2: intra-fragment fragtype chain + per-class substitution. -----
+    # Each fragment's first fragtype is its layer-1 assignment (drawn from
+    # frag_weights[d]); the remaining sites follow the (F,F) ext_mat[d]
+    # fragtype Markov chain (build_nested_trans semantics).  Each site's
+    # SITE CLASS is then drawn from classdist[d, fragtype_of_site].  At a
+    # diagonal ext_mat this reduces to a constant-fragtype geometric run with
+    # i.i.d. classes — the legacy behaviour.
+    fragtype_chains = {}    # (o_lin, i_lin) -> list[int] per-site fragtypes
+    fragchar_chains = {}    # (o_lin, i_lin) -> list[int] per-site class indices
     fragchar_root_residues = {}
     subst_runs = {}
     # Per-class aggregates for parameter-recovery tests.
@@ -841,12 +959,13 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
     fragchar_chain_lengths_per_df = {}
     for (o_lin, i_lin), frag_sub in fragment_subtrees.items():
         d = dom_assignments[o_lin]
-        f = frag_assignments[(o_lin, i_lin)]
-        fragdist = class_pis[d, f]
-        ext = float(ext_rates[d, f])
-        chain = sample_fragchar_chain(np_rng, fragdist, ext)
+        f0 = frag_assignments[(o_lin, i_lin)]
+        fragtypes = sample_intra_fragment_fragtypes(np_rng, f0, ext_mat[d])
+        fragtype_chains[(o_lin, i_lin)] = fragtypes
+        # Per-site class drawn from classdist[d, fragtype].
+        chain = [int(np_rng.choice(C, p=classdist[d, ft])) for ft in fragtypes]
         fragchar_chains[(o_lin, i_lin)] = chain
-        fragchar_chain_lengths_per_df.setdefault((d, f), []).append(len(chain))
+        fragchar_chain_lengths_per_df.setdefault((d, f0), []).append(len(chain))
         root_residues = []
         for pos, kappa in enumerate(chain):
             class_fragchar_counts[kappa] += 1
@@ -855,6 +974,7 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
             r = simulate_subst_on_subtree(np_rng, r0, class_Q[kappa], frag_sub)
             subst_runs[(o_lin, i_lin, pos)] = {
                 'class_idx': int(kappa),
+                'fragtype': int(fragtypes[pos]),
                 'root_residue': r0,
                 'leaf_residues': r['leaf_residues'],
                 'total_n_substitutions': r['total_n_substitutions'],
@@ -902,6 +1022,7 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
         'inner_subtrees': inner_subtrees,
         'frag_assignments': frag_assignments,
         'fragment_subtrees': fragment_subtrees,
+        'fragtype_chains': fragtype_chains,
         'fragchar_chains': fragchar_chains,
         'fragchar_root_residues': fragchar_root_residues,
         'subst_runs': subst_runs,
@@ -913,6 +1034,145 @@ def simulate_mixdom_tree_gillespie(np_rng, tree_root, params,
             'class_total_sojourn': class_total_soj,
             'class_fragchar_counts': class_fragchar_counts,
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Chain-ordered column assembly (the GENERATIVE state-path order).
+#
+# The per-edge BDI samplers assign each new link a globally-increasing
+# lineage id, and the indicator MSAs above order columns by ``sorted(id)``
+# (creation order) because for TKF suff-stat ground truth the columns are
+# exchangeable.  For the MixDom hierarchy that is NOT safe: domains
+# partition the columns into CONTIGUOUS blocks, and creation-id order does
+# not match the chain order of the generative state path — an insertion
+# born mid-chain (high id) is sorted to the end, which reorders domain
+# blocks and, when columns are flattened, can drop a column into the wrong
+# domain's block.  The functions below recover the true chain order from
+# the recorded birth structure (``parent_of_new``), so domains come out
+# contiguous and in the order the model generated them.
+# ---------------------------------------------------------------------------
+
+
+def chain_ordered_lineages(run, restrict=None):
+    """Linearise a TKF91-on-tree run's lineages into GENERATIVE CHAIN order.
+
+    Unlike ``sorted(run['lineage_ids'])`` (creation-id order), this returns
+    the order of links along the sequence as the model actually generated
+    them: start from the root chain, then, walking edges in tree-preorder,
+    insert each newly-born link immediately after its parent link (at the
+    head of the chain for immigrations from the immortal link, where
+    ``parent_of_new[L] == -1``).  Every node's ``chain_at_node`` is a
+    subsequence of the returned order (verified in the test suite).
+
+    Works on the output of either ``simulate_tkf91_tree_gillespie`` or its
+    ``_chain_aware`` variant — both record ``root_lineage_ids`` and the
+    per-edge ``parent_of_new`` birth map.
+
+    Args:
+        run:      a TKF91-tree Gillespie run dict.
+        restrict: optional iterable of lineage ids to keep (e.g. the
+                  leaf-surviving set ``run['lineage_ids']``); others are
+                  dropped with the relative order of survivors preserved.
+
+    Returns:
+        list[int] of lineage ids in chain order.
+    """
+    order = [int(L) for L in run['root_lineage_ids']]
+    seen = set(order)
+    for e in run['edge_stats']:                       # tree-preorder
+        # Sort by new lineage id so births within an edge are applied in
+        # creation (causal) order; parents are always created earlier.
+        for new_id, par in sorted(e['parent_of_new'].items()):
+            new_id, par = int(new_id), int(par)
+            if new_id in seen:
+                continue
+            seen.add(new_id)
+            if par == -1:
+                order.insert(0, new_id)               # immigration: head of chain
+            else:
+                try:
+                    order.insert(order.index(par) + 1, new_id)
+                except ValueError:                    # defensive: parent absent
+                    order.append(new_id)
+    if restrict is not None:
+        keep = {int(x) for x in restrict}
+        order = [L for L in order if L in keep]
+    return order
+
+
+def assemble_mixdom_columns(result):
+    """Chain-ordered, domain-partitioned column layout of a full MixDom run.
+
+    Given the output of :func:`simulate_mixdom_tree_gillespie`, emit the
+    surviving site columns in GENERATIVE CHAIN ORDER at every level —
+    domains in top-level chain order, fragments within each domain in that
+    domain's chain order, sites within each fragment in position order — so
+    each domain occupies a single CONTIGUOUS run of columns, in the order
+    the model generated them.  This is the layout the partition-conditioned
+    reconstruction (``sec:partition-recon``) assumes; assembling by
+    creation-id instead (as the raw indicator MSAs do) scrambles it.
+
+    Args:
+        result: dict returned by ``simulate_mixdom_tree_gillespie``.
+
+    Returns:
+        dict with:
+            'columns'    : list[(o_lin, i_lin, pos)] site lineages, in order.
+            'col_domain' : (n_col,) int array — domain CLASS index of each
+                           column (note: distinct domain lineages may share
+                           a class index, so col_domain is not the block id).
+            'col_block'  : (n_col,) int array — the top-level domain LINEAGE
+                           id of each column.  This is the partition block
+                           identity; each distinct value is one contiguous
+                           run of columns.
+            'msa'        : dict[leaf -> (n_col,) int32 array]; residue or
+                           -1 for a gap (leaf absent at that site).
+            'leaf_order' : list[str] leaf labels (row order of 'msa').
+    """
+    outer_run = result['outer_run']
+    dom_assign = result['dom_assignments']
+    inner_runs = result['inner_runs']
+    frag_subtrees = result['fragment_subtrees']
+    fragchar_chains = result['fragchar_chains']
+    subst_runs = result['subst_runs']
+
+    # Surviving fragments per domain (a subtree exists iff the fragment
+    # reaches some leaf).
+    frags_by_dom = {}
+    for (o_lin, i_lin) in frag_subtrees:
+        frags_by_dom.setdefault(o_lin, set()).add(i_lin)
+
+    # Domain order = top-level chain order, restricted to domains with sites.
+    dom_order = chain_ordered_lineages(outer_run, restrict=frags_by_dom.keys())
+
+    columns, col_domain, col_block = [], [], []
+    for o_lin in dom_order:
+        d = int(dom_assign[o_lin])
+        frag_order = chain_ordered_lineages(
+            inner_runs[o_lin], restrict=frags_by_dom[o_lin])
+        for i_lin in frag_order:
+            n_site = len(fragchar_chains[(o_lin, i_lin)])
+            for pos in range(n_site):
+                if (o_lin, i_lin, pos) not in subst_runs:
+                    continue
+                columns.append((o_lin, i_lin, pos))
+                col_domain.append(d)
+                col_block.append(int(o_lin))
+
+    leaf_order = list(outer_run['leaf_presence'].keys())
+    n_col = len(columns)
+    msa = {leaf: np.full(n_col, -1, dtype=np.int32) for leaf in leaf_order}
+    for c, key in enumerate(columns):
+        for leaf, res in subst_runs[key]['leaf_residues'].items():
+            msa[leaf][c] = int(res)
+
+    return {
+        'columns': columns,
+        'col_domain': np.asarray(col_domain, dtype=np.int32),
+        'col_block': np.asarray(col_block, dtype=np.int32),
+        'msa': msa,
+        'leaf_order': leaf_order,
     }
 
 
