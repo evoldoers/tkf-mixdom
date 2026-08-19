@@ -157,7 +157,16 @@ class PairStream:
         """
         rng = np.random.RandomState(seed) if seed is not None else self._rng
         si = rng.randint(len(self.shard_files))
-        decoded = self._decode_shard(self.shard_files[si])
+        # Memoize decoded shards: re-decoding the whole shard (zstd + json
+        # over ~1M records) on every call dominated the Adam step wall-time
+        # while the GPU sat idle. Cache keeps sampling O(n), matching the
+        # in-memory path svi-BW uses via load_all_pairs().
+        if not hasattr(self, '_sample_decode_cache'):
+            self._sample_decode_cache = {}
+        decoded = self._sample_decode_cache.get(si)
+        if decoded is None:
+            decoded = self._decode_shard(self.shard_files[si])
+            self._sample_decode_cache[si] = decoded
         if not decoded:
             return []
         if n >= len(decoded):

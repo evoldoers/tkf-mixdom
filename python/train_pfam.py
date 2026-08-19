@@ -4479,32 +4479,43 @@ def _evaluate_on_split(params, split_name, split_fams, msa_dir, n_dom, n_frag,
     # This guarantees identical val pair set across iterations and runs.
     val_files = sorted(val_files)
 
-    # Collect all val pairs, then batch the FB for throughput
-    all_val_pairs = []
-    for vf in val_files:
-        try:
-            idx = StoIndex(vf)
-        except Exception:
-            continue
-        seqs = [idx.get_sequence(i) for i in range(len(idx))]
-        if not seqs:
-            continue
-        pairs_raw = _build_pairs_for_file(0, vf, sto_index=idx)
-        if not pairs_raw:
-            continue
-        for row1, row2, t_est in pairs_raw[:max_pairs_per_fam]:
-            if row1 >= len(seqs) or row2 >= len(seqs):
+    # Collect all val pairs, then batch the FB for throughput.
+    # Memoize the decoded pair set: walking the MSAs + extracting cherries is
+    # CPU-heavy (minutes for a few hundred families) and, being deterministic,
+    # identical on every call — re-doing it each val eval left the GPU idle.
+    # Cache keyed on the (split, dir, mode) signature so the walk runs once.
+    _vp_key = (msa_dir, split_name, int(max_pairs_per_fam),
+               bool(unaligned), bool(match_aligned), frozenset(split_fams))
+    if not hasattr(_evaluate_on_split, '_pair_cache'):
+        _evaluate_on_split._pair_cache = {}
+    all_val_pairs = _evaluate_on_split._pair_cache.get(_vp_key)
+    if all_val_pairs is None:
+        all_val_pairs = []
+        for vf in val_files:
+            try:
+                idx = StoIndex(vf)
+            except Exception:
                 continue
-            aln_i, aln_j = _aligned_pair_to_int_arrays(seqs[row1], seqs[row2])
-            if len(aln_i) == 0:
+            seqs = [idx.get_sequence(i) for i in range(len(idx))]
+            if not seqs:
                 continue
-            for anc_aln, desc_aln in [(aln_i, aln_j), (aln_j, aln_i)]:
-                states, anc_chars, desc_chars = alignment_to_states(anc_aln, desc_aln)
-                if states:
-                    x_int = np.array([int(c) for c in anc_aln if c >= 0])
-                    y_int = np.array([int(c) for c in desc_aln if c >= 0])
-                    all_val_pairs.append(
-                        (x_int, y_int, states, anc_chars, desc_chars, t_est))
+            pairs_raw = _build_pairs_for_file(0, vf, sto_index=idx)
+            if not pairs_raw:
+                continue
+            for row1, row2, t_est in pairs_raw[:max_pairs_per_fam]:
+                if row1 >= len(seqs) or row2 >= len(seqs):
+                    continue
+                aln_i, aln_j = _aligned_pair_to_int_arrays(seqs[row1], seqs[row2])
+                if len(aln_i) == 0:
+                    continue
+                for anc_aln, desc_aln in [(aln_i, aln_j), (aln_j, aln_i)]:
+                    states, anc_chars, desc_chars = alignment_to_states(anc_aln, desc_aln)
+                    if states:
+                        x_int = np.array([int(c) for c in anc_aln if c >= 0])
+                        y_int = np.array([int(c) for c in desc_aln if c >= 0])
+                        all_val_pairs.append(
+                            (x_int, y_int, states, anc_chars, desc_chars, t_est))
+        _evaluate_on_split._pair_cache[_vp_key] = all_val_pairs
 
     if not all_val_pairs:
         _log(f"  Val eval ({split_name}): no pairs found")
