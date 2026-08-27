@@ -1484,10 +1484,6 @@ _batched_fwd_jit_cache = {}
 _batched_fb_per_chi_jit_cache = {}
 _batched_fwd_per_chi_jit_cache = {}
 _log_chi_stack_jit_cache = None
-# Batched (vmapped) constrained-emission kernels, keyed by (n_dom, n_frag).
-# One entry per branch: per-domain (no classdist) and per-class (classdist).
-_batched_emit_perdom_jit_cache = {}
-_batched_emit_class_jit_cache = {}
 
 
 # Phase 6: scan-mode resolution. The user-visible CLI flag
@@ -1666,71 +1662,6 @@ def _build_log_chi_stack(params, t_array):
         jnp.asarray(params['frag_weights']),
         jnp.asarray(params['ext_rates']),
     )
-
-
-def _get_batched_emit_perdom_jit(n_dom, n_frag):
-    """JIT'd vmapped per-domain constrained-emission kernel.
-
-    Builds `pair_hmm_emissions_constrained` (per-domain branch, classdist
-    None) for a whole length-bucket in one call. vmap over the per-pair
-    axes (states, anc, desc, subs) with axis 0; broadcast the shared `st`
-    and `pis`; `n_dom`/`n_frag` are static (closed over).
-
-    in: st (N,), states (B, Lp), anc (B, Lp), desc (B, Lp),
-        subs (B, n_dom, A, A), pis (n_dom, A)
-    out: (B, Lp, N) log-emissions computed on the padded length Lp
-         (rows past each pair's real length are re-filled with NEG_INF by
-         the caller, reproducing the old compute-on-real-L-then-pad path).
-    """
-    key = (n_dom, n_frag)
-    if key not in _batched_emit_perdom_jit_cache:
-        import jax
-        from tkfmixdom.jax.dp.hmm import (
-            pair_hmm_emissions_constrained as _emit)
-
-        def _core(st, states, anc, desc, subs, pis):
-            return jax.vmap(
-                lambda s, a, d, sub: _emit(
-                    st, s, a, d, sub, pis, n_dom, n_frag),
-                in_axes=(0, 0, 0, 0),
-            )(states, anc, desc, subs)
-        _batched_emit_perdom_jit_cache[key] = jax.jit(_core)
-    return _batched_emit_perdom_jit_cache[key]
-
-
-def _get_batched_emit_class_jit(n_dom, n_frag):
-    """JIT'd vmapped per-class (classdist) constrained-emission kernel.
-
-    Same structure as `_get_batched_emit_perdom_jit` but drives the
-    per-class branch of `pair_hmm_emissions_constrained`. The per-domain
-    subs/pis are still passed (ignored inside the class branch, but kept
-    so the vmap signature is uniform); the class args (cd_classdist,
-    cd_subs, cd_pis) are shared across the bucket.
-
-    in: st (N,), states (B, Lp), anc (B, Lp), desc (B, Lp),
-        subs (B, n_dom, A, A), pis (n_dom, A),
-        cd_classdist (n_dom, n_frag, C), cd_subs (B, C, A, A),
-        cd_pis (C, A)
-    out: (B, Lp, N)
-    """
-    key = (n_dom, n_frag)
-    if key not in _batched_emit_class_jit_cache:
-        import jax
-        from tkfmixdom.jax.dp.hmm import (
-            pair_hmm_emissions_constrained as _emit)
-
-        def _core(st, states, anc, desc, subs, pis,
-                  cd_classdist, cd_subs, cd_pis):
-            return jax.vmap(
-                lambda s, a, d, sub, csub: _emit(
-                    st, s, a, d, sub, pis, n_dom, n_frag,
-                    classdist=cd_classdist,
-                    class_sub_matrices=csub,
-                    class_pis=cd_pis),
-                in_axes=(0, 0, 0, 0, 0),
-            )(states, anc, desc, subs, cd_subs)
-        _batched_emit_class_jit_cache[key] = jax.jit(_core)
-    return _batched_emit_class_jit_cache[key]
 
 
 # Module-level caches for per-chi 2D and match-aligned JITs (FB and forward-only)
@@ -2234,29 +2165,6 @@ def _process_pairs_batched(batch_pairs, chi_params, st, Q_lg, pi_lg, N,
         cd_log_subs_stack_all = None
         cd_log_pis_shared = None
 
-    # ---- Emission construction, now batched per length-bucket. --------
-    # PERF FIX: previously `pair_hmm_emissions_constrained` was called once
-    # per pair inside this Python loop (un-jitted, re-tracing + fresh
-    # host→device transfers each call), which dominated the E-step at large
-    # batch. We now split into two passes:
-    #   Pass 1 (numpy, cheap): build per-pair states/anc/desc + per-pair
-    #     sub-matrix slices, PAD each to the pair's padded_L, and group by
-    #     bucket.
-    #   Pass 2 (one jitted vmapped emit call per bucket): stack the padded
-    #     per-pair inputs and build (B_bucket, padded_L, N) in one shot,
-    #     then mask rows past each pair's real length to NEG_INF (exactly
-    #     reproducing the old compute-on-real-L-then-pad behaviour, since
-    #     the emission at row ℓ depends only on states/anc/desc[ℓ]).
-    # The math (`pair_hmm_emissions_constrained`, per-pair t-coherent
-    # subs/pis, NEG_INF fill, bucket layout, downstream FB) is unchanged.
-    use_classdist = use_classdist_outer
-
-    # Pass 1: accumulate padded per-pair emit inputs, grouped by padded_L.
-    # emit_inputs[padded_L] = list of per-pair dicts with the arrays this
-    # pair contributes to its bucket's batched emit call, plus the metadata
-    # the downstream bucket loop consumes.
-    from collections import defaultdict as _dd
-    emit_inputs = _dd(list)
     for ipi, item in enumerate(batch_pairs):
         x_int, y_int, states, anc_chars, desc_chars, t_est = item
         # Empty pairs (states=[]) are valid samples from the model
@@ -2281,109 +2189,64 @@ def _process_pairs_batched(batch_pairs, chi_params, st, Q_lg, pi_lg, N,
         # outside this loop via the same vmapped helper as per-domain).
         # Each pair's M_c(t_p) is the pair's own t_p evaluated against the
         # frozen-for-batch class (Q_c, pi_c) — no per-pair JAX dispatch.
+        use_classdist = use_classdist_outer
         if use_classdist:
             cd_log_subs = cd_log_subs_stack_all[ipi]   # (n_cls, A, A)
             cd_log_pis = cd_log_pis_shared             # (n_cls, A) — shared
-            # Linear form for the JAX emit builder (per-pair varying).
+            cd_classdist = cd_classdist_outer
+            # Linear forms for the JAX emit builder.
             cd_subs_lin = class_sub_stack_all[ipi]     # (n_cls, A, A)
+            cd_pis_lin = class_pis_outer               # (n_cls, A)
+            cd_classdist_lin = cd_classdist_outer
         else:
             cd_log_subs = None
             cd_log_pis = None
+            cd_classdist = None
             cd_subs_lin = None
+            cd_pis_lin = None
+            cd_classdist_lin = None
 
         # Slice the pre-computed per-pair sub matrices for this pair.
+        # Shape: (n_dom_for_subs, A, A); pis shared across pairs.
+        log_subs = log_subs_stack_all[ipi]
+        log_pis_arr = log_pis_subs_arr
         # Linear forms for the JAX emit builder. When per_domain_subst is
         # off, n_dom_for_subs=1 and we broadcast the shared (1, A, A) sub
         # to (n_dom, A, A) so the JAX builder's dom_idx lookup is safe.
         if per_domain_subst:
-            subs_lin_pair = np.asarray(sub_matrices_stack_all[ipi])  # (n_dom, A, A)
+            subs_lin_pair = sub_matrices_stack_all[ipi]    # (n_dom, A, A)
+            pis_lin_pair = pis_subs_arr_linear             # (n_dom, A)
         else:
-            subs_lin_pair = np.ascontiguousarray(np.broadcast_to(
-                sub_matrices_stack_all[ipi][0], (n_dom, AA, AA)))
+            subs_lin_pair = np.broadcast_to(
+                sub_matrices_stack_all[ipi][0], (n_dom, AA, AA))
+            pis_lin_pair = np.broadcast_to(
+                pis_subs_arr_linear[0], (n_dom, AA))
+
+        # JAX-native emission construction (replaces the NumPy-only
+        # `mixdom_constrained_emissions_vectorized`). Output is a JAX
+        # array; converted back to NumPy for the existing NumPy-padded
+        # bucket layout below. Eliminates the NumPy code path inside
+        # the SVI-BW E-step and is JIT-friendly for downstream
+        # restructuring (vmap over bucket pairs).
+        from tkfmixdom.jax.dp.hmm import pair_hmm_emissions_constrained as _emit_jax
+        log_emit_j = _emit_jax(
+            jnp.asarray(st), jnp.asarray(states_arr),
+            jnp.asarray(anc_full), jnp.asarray(desc_full),
+            jnp.asarray(subs_lin_pair), jnp.asarray(pis_lin_pair),
+            n_dom, n_frag,
+            classdist=jnp.asarray(cd_classdist_lin) if cd_classdist_lin is not None else None,
+            class_sub_matrices=jnp.asarray(cd_subs_lin) if cd_subs_lin is not None else None,
+            class_pis=jnp.asarray(cd_pis_lin) if cd_pis_lin is not None else None)
+        log_emit = np.asarray(log_emit_j)
 
         padded_L = _pad_to_bin(L)
-        # Pad states (sentinel state 0 / M — its emission rows are masked to
-        # NEG_INF below, so the padded values never reach the FB) and chars
-        # (0) to the bucket's padded length. The batched emit runs on the
-        # padded length; the first L rows are identical to the old real-L
-        # compute since emission at row ℓ depends only on col ℓ.
-        states_pad = np.zeros(padded_L, dtype=np.int32)
-        states_pad[:L] = states_arr
-        anc_pad = np.zeros(padded_L, dtype=np.int32)
-        anc_pad[:L] = anc_full
-        desc_pad = np.zeros(padded_L, dtype=np.int32)
-        desc_pad[:L] = desc_full
-
+        padded_emit_np = np.full((padded_L, N), np.float32(NEG_INF), dtype=np.float32)
+        padded_emit_np[:L] = log_emit
         # Store per-pair classdist info for posterior computation
         pair_cd_info = (cd_log_subs, cd_log_pis) if use_classdist else None
-        emit_inputs[padded_L].append({
-            'states_pad': states_pad,
-            'anc_pad': anc_pad,
-            'desc_pad': desc_pad,
-            'subs_lin': subs_lin_pair,
-            'cd_subs_lin': cd_subs_lin,
-            'L': L,
-            'states_arr': states_arr,
-            'anc_chars': anc_chars,
-            'desc_chars': desc_chars,
-            'pair_cd_info': pair_cd_info,
-            't_est': t_est,
-        })
-
-    # Shared (broadcast) emit args — identical for every pair in the batch.
-    # For the per-domain path `pis_lin_shared` is `pis_subs_arr_linear`
-    # (per_domain_subst) or the broadcast of its row 0 (LG fallback), which
-    # is exactly the per-pair `pis_lin_pair` the old loop built.
-    if per_domain_subst:
-        pis_lin_shared = np.asarray(pis_subs_arr_linear)             # (n_dom, A)
-    else:
-        pis_lin_shared = np.ascontiguousarray(np.broadcast_to(
-            pis_subs_arr_linear[0], (n_dom, AA)))
-    if use_classdist:
-        cd_pis_shared = np.asarray(class_pis_outer)                  # (n_cls, A)
-        cd_classdist_shared = np.asarray(cd_classdist_outer)         # (n_dom, n_frag, n_cls)
-
-    # Pass 2: one jitted vmapped emit call per bucket, then per-pair
-    # NEG_INF masking + append into the same `buckets` structure the
-    # downstream FB loop consumes (identical tuple layout).
-    if use_classdist:
-        _emit_kernel = _get_batched_emit_class_jit(n_dom, n_frag)
-    else:
-        _emit_kernel = _get_batched_emit_perdom_jit(n_dom, n_frag)
-    st_j = jnp.asarray(st)
-    pis_lin_j = jnp.asarray(pis_lin_shared)
-    if use_classdist:
-        cd_pis_j = jnp.asarray(cd_pis_shared)
-        cd_classdist_j = jnp.asarray(cd_classdist_shared)
-
-    for padded_L, plist in emit_inputs.items():
-        states_stack = jnp.asarray(np.stack([p['states_pad'] for p in plist]))
-        anc_stack = jnp.asarray(np.stack([p['anc_pad'] for p in plist]))
-        desc_stack = jnp.asarray(np.stack([p['desc_pad'] for p in plist]))
-        subs_stack = jnp.asarray(np.stack([p['subs_lin'] for p in plist]))
-        if use_classdist:
-            cd_subs_stack = jnp.asarray(np.stack([p['cd_subs_lin'] for p in plist]))
-            emit_batch = _emit_kernel(
-                st_j, states_stack, anc_stack, desc_stack,
-                subs_stack, pis_lin_j,
-                cd_classdist_j, cd_subs_stack, cd_pis_j)
-        else:
-            emit_batch = _emit_kernel(
-                st_j, states_stack, anc_stack, desc_stack,
-                subs_stack, pis_lin_j)
-        emit_batch_np = np.asarray(emit_batch)  # (B_bucket, padded_L, N)
-
-        for bi, p in enumerate(plist):
-            L = p['L']
-            # Reproduce the old compute-on-real-L-then-pad exactly: keep the
-            # first L rows, force rows >= L to NEG_INF, and downcast to the
-            # float32 buffer the bucket layout used before.
-            padded_emit_np = np.full((padded_L, N), np.float32(NEG_INF),
-                                     dtype=np.float32)
-            padded_emit_np[:L] = emit_batch_np[bi, :L]
-            buckets[padded_L].append(
-                (padded_emit_np, L, p['states_arr'], p['anc_chars'],
-                 p['desc_chars'], p['pair_cd_info'], p['t_est']))
+        # Store t_est too so we can build per-pair log_chi inside the
+        # bucket loop (chi must be at the same t as emissions).
+        buckets[padded_L].append((padded_emit_np, L, states_arr, anc_chars, desc_chars, pair_cd_info, t_est))
 
     if not buckets:
         return None
@@ -4479,43 +4342,32 @@ def _evaluate_on_split(params, split_name, split_fams, msa_dir, n_dom, n_frag,
     # This guarantees identical val pair set across iterations and runs.
     val_files = sorted(val_files)
 
-    # Collect all val pairs, then batch the FB for throughput.
-    # Memoize the decoded pair set: walking the MSAs + extracting cherries is
-    # CPU-heavy (minutes for a few hundred families) and, being deterministic,
-    # identical on every call — re-doing it each val eval left the GPU idle.
-    # Cache keyed on the (split, dir, mode) signature so the walk runs once.
-    _vp_key = (msa_dir, split_name, int(max_pairs_per_fam),
-               bool(unaligned), bool(match_aligned), frozenset(split_fams))
-    if not hasattr(_evaluate_on_split, '_pair_cache'):
-        _evaluate_on_split._pair_cache = {}
-    all_val_pairs = _evaluate_on_split._pair_cache.get(_vp_key)
-    if all_val_pairs is None:
-        all_val_pairs = []
-        for vf in val_files:
-            try:
-                idx = StoIndex(vf)
-            except Exception:
+    # Collect all val pairs, then batch the FB for throughput
+    all_val_pairs = []
+    for vf in val_files:
+        try:
+            idx = StoIndex(vf)
+        except Exception:
+            continue
+        seqs = [idx.get_sequence(i) for i in range(len(idx))]
+        if not seqs:
+            continue
+        pairs_raw = _build_pairs_for_file(0, vf, sto_index=idx)
+        if not pairs_raw:
+            continue
+        for row1, row2, t_est in pairs_raw[:max_pairs_per_fam]:
+            if row1 >= len(seqs) or row2 >= len(seqs):
                 continue
-            seqs = [idx.get_sequence(i) for i in range(len(idx))]
-            if not seqs:
+            aln_i, aln_j = _aligned_pair_to_int_arrays(seqs[row1], seqs[row2])
+            if len(aln_i) == 0:
                 continue
-            pairs_raw = _build_pairs_for_file(0, vf, sto_index=idx)
-            if not pairs_raw:
-                continue
-            for row1, row2, t_est in pairs_raw[:max_pairs_per_fam]:
-                if row1 >= len(seqs) or row2 >= len(seqs):
-                    continue
-                aln_i, aln_j = _aligned_pair_to_int_arrays(seqs[row1], seqs[row2])
-                if len(aln_i) == 0:
-                    continue
-                for anc_aln, desc_aln in [(aln_i, aln_j), (aln_j, aln_i)]:
-                    states, anc_chars, desc_chars = alignment_to_states(anc_aln, desc_aln)
-                    if states:
-                        x_int = np.array([int(c) for c in anc_aln if c >= 0])
-                        y_int = np.array([int(c) for c in desc_aln if c >= 0])
-                        all_val_pairs.append(
-                            (x_int, y_int, states, anc_chars, desc_chars, t_est))
-        _evaluate_on_split._pair_cache[_vp_key] = all_val_pairs
+            for anc_aln, desc_aln in [(aln_i, aln_j), (aln_j, aln_i)]:
+                states, anc_chars, desc_chars = alignment_to_states(anc_aln, desc_aln)
+                if states:
+                    x_int = np.array([int(c) for c in anc_aln if c >= 0])
+                    y_int = np.array([int(c) for c in desc_aln if c >= 0])
+                    all_val_pairs.append(
+                        (x_int, y_int, states, anc_chars, desc_chars, t_est))
 
     if not all_val_pairs:
         _log(f"  Val eval ({split_name}): no pairs found")
