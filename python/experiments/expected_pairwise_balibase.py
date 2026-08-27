@@ -72,6 +72,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tkfmixdom.jax.tree.fsa_anneal import (
     _pairwise_posteriors_tkf92_jax,
+    _pairwise_posteriors_mixfrag_jax,
     pairwise_posteriors_mixdom,
     pairwise_posteriors_tkf92_mixture_streaming,
     select_pairs_full,
@@ -278,6 +279,46 @@ def _mixdom_pair_posteriors(int_seqs, names, pairs, fsa_params, n_dom, n_frag):
                 'pair': [int(i), int(j)],
                 'name_i': names[i],
                 'name_j': names[j],
+                'Lx': int(len(int_seqs[names[i]])),
+                'Ly': int(len(int_seqs[names[j]])),
+                'error_type': type(e).__name__,
+                'error_msg': str(e)[:500],
+            })
+    return pp, failed
+
+
+def _mixfrag_pair_posteriors(int_seqs, names, pairs, ins, del_, exts, weights, Q, pi):
+    """Per-pair MixFrag (TKF92 fragment-mixture) match posteriors.
+
+    MixFrag is MixDom with a single domain, so it shares the soft-posterior
+    output format of ``_mixdom_pair_posteriors`` and feeds the identical
+    downstream FSA-annealing + scoring pipeline. Per-pair try/except records
+    an OOMing pair in ``failed_pairs`` and skips it.
+
+    Returns ``(pair_posteriors, failed_pairs)``.
+    """
+    import jax
+    exts_j = jnp.asarray(exts)
+    weights_j = jnp.asarray(weights)
+    Q_j, pi_j = jnp.asarray(Q), jnp.asarray(pi)
+    pp = {}
+    failed = []
+    for i, j in pairs:
+        try:
+            x = jnp.asarray(int_seqs[names[i]], dtype=jnp.int32)
+            y = jnp.asarray(int_seqs[names[j]], dtype=jnp.int32)
+            Lx, Ly = int(x.shape[0]), int(y.shape[0])
+            x_pad = _pad_seq(x, _pad_to_bin(Lx))
+            y_pad = _pad_seq(y, _pad_to_bin(Ly))
+            mp_pad, _, _ = _pairwise_posteriors_mixfrag_jax(
+                x_pad, y_pad, jnp.int32(Lx), jnp.int32(Ly),
+                jnp.float64(ins), jnp.float64(del_), exts_j, weights_j, Q_j, pi_j)
+            pp[(i, j)] = np.asarray(mp_pad)[:Lx, :Ly]
+        except Exception as e:
+            jax.clear_caches()
+            failed.append({
+                'pair': [int(i), int(j)],
+                'name_i': names[i], 'name_j': names[j],
                 'Lx': int(len(int_seqs[names[i]])),
                 'Ly': int(len(int_seqs[names[j]])),
                 'error_type': type(e).__name__,
@@ -764,6 +805,25 @@ def build_method_callable(args):
             return pp, 'soft', failed, {}
         return _go, cfg
 
+    if args.method == 'mixfrag':
+        d = np.load(args.params, allow_pickle=True)
+        ins, del_ = float(d['lam']), float(d['mu'])
+        exts = np.asarray(d['exts'], dtype=float)
+        weights = np.asarray(d['weights'], dtype=float)
+        Q_lg, pi_lg = rate_matrix_lg()
+        Q_lg, pi_lg = np.asarray(Q_lg), np.asarray(pi_lg)
+        cfg = {'method': 'mixfrag', 'params_file': args.params,
+               'n_fragtypes': int(d['n_fragtypes']),
+               'lam': ins, 'mu': del_,
+               'exts': exts.tolist(), 'weights': weights.tolist(),
+               'emissions': 'LG08'}
+
+        def _go(int_seqs, names, pairs, _raw_seqs):
+            pp, failed = _mixfrag_pair_posteriors(
+                int_seqs, names, pairs, ins, del_, exts, weights, Q_lg, pi_lg)
+            return pp, 'soft', failed, {}
+        return _go, cfg
+
     if args.method in ('mafft', 'muscle'):
         cfg = {'method': args.method, 'params_file': None}
 
@@ -787,7 +847,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--method', required=True,
                    choices=['tkf92', 'tkf92_mixture',
-                            'cherryml_mixture', 'mixdom',
+                            'cherryml_mixture', 'mixdom', 'mixfrag',
                             'mafft', 'muscle'])
     p.add_argument('--method-name', type=str, default=None,
                    help='Free-form label for the method; defaults to --method.')

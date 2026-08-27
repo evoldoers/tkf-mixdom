@@ -160,21 +160,28 @@ Section~\ref{sec:cumulant-structural-bias-results} reaches a finite
 biased fixed point and does not diverge.
 
 \paragraph{Implications for parameter inference.}
+% The three \ifcsname guards below refer to results sections defined in
+% frontmatter-tkf.tex.  tkf.tex inputs that file; the tkf-dp supplement, which
+% also inputs this appendix, does not.  The guard renders the cross-reference
+% where the label exists and omits it where it does not.
 The structural bias is a property of any inference scheme that
 uses the cumulant tensor $\mathbf{W}$ as a sufficient statistic
 under a column-factorised variational family.  It does not affect:
 (i) the ELBO value itself (which is a coherent $\log p(\text{data})$
 lower bound regardless of what the cumulant looks like), nor
 (ii) ancestral indel-presence reconstruction
-(Section~\ref{sec:results-varanc-vs-fitch}: VarAnc and Fitch
+(\ifcsname r@sec:results-varanc-vs-fitch\endcsname
+Section~\ref{sec:results-varanc-vs-fitch}: \fi VarAnc and Fitch
 parsimony are statistically indistinguishable on the unified
 Pfam test splits, $|\Delta\text{F1}| < 0.006$ across short / hard
 / xhard), nor
 (iii) downstream MSA-conditioned rate estimation via
-exact-EM (Maraschino, Section~\ref{sec:results-pfam-cherry}).
+exact-EM (Maraschino\ifcsname r@sec:results-pfam-cherry\endcsname,
+Section~\ref{sec:results-pfam-cherry}\fi).
 It does affect any rate estimate computed from the variational
 cumulant, including the SVI-VarAnc refinement of cherry-trained
-parameters (Section~\ref{sec:results-cherry-vs-msa}), where
+parameters\ifcsname r@sec:results-cherry-vs-msa\endcsname{}
+(Section~\ref{sec:results-cherry-vs-msa})\fi, where
 parameters drift toward $\theta_\infty$ rather than toward
 truth.  We report both initial cherry-trained and $\theta_\infty$
 estimates without correction; the structural bias is the principal

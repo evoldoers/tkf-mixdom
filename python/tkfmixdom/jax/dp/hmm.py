@@ -1183,7 +1183,8 @@ def _forward_2d_core(log_trans, state_types, emit, Lx, Ly):
     return log_prob, F
 
 
-def _forward_2d_core_diag(log_trans, state_types, emit, Lx, Ly):
+def _forward_2d_core_diag(log_trans, state_types, emit, Lx, Ly,
+                          return_chart=True, real_Lx=None, real_Ly=None):
     """Anti-diagonal wavefront forward for 2D pair HMM.
 
     Same recursion as _forward_2d_core but parallelizes over each
@@ -1198,6 +1199,18 @@ def _forward_2d_core_diag(log_trans, state_types, emit, Lx, Ly):
 
     Lx and Ly must be Python ints (typically the geometric-bin padded
     sizes used by forward_backward_2d).
+
+    return_chart=True (default): materializes and returns the full
+    (Lx+1, Ly+1, ns) forward chart F, returning (log_prob, F). This is
+    the original behavior, unchanged.
+
+    return_chart=False: forward-only, linear-space. The diagonal scan is
+    run with output None (nothing O(L^2) is stacked; carry stays the two
+    O(D_max*ns) diagonals) and the full-grid scatter is skipped. The
+    endpoint cell at (real_Lx, real_Ly) — defaulting to (Lx, Ly) when
+    real_* is None — is captured during the scan, and only the terminal
+    log-probability is returned as (log_prob, None). real_Lx/real_Ly may
+    be traced jnp scalars (safe under vmap).
     """
     ns = log_trans.shape[0]
     is_M = (state_types == M)
@@ -1256,6 +1269,41 @@ def _forward_2d_core_diag(log_trans, state_types, emit, Lx, Ly):
         cells = jnp.where(valid[:, None], cells, NEG_INF)
         return (cells, prev), cells
 
+    e_idx = _find_e_idx(state_types)
+
+    if not return_chart:
+        # Forward-only, linear-space: no O(L^2) stacking, no full-grid
+        # scatter. Carry the two diagonals AND the captured endpoint cell.
+        term_Lx = Lx if real_Lx is None else real_Lx
+        term_Ly = Ly if real_Ly is None else real_Ly
+        d_end = term_Lx + term_Ly
+        # Local index of the endpoint on its anti-diagonal.
+        k_star = term_Lx - jnp.maximum(0, d_end - Ly)
+
+        def scan_fn_noout(carry, d):
+            prev, prev_prev, saved = carry
+            ks = jnp.arange(D_max)
+            i_vals = _i_min(d) + ks
+            j_vals = d - i_vals
+            valid = (i_vals <= Lx) & (j_vals >= 0) & (j_vals <= Ly)
+            cells = jax.vmap(lambda k: compute_cell(prev, prev_prev, d, k))(ks)
+            cells = jnp.where(valid[:, None], cells, NEG_INF)
+            # Capture the endpoint cell when this diagonal holds it.
+            saved = jnp.where(d == d_end, cells[k_star], saved)
+            return (cells, prev, saved), None
+
+        # Init saved to the (0,0) cell value in case d_end == 0 (both real
+        # lengths zero): diag0[0] holds F[0,0] = e_S at S. When d_end > 0
+        # the scan overwrites saved on the endpoint diagonal.
+        saved0 = diag0[0]
+        (_, _, saved), _ = jax.lax.scan(
+            scan_fn_noout,
+            (diag0, jnp.full((D_max, ns), NEG_INF), saved0),
+            jnp.arange(1, n_diags + 1))
+
+        log_prob = jax.nn.logsumexp(saved + log_trans[:, e_idx])
+        return log_prob, None
+
     (_, _), all_diags = jax.lax.scan(
         scan_fn, (diag0, jnp.full((D_max, ns), NEG_INF)),
         jnp.arange(1, n_diags + 1))
@@ -1287,7 +1335,6 @@ def _forward_2d_core_diag(log_trans, state_types, emit, Lx, Ly):
     F_flat = jax.lax.fori_loop(0, n_diags, _scatter_one_diag, F_flat)
     F = F_flat[:n_flat].reshape(Lx + 1, Ly + 1, ns)
 
-    e_idx = _find_e_idx(state_types)
     log_prob = jax.nn.logsumexp(F[Lx, Ly, :] + log_trans[:, e_idx])
     return log_prob, F
 
@@ -1437,6 +1484,40 @@ def _backward_2d_core_diag(log_trans, state_types, emit, Lx, Ly,
     return B
 
 
+def _logsemiring_affine_compose(g, f):
+    """Compose two log-semiring affine operators, returning f∘g.
+
+    An operator is a pair (A, b) representing the map
+        op(v)_k = logaddexp( b_k, logsumexp_s(v_s + A[s, k]) )
+    on a log-space state vector v of length ns.
+
+    Composition (f∘g)(v) = f(g(v)) is itself affine:
+        A_{f∘g}[t, k] = logsumexp_s( A_g[t, s] + A_f[s, k] )      (log-semiring matmul)
+        b_{f∘g}[k]    = logaddexp( b_f[k], logsumexp_s(b_g[s] + A_f[s, k]) )
+
+    Both inputs/outputs are batched over a leading column axis (the axis
+    jax.lax.associative_scan reduces over), with A of shape (..., ns, ns)
+    and b of shape (..., ns). This makes the per-row I-recurrence an
+    associative (parallel-prefix) scan of depth O(log Ly) instead of a
+    sequential scan of depth O(Ly).
+    """
+    A_g, b_g = g
+    A_f, b_f = f
+    # log-semiring matmul: A_out[..., t, k] = logsumexp_s(A_g[..., t, s] + A_f[..., s, k])
+    A_out = jax.nn.logsumexp(A_g[..., :, :, None] + A_f[..., None, :, :], axis=-2)
+    # b_out[..., k] = logaddexp(b_f[..., k], logsumexp_s(b_g[..., s] + A_f[..., s, k]))
+    b_prop = jax.nn.logsumexp(b_g[..., :, None] + A_f, axis=-2)
+    b_out = jnp.logaddexp(b_f, b_prop)
+    # NEG_INF is a finite sentinel (-1e30), so summing two sentinels inside the
+    # log-semiring matmul underflows to ~-2e30. Clamp back to the sentinel floor
+    # so masked/impossible entries stay at NEG_INF instead of drifting; genuine
+    # (finite) log-values are many orders of magnitude above NEG_INF, so the
+    # clamp is a no-op for them.
+    A_out = jnp.maximum(A_out, NEG_INF)
+    b_out = jnp.maximum(b_out, NEG_INF)
+    return A_out, b_out
+
+
 def _forward_2d_core_rowscan(log_trans, state_types, emit, Lx, Ly):
     """Row-scan forward for 2D pair HMM.
 
@@ -1467,18 +1548,26 @@ def _forward_2d_core_rowscan(log_trans, state_types, emit, Lx, Ly):
     row0 = jnp.full((Ly + 1, ns), NEG_INF)
     row0 = row0.at[0, S].set(0.0)
 
-    # Fill row 0 columns 1..Ly via I-type scan
-    def _col_scan_fwd(prev_cell, j):
-        """Propagate I-type transitions from column j-1 to j."""
-        # I contribution: prev_cell @ trans_I + emit[i, j]
-        # prev_cell is (ns,), trans_I is (ns, ns)
-        i_contrib = jax.nn.logsumexp(prev_cell[:, None] + trans_I, axis=0) + emit[0, j]
-        # For non-I states, this should be NEG_INF (already handled by trans_I mask)
-        return i_contrib, i_contrib
-
-    # For row 0, there are no M or D contributions (no previous row), only I
-    _, row0_cols = jax.lax.scan(_col_scan_fwd, row0[0], jnp.arange(1, Ly + 1))
-    row0 = row0.at[1:].set(row0_cols)
+    # Fill row 0 columns 1..Ly via an associative (parallel-prefix) scan over
+    # the I-type recurrence. Elementary operator for column j (j=1..Ly):
+    #   cell[j] = logsumexp_s(cell[j-1][s] + trans_I[s,:]) + emit[0, j]
+    # i.e. affine op (A_j, b_j) with A_j[s,k] = trans_I[s,k] + emit[0,j,k],
+    # b_j = NEG_INF (no free/M/D input on row 0). The cumulative composite
+    # operators P_j = O_j∘...∘O_1 applied to cell0 give every column at once,
+    # in O(log Ly) sequential depth instead of O(Ly).
+    if Ly > 0:
+        cell0_r0 = row0[0]  # (ns,)
+        # Per-column elementary operators, batched over the column (scan) axis.
+        A_r0 = trans_I[None, :, :] + emit[0, 1:Ly + 1][:, None, :]  # (Ly, ns, ns)
+        b_r0 = jnp.full((Ly, ns), NEG_INF)
+        A_cum, b_cum = jax.lax.associative_scan(
+            _logsemiring_affine_compose, (A_r0, b_r0), axis=0)
+        # Apply each cumulative operator to cell0: P_j(cell0)_k =
+        #   logaddexp(b_cum[j,k], logsumexp_s(cell0[s] + A_cum[j,s,k]))
+        row0_cols = jnp.maximum(jnp.logaddexp(
+            b_cum,
+            jax.nn.logsumexp(cell0_r0[None, :, None] + A_cum, axis=1)), NEG_INF)  # (Ly, ns)
+        row0 = row0.at[1:].set(row0_cols)
 
     def _process_row(prev_row, i):
         """Compute row i given row i-1 (prev_row).
@@ -1507,20 +1596,28 @@ def _forward_2d_core_rowscan(log_trans, state_types, emit, Lx, Ly):
         # Column 0: only D contribution (no M or I from left)
         cell0 = d_free[0]
 
-        # Columns 1..Ly: M+D free input, then propagate I along j
-        def _col_scan_row(prev_cell, idx):
-            """Process column j = idx+1."""
-            j = idx + 1
-            # M+D free input
-            free = jnp.logaddexp(m_free[idx], d_free[j])
-            # I contribution from prev_cell
-            i_contrib = jax.nn.logsumexp(
-                prev_cell[:, None] + trans_I, axis=0) + emit[i, j]
-            cell = jnp.logaddexp(free, i_contrib)
-            return cell, cell
-
-        _, row_cols = jax.lax.scan(_col_scan_row, cell0, jnp.arange(Ly))
-        new_row = jnp.concatenate([cell0[None, :], row_cols], axis=0)  # (Ly+1, ns)
+        # Columns 1..Ly: M+D "free" input from the previous row, then the
+        # I-recurrence propagates sequentially from the left. That recurrence is
+        # a first-order log-semiring affine recurrence, so we solve it with an
+        # associative (parallel-prefix) scan in O(log Ly) depth instead of the
+        # O(Ly) sequential scan that starved the GPU.
+        #   cell[j] = logaddexp( free[j],
+        #                        logsumexp_s(cell[j-1][s] + trans_I[s,:]) + emit[i,j] )
+        # Elementary operator for column j (j=1..Ly), indexed by idx=j-1:
+        #   A_j[s,k] = trans_I[s,k] + emit[i,j,k]
+        #   b_j[k]   = free[j,k] = logaddexp(m_free[j-1,k], d_free[j,k])
+        if Ly > 0:
+            free = jnp.logaddexp(m_free, d_free[1:])            # (Ly, ns)
+            A_col = trans_I[None, :, :] + emit[i, 1:Ly + 1][:, None, :]  # (Ly, ns, ns)
+            A_cum, b_cum = jax.lax.associative_scan(
+                _logsemiring_affine_compose, (A_col, free), axis=0)
+            # Apply cumulative operators to cell0 for every column at once.
+            row_cols = jnp.maximum(jnp.logaddexp(
+                b_cum,
+                jax.nn.logsumexp(cell0[None, :, None] + A_cum, axis=1)), NEG_INF)  # (Ly, ns)
+            new_row = jnp.concatenate([cell0[None, :], row_cols], axis=0)
+        else:
+            new_row = cell0[None, :]
         return new_row, new_row
 
     # Scan over rows 1..Lx
@@ -1903,6 +2000,24 @@ def forward_backward_2d(log_trans, state_types, x_seq, y_seq, sub_matrix, pi,
     # Row-scan uses sequential inner scan, avoiding the vmap blowup.
     _use_rowscan = ns > 50
 
+    if forward_only:
+        if _use_rowscan:
+            # Large ns: the diagonal wavefront's (ns, ns) vmap blows up XLA
+            # compilation, so use the row-scan (fast now via associative-scan
+            # inner recurrence). Full-chart, but large-ns is the compile-bound
+            # regime, not the long-sequence-OOM regime.
+            _, F_pad = _forward_2d_core_rowscan(
+                log_trans, state_types, emit, Lx_pad, Ly_pad)
+            e_idx = _find_e_idx(state_types)
+            return jax.nn.logsumexp(F_pad[Lx, Ly, :] + log_trans[:, e_idx])
+        # Small ns: fast, linear-space forward-only via the anti-diagonal
+        # wavefront — carries just two diagonals and captures the endpoint
+        # cell, so no O(L^2) chart is materialized (runs where full-chart OOMs).
+        log_prob = _forward_2d_core_diag(
+            log_trans, state_types, emit, Lx_pad, Ly_pad,
+            return_chart=False, real_Lx=Lx, real_Ly=Ly)[0]
+        return log_prob
+
     if _use_rowscan:
         _, F_pad = _forward_2d_core_rowscan(log_trans, state_types, emit, Lx_pad, Ly_pad)
     else:
@@ -1911,9 +2026,6 @@ def forward_backward_2d(log_trans, state_types, x_seq, y_seq, sub_matrix, pi,
     # Extract forward at real lengths (dynamic index — works under vmap).
     e_idx = _find_e_idx(state_types)
     log_prob = jax.nn.logsumexp(F_pad[Lx, Ly, :] + log_trans[:, e_idx])
-
-    if forward_only:
-        return log_prob
 
     # Backward terminal condition: place it at (Lx, Ly) (real lengths). When
     # real_Lx/real_Ly are None (scalar path), Lx == Lx_arr == Lx_pad-at-
