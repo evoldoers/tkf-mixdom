@@ -267,91 +267,81 @@ distribution $q$.
 Concretely, let each substitution attempt from $i$ occur at a
 $\eqm$-\emph{independent} rate $S_{ij}$ per candidate destination $j$
 (the exchangeability). To every attempt attach a secret destination
-$s \sim \eqm(\cdot)$; the attempt succeeds (a visible substitution
-$i\to s$) iff $s = j$ (the attempted destination), and is otherwise an
-invisible self-loop. Under this augmentation the effective visible-rate
-$i \to j$ recovers the standard $S_{ij}\eqm_j$.
+$s \sim \eqm(\cdot)$, drawn independently of the attempted destination;
+the attempt succeeds (a visible substitution $i \to j$) iff $s = j$, and
+is otherwise an invisible rejected attempt. The effective visible rate
+$i \to j$ is then $S_{ij}\eqm_j$, as required.
 
 Let $R_i := \sum_{j' \ne i} S_{ij'}$ be the $\eqm$-independent total
-exchangeability out of $i$. Choose the variational family that says: for
-each state $i$ and each candidate label $j$, the number of \emph{attempts
-from $i$ whose secret destination is $j$ but whose attempted destination
-is not $j$} is Poisson with $\eqm$-independent rate $R_i - S_{ij}$. This
-is the crux --- fixing the secret-destination-count rate to be
-$\eqm$-independent is exactly what forces the closed-form.
-
-The resulting complete-data log-likelihood, expressed with the
-Holmes--Rubin sufficient statistics $\{V_i, U_{ij}, W_i\}$, becomes
-\begin{align}
+exchangeability out of $i$, and set $S_{ii} := 0$. Every attempt carries
+exactly one secret destination, so the augmented data are the counts
+$N_a$ of attempts whose secret destination is $a$, and, with the
+Holmes--Rubin sufficient statistics $\{V_i, U_{ij}, W_i\}$,
+\begin{equation}
 \label{eq:gtr-secret-dest-cdl}
-\ell_{\text{aug}}(\eqm)
-   \;=\; & \sum_a V_a \log \eqm_a
-   + \sum_{i \ne j} U_{ij}\,\bigl[\log S_{ij} + \log \eqm_j\bigr] \\
-    & + \sum_{i \ne j} W_i (R_i - S_{ij})\,
-                          \bigl[\log(R_i - S_{ij}) + \log \eqm_j\bigr]
-   + \text{const}. \nonumber
-\end{align}
-The third term collects the augmented invisible-attempt counts (each
-one carrying $\log\eqm_j$ evidence toward the target frequency of its
-secret destination). Because every $\eqm_j$ now appears only inside
-$\log\eqm_j$ terms with $\eqm$-independent coefficients, the maximiser
-under $\sum_a \eqm_a = 1$ is closed form:
+\ell_{\mathrm{aug}}(\eqm) \;=\; \sum_a N_a \log \eqm_a + \mathrm{const},
+\qquad
+N_a \;=\; \underbrace{V_a + \textstyle\sum_i U_{ia}}_{=:\,V'_a} \;+\; Z_a .
+\end{equation}
+An accepted attempt's secret destination \emph{is} its observed
+destination, so those tokens are the visible counts $V'_a$; only the
+tokens of the rejected attempts, $Z_a$, are latent. The attempt rates
+$S_{ij}$ do not involve $\eqm$ and the exit factor
+$\exp(-\sum_i W_i R_i)$ is likewise $\eqm$-free, so all of the
+$\eqm$-dependence sits in the token counts.
+
+Given the trajectory statistics and the current $\eqm$, the rejected
+attempts are a thinned Poisson process: from state $i$, attempts
+proposing some $j \ne a$ occur at total rate $R_i - S_{ia}$, and each
+carries secret destination $a$ with probability $\eqm_a$. Hence
+\begin{equation}
+\label{eq:gtr-secret-dest-estep}
+\expect[Z_a] \;=\; \eqm_a \sum_i W_i\,(R_i - S_{ia}),
+\end{equation}
+and maximising \eqref{eq:gtr-secret-dest-cdl} on the simplex gives
+$\hat\eqm \propto \expect[N]$, i.e.
 \begin{equation}
 \label{eq:gtr-secret-dest-eqm}
 \boxed{\;
-  \hat\eqm_a \;=\;
-   \frac{V_a + \sum_i U_{ia} + \sum_{i \ne a} W_i\,(R_i - S_{ia})}
-        {\sum_b \big[V_b + \sum_i U_{ib} + \sum_{i \ne b} W_i\,(R_i - S_{ib})\big]}
+  \hat\eqm_a \;\propto\;
+   V_a + \sum_i U_{ia} + \eqm_a \sum_i W_i\,(R_i - S_{ia})
   \;}
 \end{equation}
-i.e.\ $\eqm$ is the normalised Dirichlet-posterior mode with pseudocounts
-combining (i) initial-state counts, (ii) transition-into-$a$ counts, and
-(iii) $\eqm$-independent invisible-attempt counts. This form is also
-convenient for MCMC updates on $\eqm$ (conjugate Dirichlet, given
-$\{V, U, W\}$).
+iterated to convergence. The update is a Dirichlet-conjugate count
+update given $\{V, U, W\}$, which is also convenient for MCMC on $\eqm$.
 
-\paragraph{Relation to the true GTR objective; when this is exact and
-when it is not.}
-The visible dynamics $i \to j$ still occur at rate $S_{ij} \eqm_j$, so
-$\log p(\text{observed} \mid \eqm)$ is exactly the same function of
-$\eqm$ under both formulations. What differs is what the M-step
-\emph{optimises}: the standard EM Q-function uses the tight $q$ from
-the true posterior on the trajectory and lands at a stationary point of
-$\log p(\text{observed})$; the secret-destination CDL uses an
-$\eqm$-independent $q$ over the invisible-attempt counts, and its
-stationary point is instead where the pi-derivative of $\log p - \KL(q
-\| p_\text{true})$ vanishes -- i.e. it optimises a specific lower bound
-on the true log-likelihood, and forces the parameter estimate to
-account for the invisible secret-destination jumps as well as the
-visible ones.
+\paragraph{The augmented iteration is exact.}
+Equations \eqref{eq:gtr-secret-dest-estep}--\eqref{eq:gtr-secret-dest-eqm}
+are a genuine E- and M-step for a valid augmentation, so the iteration
+increases the true conditional log-likelihood monotonically and its fixed
+points are that likelihood's stationary points. Writing
+$T_a = \sum_i W_i S_{ia}$ and $G = \sum_i W_i R_i$, a fixed point with
+normaliser $Z$ satisfies $\eqm_a Z = V'_a + \eqm_a (G - T_a)$, that is
+\begin{equation}
+\label{eq:gtr-secret-dest-stationary}
+\frac{V'_a}{\eqm_a} - T_a \;=\; Z - G ,
+\end{equation}
+which is exactly the Lagrange stationarity condition for maximising
+$\sum_a V'_a \log \eqm_a - \sum_i W_i \sum_{j \ne i} S_{ij}\eqm_j$ on the
+simplex, with the normaliser playing the role of the multiplier. That
+objective is strictly concave, so its maximiser is unique and the
+iteration recovers it for \emph{any} exchangeability $S$: there is no F81
+restriction and no bias from exchangeability heterogeneity.
 
-When $\exch_{ij}$ is constant on the off-diagonal (the F81 case,
-$\exch_{ij} = \mu$), $R_i - S_{ia} = (|\alphabet| - 2)\mu$ is constant
-across $i \neq a$ and the pseudocount collapses to
-$(|\alphabet| - 2)\mu\,(W_{\mathrm{tot}} - W_a)$, with
-$W_{\mathrm{tot}} = \sum_i W_i$. It is residue-uniform, and
-\eqref{eq:gtr-secret-dest-eqm} reduces to Bruno's closed form
-$\hat\eqm_a \propto V'_a$ (a Dirichlet posterior mode)
-\citep{Bruno1996}, only when the dwell times $W_a$ are equal; otherwise
-the $W_a$ term survives. Nor is $\hat\eqm \propto V'$ the exact F81
-maximiser: the exact stationary point solves
-$V'_a / \eqm_a - \mu (W_{\mathrm{tot}} - W_a) = \lambda$, which
-$\hat\eqm \propto V'$ recovers only in the large-count limit, the
-discrepancy falling as $O(1 / \sum_a V'_a)$. Away from F81, \eqref{eq:gtr-secret-dest-eqm}
-is Bruno's formula extended to GTR by a pseudocount
-$\sum_i W_i (R_i - S_{ia})$ that partly corrects for exchangeability
-heterogeneity. The bias vs.\ the true GTR ML grows as $S$ deviates from
-the F81 all-ones structure. Concretely for LG08, where individual
-$S_{ij}$ entries differ by orders of magnitude across amino acid pairs,
-the bias is not negligible.
-
-That said, the trick has attractive features that can make it useful in
-some contexts: it is fully closed-form; it is monotone in the ELBO; and
-the log-Dirichlet form of the CDL is a natural conjugate prior for MCMC
-updates on $\eqm$. It appears in the coupled Potts variant of TKF-DP
-(see the \texttt{tkf-dp} and \texttt{evolmoves} repositories) as a
-proposed CDL approximation. Behaviour in that setting was not
-exhaustively benchmarked at the time of writing.
+Two nearby estimators are \emph{not} exact, and the distinction matters.
+Dropping the $\eqm_a$ factor from \eqref{eq:gtr-secret-dest-eqm} --- which
+would make the augmented counts $\eqm$-independent and turn the update
+into a single closed-form step rather than an iteration --- replaces the
+E-step by an $\eqm$-independent $q$; the resulting estimator maximises a
+lower bound on the likelihood instead of the likelihood, and is biased
+for any $S$ that is not off-diagonal-constant. And the naive
+$\hat\eqm \propto V'$, which ignores the rejected attempts altogether, is
+biased whenever the dwell times $W_a$ are unequal --- including under
+F81, where the exact stationary point is
+$\eqm_a = V'_a / (\lambda + \mu(W_{\mathrm{tot}} - W_a))$ with
+$W_{\mathrm{tot}} = \sum_i W_i$, rather than $\propto V'_a$. The
+$\eqm_a$-weighted term in \eqref{eq:gtr-secret-dest-eqm} is precisely the
+correction for both. The augmentation is originally due to Bruno~\citep{Bruno1996}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
