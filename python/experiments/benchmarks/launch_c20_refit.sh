@@ -5,8 +5,8 @@
 # three benchmarks with the anchored clock, as for the original CML20 row.  Idempotent; memory-gated.
 # Usage: launch_c20_refit.sh <gpu>   (TAG / NPZ env override the output names)
 cd "$(dirname "$0")/../.."
-GPU=${1:-0}; MINFREE=${MINFREE:-3000}; T=experiments/test_ll; V=experiments/ordsum_val; BENCH=$HOME/bio-datasets/data/bench1.0; TKFDP=/home/yam/tkf-dp
-TAG=${TAG:-pc}; NPZ=${NPZ:-pfam/cherryml_mixture_C20_paircol.npz}; PY=$PWD/.venv/bin/python; C20=$TKFDP/results/fsa_c20_balibase
+GPU=${1:-0}; MINFREE=${MINFREE:-3000}; T=experiments/test_ll; V=experiments/ordsum_val; BENCH=$HOME/bio-datasets/data/bench1.0; PM=$PWD/experiments/profile_mixture
+TAG=${TAG:-pc}; NPZ=${NPZ:-pfam/cherryml_mixture_C20_paircol.npz}; PY=$PWD/.venv/bin/python; C20=$PM/results/fsa_c20_balibase
 VAL=$PWD/pfam/precompiled_v3_val; TEST=$PWD/pfam/precompiled_v3_test
 export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2
 export JAX_PLATFORMS=cuda XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_ENABLE_X64=1 CUDA_VISIBLE_DEVICES=$GPU
@@ -25,7 +25,7 @@ score() {  # logfile pathcond split
 c20() {  # bench
   local b=$1 o=cache_runs/tkf92_CML20${TAG}_anchor_$b; [ -f $C20/$o.json ] && return; gate
   echo "$(date -Is) gpu${GPU}CA start c20 $b $o"
-  ( cd $TKFDP && CHERRYML_NPZ=$PWD/../tkf-mixdom/python/$NPZ PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel tkf92 --subst CML20 --clock anchor --balibase-dir $(bdir $b) --out $C20/$o.json --cache-name tkf92_CML20${TAG}_anchor__$b > $C20/$o.log 2>&1 ); release
+  ( cd $PM && CHERRYML_NPZ=$OLDPWD/$NPZ PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel tkf92 --subst CML20 --clock anchor --balibase-dir $(bdir $b) --out $C20/$o.json --cache-name tkf92_CML20${TAG}_anchor__$b > $C20/$o.log 2>&1 ); release
   echo "$(date -Is) gpu${GPU}CA end c20 $b $o rc=$?"; }
 FIT_CMD=${FIT_CMD:-"$PY -u experiments/fit_paircolumn_sitemix.py --precompiled pfam/precompiled_v3_train --n-classes 20 --n-outer 60 --n-inner 60 --output $NPZ"}
 ( if [ ! -f $NPZ ]; then gate; echo "$(date -Is) gpu${GPU}CA start fit C20 $TAG"

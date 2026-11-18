@@ -3,8 +3,8 @@
 trajectories stored by compare_optimizers*.py (results/, results_aligned/), the MixDom full-batch
 EM / Adam logs (results_mixdom/) and the minibatch svi-BW / Adam runs (stochastic/).
 
-Writes  ~/tkf-dp/molbiolevol-paper/paper1-baumwelch/tables/em_vs_gradient_table.tex   (whole tabular)
-        ~/tkf-dp/molbiolevol-paper/paper1-baumwelch/figures/em_vs_gradient.pdf
+Writes  <paper1>/tables/em_vs_gradient_table.tex   (whole tabular)
+        <paper1>/figures/em_vs_gradient.pdf   (<paper1>: see figs/paper1_dir.py)
 """
 import csv, json, os, re
 import numpy as np
@@ -13,9 +13,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__)); os.chdir(HERE)
-TAG = os.environ.get('EMVG_RESULTS_TAG', '')
+TAG = os.environ.get('EMVG_RESULTS_TAG', '_gtr')   # the paper's runs (GTR refit); '' = the earlier results/, results_aligned/, stochastic/
 MIXDOM = os.environ.get('EMVG_MIXDOM', 'd2f1')   # the MixDom model of the full-batch EM vs Adam row (results_mixdom/{em,adam}_<MIXDOM>_*)   # '' = results/, results_aligned/, stochastic/; '_gtr' = the GTR-refit reruns
-PAPER = os.path.expanduser('~/tkf-dp/molbiolevol-paper/paper1-baumwelch')
+import sys; sys.path.insert(0, os.path.join(HERE, '..', 'figs')); from paper1_dir import PAPER1 as PAPER
 EPS = (0.1, 1e-3)
 METHODS = [('em', 'EM'), ('lbfgs', 'L-BFGS'), ('adam_lr0.1', 'Adam (0.1)'), ('adam_lr0.01', 'Adam (0.01)')]
 

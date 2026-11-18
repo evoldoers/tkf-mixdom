@@ -1,0 +1,6 @@
+{
+ "ins_rate": 0.045805950961442965,
+ "del_rate": 0.04679949003914898,
+ "ext_rate": 0.6834551539557077,
+ "note": "anchor TKF92 used for the tkf92_mixture (K=20) and cherryml_mixture (C=20) BAliBASE runs (values from their result configs)"
+}

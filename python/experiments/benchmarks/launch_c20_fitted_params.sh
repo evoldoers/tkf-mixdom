@@ -6,8 +6,8 @@
 # cache_runs/tkf92_CML20pc_anchor_<bench>.*, msa_/<bench>_tkf92_CML20pc_anchor_progressive_c0_r0.json); the anchor-set
 # runs are archived as *_anchorparams.log / *_lgparams*. Usage: <gpu> ll|bench
 cd "$(dirname "$0")/../.."
-GPU=$1; MODE=$2; MINFREE=${MINFREE:-3000}; T=experiments/test_ll; V=experiments/ordsum_val; BENCH=$HOME/bio-datasets/data/bench1.0; TKFDP=/home/yam/tkf-dp
-NPZ=pfam/cherryml_mixture_C20_paircol.npz; PY=$PWD/.venv/bin/python; C20=$TKFDP/results/fsa_c20_balibase; CACHE=$HOME/.cache/tkf-mixdom-balibase
+GPU=$1; MODE=$2; MINFREE=${MINFREE:-3000}; T=experiments/test_ll; V=experiments/ordsum_val; BENCH=$HOME/bio-datasets/data/bench1.0; PM=$PWD/experiments/profile_mixture
+NPZ=pfam/cherryml_mixture_C20_paircol.npz; PY=$PWD/.venv/bin/python; C20=$PM/results/fsa_c20_balibase; CACHE=$HOME/.cache/tkf-mixdom-balibase
 EB=experiments/expected_balibase; BM=experiments/benchmarks
 VAL=$PWD/pfam/precompiled_v3_val; TEST=$PWD/pfam/precompiled_v3_test
 export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2
@@ -32,7 +32,7 @@ archive() {  # bench: move the anchor-set cache, harness outputs and decode asid
 bench() {  # bench
   local b=$1 o=cache_runs/tkf92_CML20pc_anchor_$b; archive $b; [ -f $C20/$o.json ] && return; gate
   echo "$(date -Is) $P start c20 $b $o (fitted TKF92 params)"
-  ( cd $TKFDP && CHERRYML_NPZ=$PWD/../tkf-mixdom/python/$NPZ PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel tkf92 --indel-params $PWD/../tkf-mixdom/python/experiments/test_ll/tkf92_fit_lmw.json --subst CML20 --clock anchor --balibase-dir $(bdir $b) --out $C20/$o.json --cache-name tkf92_CML20pc_anchor__$b > $C20/$o.log 2>&1 )
+  ( cd $PM && CHERRYML_NPZ=$OLDPWD/$NPZ PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel tkf92 --indel-params $OLDPWD/experiments/test_ll/tkf92_fit_lmw.json --subst CML20 --clock anchor --balibase-dir $(bdir $b) --out $C20/$o.json --cache-name tkf92_CML20pc_anchor__$b > $C20/$o.log 2>&1 )
   echo "$(date -Is) $P end c20 $b $o rc=$?"; }
 decode() {  # bench: progressive MEA, no consistency / refinement (the Table-6 decoding)
   local b=$1 n=tkf92_CML20pc_anchor; local d=$EB/msa_${n}_progressive_c0_r0; [ $b != bali3pdbm ] && d=$BM/${b}_${n}_progressive_c0_r0

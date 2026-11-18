@@ -1,0 +1,289 @@
+\documentclass[11pt]{article}
+% Internal note (not part of any submitted paper).
+\usepackage[letterpaper,margin=25mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs}
+\usepackage[round,authoryear]{natbib}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\newcommand{\E}{\mathbb E}
+
+\title{Alignment-free bigram and trigram distances\\under the MixFrag Pair HMM}
+\author{Internal note, tkf-dp}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We derive closed-form expectations, under the MixFrag Pair HMM with a profile
+mixture substitution model, of the number of shared bigrams and trigrams
+between two unaligned sequences, and invert them to estimate evolutionary
+time. The expectations match simulation to within about 2\%, and on
+simulated pairs the trigram estimator is precise up to about 1.5
+substitutions per site. On Pfam seed alignments, however, the estimators are
+biased low relative to maximum-likelihood distances, and guide trees built
+from them, including with delta-method variances in BioNJ, agree poorly with
+reference trees. We record the derivation and the negative result.
+\end{abstract}
+
+\section{Motivation}
+
+Progressive aligners need a guide tree before any alignment exists. MUSCLE
+builds its first tree from the fraction of shared $k$-mers
+\citep{Edgar2004}. For a statistical aligner it is natural to ask for an
+alignment-free distance whose expectation is computed under the aligner's own
+evolutionary model, so that it estimates time $t$ on the model's scale. The
+model here has MixFrag indels \citep{HolmesMixFrag}, the TKF92
+\citep{ThorneKishinoFelsenstein1992} fragment model with a mixture of fragment
+length distributions, and a $K$-class profile mixture for substitutions.
+
+\section{Model}
+
+\paragraph{Substitution.} Each column has a latent class $k$ with weight
+$w_k$; given $k$, residues evolve under the reversible chain
+$Q^k_{xy}=r_kS_{xy}\pi^k_y$ ($x\ne y$), with exchangeabilities $S$ shared by
+all classes, as in LG \citep{LeGascuel2008} combined with the C20 profiles
+\citep{LeGascuelLartillot2008}. Write $M^k(t)=e^{tQ^k}$ and
+$\bar\pi=\sum_kw_k\pi^k$.
+
+\paragraph{Indels.} MixFrag is TKF92 in which each fragment draws a fragtype
+$f$ with weight $w_f$ and then has geometric length with extension
+probability $r_f$; the indel and substitution processes are shared across
+fragtypes, and one fragtype gives TKF92. Fragments are born and die as units
+under the TKF91 links process \citep{ThorneKishinoFelsenstein1991} with
+insertion and deletion rates $\lambda<\mu$. Over time $t$, each ancestral
+fragment survives with probability $\alpha=e^{-\mu t}$, and the number of
+fragments inserted after a surviving one is positive with probability
+\[
+\beta=\frac{\lambda e^{-\lambda t}-\lambda\alpha}{\mu e^{-\lambda t}-\lambda\alpha}.
+\]
+The pair HMM is reversible, so for two present-day sequences either may be
+treated as the ancestor of the other at distance $t$.
+
+\section{Expected shared bigrams and trigrams}
+
+\paragraph{Statistics.} For unaligned sequences $X$ and $Y$ with $j$-gram
+counts $c^{(j)}_X$ and $c^{(j)}_Y$ (here $j=2$ or $3$), let
+\[
+D_j=\sum_wc^{(j)}_X(w)\,c^{(j)}_Y(w),
+\]
+the number of position pairs at which the $j$-grams starting there are
+equal. Given the
+alignment, residues in different columns are independent, so each letter of a
+$j$-gram matches with probability
+\[
+\begin{cases}
+s(t)=\sum_kw_k\sum_a\pi^k_aM^k_{aa}(t)&\text{if the two positions are homologous,}\\
+\rho=\sum_a\bar\pi_a^2&\text{otherwise,}
+\end{cases}
+\]
+where $\bar\pi=\sum_kw_k\pi^k$. $\E[D_j]$ is therefore a sum, over the
+patterns of homology along $j$ consecutive diagonal position pairs, of the
+expected number of occurrences of each pattern times
+$s^{\#\text{homologous}}\rho^{\#\text{not}}$.
+
+\paragraph{The Pair HMM supplies the patterns.} Take $X$ as the ancestor.
+Each ancestral residue survives with probability $\alpha=e^{-\mu t}$.
+Fragments are indivisible and insertions occur only between them, so two
+adjacent ancestral residues in one fragment survive together with nothing
+inserted between them; across a fragment boundary, a surviving residue is
+followed directly by its surviving successor with probability
+$(1-\beta)\alpha$ (no insertion, then survival). Following the fragtype of the
+current residue along the ancestor, the probability that $j-1$ consecutive
+adjacencies are all preserved, given that the first residue survives, is
+\[
+p_j=\omega^\top\mathsf T^{\,j-1}\mathbf 1,\qquad
+\mathsf T_{fg}=r_f\,\delta_{fg}+(1-r_f)(1-\beta)\alpha\,w_g,\qquad
+\omega_f\propto\frac{w_f}{1-r_f},
+\]
+where $\omega$ is the fragtype distribution of a residue in a long stationary
+sequence. In particular $p_2=1-\big(1-(1-\beta)\alpha\big)/\bar\ell$, with
+$\bar\ell=\sum_fw_f/(1-r_f)$ the mean fragment length. With
+$n=\alpha(L_X-j+1)$ and $N_j=(L_X-j+1)(L_Y-j+1)$,
+\begin{align}
+\E[D_2]&\approx\rho^2N_2+n(s-\rho)\big(2\rho+(s-\rho)\,p_2\big),\label{eq:d2}\\
+\E[D_3]&\approx\rho^3N_3+n\Big(p_3(s^3-\rho^3)+2(p_2-p_3)(s^2\rho-\rho^3)\notag\\
+ &\hphantom{{}\approx\rho^3N_3+n\Big(}+(3-4p_2+p_3)(s\rho^2-\rho^3)\Big).\label{eq:d3}
+\end{align}
+The trigram expression neglects the rare pattern in which the outer two
+position pairs are homologous but the middle one is not (a deletion and an
+insertion side by side). The other approximations are the long-sequence limit
+for $\omega$ and conditioning on the ancestor's length only; by reversibility
+either sequence may play the ancestor, and we use the mean of the two lengths.
+
+\paragraph{Estimators.} $\alpha$, $s-\rho$ and the $p_j$ all decrease in $t$,
+so each expectation is monotone in $t$, and $\hat t$ is its root, found by
+bisection. The cost per pair is $O(L_X+L_Y+A^j)$. Three remarks:
+\begin{itemize}
+\item Bigrams see MixFrag only through the mean fragment length $\bar\ell$,
+  so a TKF92 model with the same $\bar\ell$ gives the same bigram distance.
+  Trigrams, through $p_3$, see the spread of fragment lengths.
+\item Real sequences depart from the model's composition, which inflates
+  $D_j$. Replacing $\rho$ by the pair's own composition,
+  $\rho_{\mathrm{obs}}=\sum_af_X(a)f_Y(a)$, corrects for this. The unigram
+  analogue, $\E[D_1]-\rho L_XL_Y=\alpha L_X(s-\rho)$, cannot use this
+  correction, because $D_1=\rho_{\mathrm{obs}}L_XL_Y$ exactly.
+\item Longer $j$-grams have a larger signal per homologous run but a smaller
+  background, and in simulation trigrams are the more precise of the two
+  wherever either is informative.
+\end{itemize}
+
+\paragraph{Simulation.} We simulated sequence pairs by walking the MixFrag
+Pair HMM ($\mu=0.05$, about 130 fragments or 300 residues,
+$r=(0.25,0.75)$, $w=(0.65,0.35)$) with LG substitution, 300 pairs per $t$.
+Equations \eqref{eq:d2} and \eqref{eq:d3} match the simulated means to within
+0.5\% and 1\% at every $t$, and with the C20 mixture to within 0.7\% and
+2.3\% (the largest deviation at $t=3$). Median $\hat t$
+[interquartile range]:
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccccccc}
+\toprule
+$t$ & 0.1 & 0.25 & 0.5 & 1.0 & 1.5 & 2.0 & 3.0\\
+\midrule
+bigram  & 0.11 [.06,.16] & 0.27 [.20,.33] & 0.51 [.40,.66] & 0.97 [.77,1.4]
+        & 1.5 [1.1,3.4] & 2.5 [1.4,20] & 7.4 [1.6,20]\\
+trigram & 0.10 [.08,.12] & 0.25 [.22,.28] & 0.51 [.45,.56] & 1.02 [.88,1.2]
+        & 1.6 [1.3,2.5] & 2.6 [1.6,20] & 20 [1.9,20]\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both are usable to $t\approx1.5$; the trigram estimator has roughly half the
+spread. Beyond $t\approx2$ the excess over the background is too small and
+estimates spread to the search bound (20). The unigram estimator is much
+noisier throughout.
+
+\paragraph{Pfam.} We compared $\hat t$ with the maximum-likelihood $t$ under TKF92+LG-C20, given
+each pair's alignment from the Pfam seed MSA, using the Pfam-trained TKF92
+indel parameters ($\lambda=0.0311$, $\mu=0.0317$, $r=0.674$), on 1200 pairs
+from 60 random families of the test split of the Pfam seed alignments. These pairs are
+divergent: the maximum-likelihood $t$ has median 2.9 (IQR 1.5--5.0).
+
+\begin{center}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+& & \multicolumn{4}{c}{median $\hat t/t_{\mathrm{ML}}$, by $t_{\mathrm{ML}}$} & \\
+\cmidrule(lr){3-6}
+estimator & Spearman & $<1$ & 1--2 & 2--4 & 4--10 & at bound\\
+\midrule
+trigram, $\rho_{\mathrm{obs}}$ null & 0.86 & 0.76 & 0.61 & 0.46 & 0.60 & 15\%\\
+bigram, $\rho_{\mathrm{obs}}$ null  & 0.81 & 0.99 & 0.75 & 0.62 & 1.46 & 19\%\\
+trigram, model null                 & 0.85 & 0.73 & 0.58 & 0.43 & 0.57 & 14\%\\
+bigram, model null                  & 0.69 & 0.75 & 0.53 & 0.40 & 0.62 & 16\%\\
+unigram, model null                 & 0.32 & 0.39 & 0.29 & 0.20 & 0.57 & 27\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Trigrams rank pairs best (Spearman 0.86) and depend little on the choice of
+null, but they underestimate $t$ throughout. Bigrams with the
+composition-corrected null are unbiased for $t<1$ (IQR of the ratio
+0.80--1.29) but underestimate by 25--40\% for $1<t<4$. Both saturate beyond
+$t\approx4$. So real pairs share more $j$-grams than the model predicts, and
+more so the longer the $j$-gram; a plausible cause, not yet tested, is that
+conserved sites cluster along the sequence, which an independent-sites model
+cannot express.
+
+\section{Guide trees}
+
+The simulations suggest that the trigram distance could order merges well.
+We tested this on the same Pfam families (53 with at least 8 sequences, each
+subsampled to at most 40), computing all pairwise distances within each
+family.
+
+\paragraph{Variance-weighted BioNJ.} BioNJ \citep{Gascuel1997} carries a
+variance for every distance and, at each agglomeration, weights the two
+merged nodes to minimize the variance of the new distances; its default
+assumes variances proportional to distances. Our estimator provides its own
+variances. By the delta method,
+\[
+\mathrm{Var}(\hat t)\approx\frac{\mathrm{Var}(D_3)}{\big(\partial_t\E[D_3]\big)^2},
+\]
+where the derivative is taken from \eqref{eq:d3} and $\mathrm{Var}(D_3)$ is
+estimated by a moving-block bootstrap over the trigram positions of each
+sequence (50 replicates, blocks of 10), which captures overdispersion from
+repeats and composition. Estimates at the search bound are censored and
+given effectively infinite variance. The variance grows roughly
+exponentially with $t$, which is also the regime targeted by weighted
+neighbor joining \citep{Bruno2000}.
+
+\paragraph{Test.} The reference tree for each family is BioNJ on the pairwise
+maximum-likelihood distances under TKF92+LG-C20, given the pairwise
+alignments induced by the seed MSA. As a control we also built BioNJ trees on
+Kimura distances computed from the seed MSA. Trees were compared by the
+normalized Robinson--Foulds distance \citep{RobinsonFoulds1981}.
+
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{4}{c}{mean normalized RF to the reference}\\
+\cmidrule(lr){2-5}
+tree & all (53) & median $t_{\mathrm{ML}}<3$ (24) & 3--5 (17) & $>5$ (12)\\
+\midrule
+NJ, trigram distances              & 0.82 & 0.71 & 0.88 & 0.94\\
+BioNJ, trigram distances           & 0.78 & 0.67 & 0.81 & 0.94\\
+BioNJ, trigram distances and variances & 0.77 & 0.68 & 0.79 & 0.93\\
+Control: BioNJ, Kimura distances from MSA & 0.49 & 0.45 & 0.51 & 0.56\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+BioNJ improves on NJ (better in 26 families, worse in 10; sign test
+$p=0.011$), and the delta-method variances improve on NJ (31 better, 12
+worse; $p=0.005$) but not on BioNJ's default variances (21 better, 17 worse;
+$p=0.63$). All three trigram trees are far from the reference, and far worse
+than the alignment-based control, even in the least divergent families,
+where only 5\% of trigram distances are censored.
+
+\section{Conclusion}
+
+The closed forms are accurate and the estimators behave as intended on data
+simulated from the model, but not on real protein families: real pairs share
+more $k$-grams than the model predicts, increasingly so for longer
+$k$-grams, and the resulting trees are poor. A plausible cause, not tested
+here, is that conserved sites cluster along real sequences, which an
+independent-sites model cannot express. The Pfam seed families are also more
+divergent (median maximum-likelihood $t$ about 3) than the range in which
+these statistics are informative. For guide trees, alignment-based distances
+remain the better choice.
+
+\begin{thebibliography}{9}
+\bibitem[Bruno et~al.(2000)]{Bruno2000}
+W.~J. Bruno, N.~D. Socci and A.~L. Halpern. Weighted neighbor joining: a
+likelihood-based approach to distance-based phylogeny reconstruction.
+\emph{Mol.\ Biol.\ Evol.} 17(1):189--197, 2000.
+\bibitem[Edgar(2004)]{Edgar2004}
+R.~C. Edgar. MUSCLE: multiple sequence alignment with high accuracy and high
+throughput. \emph{Nucleic Acids Res.} 32(5):1792--1797, 2004.
+\bibitem[Gascuel(1997)]{Gascuel1997}
+O.~Gascuel. BIONJ: an improved version of the NJ algorithm based on a simple
+model of sequence data. \emph{Mol.\ Biol.\ Evol.} 14(7):685--695, 1997.
+\bibitem[TKF-DP supplement(2026)]{HolmesMixFrag}
+TKF-DP supplement, Appendix~A.3, ``The TKF92 model with fragment mixtures
+(MixFrag)''. \url{https://tkfdp.net}.
+\bibitem[Le and Gascuel(2008)]{LeGascuel2008}
+S.~Q. Le and O.~Gascuel. An improved general amino acid replacement matrix.
+\emph{Mol.\ Biol.\ Evol.} 25(7):1307--1320, 2008.
+\bibitem[Le et~al.(2008)]{LeGascuelLartillot2008}
+S.~Q. Le, O.~Gascuel and N.~Lartillot. Empirical profile mixture models for
+phylogenetic reconstruction. \emph{Bioinformatics} 24(20):2317--2323, 2008.
+\bibitem[Robinson and Foulds(1981)]{RobinsonFoulds1981}
+D.~F. Robinson and L.~R. Foulds. Comparison of phylogenetic trees.
+\emph{Math.\ Biosci.} 53:131--147, 1981.
+\bibitem[Thorne et~al.(1991)]{ThorneKishinoFelsenstein1991}
+J.~L. Thorne, H.~Kishino and J.~Felsenstein. An evolutionary model for
+maximum likelihood alignment of DNA sequences. \emph{J.\ Mol.\ Evol.}
+33(2):114--124, 1991.
+\bibitem[Thorne et~al.(1992)]{ThorneKishinoFelsenstein1992}
+J.~L. Thorne, H.~Kishino and J.~Felsenstein. Inching toward reality: an
+improved likelihood model of sequence evolution. \emph{J.\ Mol.\ Evol.}
+34(1):3--16, 1992.
+\end{thebibliography}
+
+\end{document}

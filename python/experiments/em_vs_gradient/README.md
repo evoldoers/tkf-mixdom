@@ -1,10 +1,8 @@
-# Closed-form EM vs gradient-based optimization (paper 1, MBE revision)
+# Closed-form EM vs gradient-based optimization (paper 1)
 
-Reviewer 1 asked whether closed-form Baum–Welch makes fitting TKF-family
-models more efficient than gradient-based optimization. The submitted
-manuscript (Section 2.3.3) said closed-form EM "converges robustly in orders
-of magnitude fewer iterations" than Adam, without a controlled comparison
-behind it. These experiments supply one. All runs: 1,000 pairs, LG08 held
+Does closed-form Baum–Welch make fitting TKF-family models more efficient
+than gradient-based optimization? These experiments compare closed-form EM
+with Adam and L-BFGS under controlled conditions. All runs: 1,000 pairs, LG08 held
 fixed except where noted, the same initial parameters for every method, and
 one objective per (setting, model, corpus).
 
@@ -212,6 +210,6 @@ minibatches of 16, same initial parameters, 800 iterations each
 
 Here svi-BW is ahead by almost two orders of magnitude in iterations: each
 minibatch E-step is turned into a full M-step, whereas Adam at a safe
-learning rate takes small steps. This is the setting that motivated the
-submitted manuscript's sentence; it does not carry over to full-batch
-optimization against a quasi-Newton method (above).
+learning rate takes small steps. The advantage is specific to this
+minibatch setting; it does not carry over to full-batch optimization against
+a quasi-Newton method (above).

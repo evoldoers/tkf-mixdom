@@ -65,3 +65,8 @@ python/experiments/results/
 
 # AWS state
 .aws/
+
+# Paper-1 result files ship as a release (python/experiments/figs/README.md), not in the tree
+python/experiments/profile_mixture/results/fsa_c20_balibase/*
+!python/experiments/profile_mixture/results/fsa_c20_balibase/README.md
+python/experiments/figs/paper1_out/

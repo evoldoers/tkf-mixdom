@@ -1,0 +1,14 @@
+columns: 1620 from 54 families
+bound valid on all columns: True
+gap = exact - bound (nats), by number of non-gap leaves:
+    leaves  cols  bound med     p90  per-leaf  shared-post med  no-cross med  hybrid med    p90  hyb+xbridge
+   4-7       110       5.07    9.49     0.993             0.48          5.48        2.93   4.90         2.78
+   8-15      250       6.76   13.14     0.625             0.30          7.11        2.05   3.88         1.96
+  16-31      311      17.87   28.17     0.759             0.28         18.49        2.00   4.58         1.92
+  32-64      949      35.22   64.28     0.651             0.10         35.80        1.48   4.22         1.43
+       all  1620      21.39   56.09     0.692             0.19         22.11        1.79   4.29         1.72
+corr(exact, bound) = 0.9954
+ranking, aligned vs misaligned cell (log-odds match scores, 1603 pairs):
+  exact prefers the aligned cell in 0.854
+    bound: prefers aligned 0.840, sign agreement with exact 0.917, Spearman 0.910
+   hybrid: prefers aligned 0.833, sign agreement with exact 0.921, Spearman 0.932

@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-panel config using the JOINT-NATIVE Pfam ML fits (s3://tkf-mixdom-gpu-<AWS_ACCOUNT>/pfam-gap-counts/2026-05-29/*_jointnative.json).  Panel 1 sim and panel 2 flow currently borrow the ggi_flowed_jointnative fit (panel 3) -- swap panel 2 to a dedicated flow-ODE jointnative fit if one becomes available.  TKF92 winners reverse vs the conditional fits and the GGI fits collapse to the symmetric x~y branch.",
+  "sim":     {"lam0": 0.01061206, "mu0": 0.01065096, "x_del": 0.64072311, "y_ins": 0.63769192},
+  "flow":    {"lam0": 0.01061206, "mu0": 0.01065096, "x_del": 0.64072311, "y_ins": 0.63769192},
+  "closed":  {"lam0": 0.01061206, "mu0": 0.01065096, "x_del": 0.64072311, "y_ins": 0.63769192},
+  "rtonly":  {"lam0": 0.02707454, "mu0": 0.02717493, "x_del": 0.64474690, "y_ins": 0.64178288,
+               "lam_fixed": 0.07589935, "mu_fixed": 0.07618077},
+  "plain":   {"lam": 0.03132306, "mu": 0.03194817, "r": 0.66213354}
+}

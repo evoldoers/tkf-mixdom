@@ -3,16 +3,18 @@
 the MUSCLE benchmark collection: bali3pdbm, SABRE, OXBench), from the input sequences (in/) and the reference
 alignments (ref/, core columns in upper case): families, sequences per family, sequence length, pairwise percent
 identity over the aligned residue pairs of the reference, and the share of reference columns and of residues that
-are in core blocks. Writes molbiolevol-paper/paper1-baumwelch/tables/benchmarks_table.tex."""
+are in core blocks. Writes <paper1>/tables/benchmarks_table.tex (paper1_dir.py)."""
 import os, sys, numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from tkfmixdom.util.msa_benchmark import parse_fasta
 
 HOME = os.path.expanduser('~')
-BENCH = [('BAliBASE (\\texttt{bali3pdbm})', f'{HOME}/bio-datasets/data/balibase/bali3pdbm'),
-         ('SABmark (SABRE)', f'{HOME}/bio-datasets/data/bench1.0/sabrem'),
-         ('OXBench', f'{HOME}/bio-datasets/data/bench1.0/oxm')]
-OUT = '/home/yam/tkf-dp/molbiolevol-paper/paper1-baumwelch/tables/benchmarks_table.tex'
+BIO = os.environ.get('BIO_DATASETS', f'{HOME}/bio-datasets')   # checkout of the bio-datasets fetcher, after fetching
+BENCH = [('BAliBASE (\\texttt{bali3pdbm})', f'{BIO}/data/balibase/bali3pdbm'),
+         ('SABmark (SABRE)', f'{BIO}/data/bench1.0/sabrem'),
+         ('OXBench', f'{BIO}/data/bench1.0/oxm')]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from paper1_dir import PAPER1
+OUT = os.path.join(PAPER1, 'tables', 'benchmarks_table.tex')
 
 
 def stats(d):

@@ -11,7 +11,7 @@ export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_TH
 export JAX_PLATFORMS=cuda XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_ENABLE_X64=1 CUDA_VISIBLE_DEVICES=$GPU
 export XLA_FLAGS="${XLA_FLAGS:-} --xla_gpu_enable_command_buffer="
 LOG=$PWD/experiments/em_vs_gradient/results_rest_queue.log; OUT=$PWD/experiments/benchmarks; BENCH=$HOME/bio-datasets/data/bench1.0
-PY=$PWD/.venv/bin/python; TKFDP=/home/yam/tkf-dp
+PY=$PWD/.venv/bin/python; PM=$PWD/experiments/profile_mixture
 gate() { until [ $(nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits -i $GPU | awk -F', ' '{print $2-$1}') -ge $MINFREE ]; do sleep 120; done; }
 run_model() {  # bench tag method [params]
   local b=$1 t=$2 m=$3 p=$4; local out=$OUT/${b}_$t.json
@@ -22,10 +22,10 @@ run_model() {  # bench tag method [params]
   echo "$(date -Is) gpu${GPU}B end bench $b $t rc=$?"
 }
 run_c20() {  # bench indel
-  local b=$1 m=$2; local out=$TKFDP/results/fsa_c20_balibase/${m}_LGp_one_$b.json
+  local b=$1 m=$2; local out=$PM/results/fsa_c20_balibase/${m}_LGp_one_$b.json
   [ -f $out ] && return
   gate; echo "$(date -Is) gpu${GPU}B start bench $b ${m}_LGp"
-  ( cd $TKFDP && PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel $m --subst LGp --clock one --balibase-dir $BENCH/$b --out $out > $OUT/${b}_${m}_LGp.log 2>&1 )
+  ( cd $PM && PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel $m --subst LGp --clock one --balibase-dir $BENCH/$b --out $out > $OUT/${b}_${m}_LGp.log 2>&1 )
   echo "$(date -Is) gpu${GPU}B end bench $b ${m}_LGp rc=$?"
 }
 ( for b in sabrem oxm; do

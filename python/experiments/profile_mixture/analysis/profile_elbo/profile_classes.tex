@@ -1,0 +1,1416 @@
+\documentclass[11pt]{article}
+% Internal note (not part of any submitted paper).
+\usepackage[letterpaper,margin=25mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage[round,authoryear]{natbib}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+\newcommand{\Xset}{\mathcal X}
+\newcommand{\E}{\mathbb E}
+
+\title{Scoring column pairs under a $K$-class profile mixture\\
+for statistical progressive alignment}
+\author{Internal note, tkf-dp}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+In progressive alignment under a single substitution model, scoring the merge
+of a column of one clade's alignment with a column of its sibling's is a dot
+product of two length-$A$ vectors of partial likelihoods; under a $K$-class
+profile mixture such as C20 it is a dot product of length $KA$. We derive a
+variational lower bound whose per-cell cost is $O(K+A)$, built from fixed-size
+column summaries by a soft version of Fitch's rule, and find that at the
+divergences of BAliBASE it is too loose to drive alignment decisions. A
+sparse-class lower bound on the exact score is practically exact at half its
+cost, and collapsing the classes of an exact posterior identity gives an $O(A)$
+score that is as accurate for alignment. With one class this score is exact
+and has the form of MUSCLE's log-expectation score. We compare the scores as
+bounds, as alignment scores and as MCMC proposals; characterize Viterbi,
+hybrid and posterior decoding under MixFrag, whose Viterbi path is
+systematically unfair to fragment mixtures; and benchmark a JAX implementation
+with expected-SPS decoding on BAliBASE, where it reaches SP 0.751 against 0.841
+for MUSCLE.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+\paragraph{Progressive multiple alignment.} CLUSTAL \citep{HigginsSharp1988}
+established the progressive strategy that most multiple aligners still
+follow: build a guide tree from pairwise similarities, then align clusters of
+sequences pairwise, following the branching order of the tree, so that each
+step aligns two profiles. CLUSTAL~W \citep{Thompson1994} added sequence
+weighting, position-specific gap penalties and stage-dependent substitution
+matrices. MUSCLE \citep{Edgar2004} replaced the guide-tree distances by fast
+$k$-mer distances and scored two profile columns with a log-expectation
+function built from the residue frequencies of each column, so that the
+substitution score adapts to the composition of each position. ProbCons
+\citep{Do2005} scored alignments with pair-HMM posterior probabilities made
+consistent across sequences, and reported higher accuracy than CLUSTAL~W,
+T-Coffee and MUSCLE on all but one of the BAliBASE reference sets; its extended variant, ProbCons-ext, added a
+second pair of insertion states for long or terminal insertions, i.e.\ a
+two-component mixture of gap lengths. Position-specific substitution scoring
+and mixtures of gap lengths are the two ingredients this note brings together
+within a single evolutionary model.
+
+\paragraph{Statistical alignment.} The interpretation of alignment scores in
+terms of a likelihood model of sequence evolution has been called
+\emph{statistical alignment} \citep{Hein2000}. Its pair HMMs come from
+continuous-time models of insertion and deletion: TKF91
+\citep{ThorneKishinoFelsenstein1991}, in which indels are single residues;
+TKF92 \citep{ThorneKishinoFelsenstein1992}, in which they are fragments of
+geometrically distributed length; and MixFrag \citep{HolmesMixFrag}, in which
+each fragment draws its extension probability from a finite mixture, so that
+gap lengths follow a mixture of geometric distributions. The substitution
+process is a continuous-time Markov chain (CTMC) on the $A$ residues, such as
+LG \citep{LeGascuel2008}. In a progressive statistical aligner each column of
+a clade's MSA is summarized by its vector of Felsenstein partial likelihoods
+\citep{Felsenstein81}, and scoring a pair of columns from sibling clades is a
+dot product of two such vectors, of length $A$.
+
+\paragraph{Position-specific scoring by mixtures.} The natural likelihood
+analogue of position-specific scoring is a mixture over columns: replace the
+single CTMC by $K$ CTMCs that share exchangeabilities but differ in their
+equilibrium profile (and possibly rate), with each column drawing its class
+independently. Empirical profile mixtures such as C20 and C60
+\citep{LeGascuelLartillot2008}, usually combined with LG exchangeabilities,
+have exactly this form. CAT \citep{Lartillot2004} is the nonparametric
+version, a Dirichlet-process mixture over profiles in which the number of
+classes is inferred; it fits the same form once its profiles are fixed, for
+example at a posterior sample. The cost is in the partial likelihoods: each
+column now carries $K$ vectors of length $A$, scoring two columns is a dot
+product of length $KA$, and each profile--profile alignment of MSAs with
+$L_A$ and $L_B$ columns costs $O(KAL_AL_B)$, for example $20$ to $60$ times
+the single-CTMC cost.
+
+\paragraph{This note.} We develop a variational lower bound on each column's
+likelihood whose profile--profile step costs $O((K+A)L_AL_B)$
+(Section~\ref{sec:bound}). It takes an expectation of the complete-data
+log-likelihood under a single distribution over substitution histories that is
+shared by all classes, so each class's contribution is a fixed linear function
+of a few expected statistics, and the per-class terms of a merge separate into
+a length-$K$ dot product, a length-$A$ dot product and a sparse correction
+(Section~\ref{sec:separates}). The history distribution is built bottom-up by a
+rule that is \emph{Fitch's rule made soft}. At the divergences of BAliBASE the
+bound turns out to be too loose for alignment decisions
+(Section~\ref{sec:tightness}); a sparse-class bound and a class-collapsed
+posterior score repair this, and the latter has the form of MUSCLE's
+log-expectation score. We compare all the scores for likelihoods, decoding and
+MCMC proposals (Section~\ref{sec:choose}), analyse the decoding objectives
+(Section~\ref{sec:decoding}), and report a benchmark
+(Section~\ref{sec:results}).
+
+\paragraph{Relation to Fitch and Sankoff parsimony.} Fitch's algorithm
+\citep{Fitch1971} computes, in one pass from the leaves up, a set of candidate
+states at each internal node, the intersection of the children's sets if it is
+nonempty and otherwise their union, and counts one change whenever it takes
+the union; Sankoff's algorithm \citep{Sankoff1975} generalizes this to
+arbitrary substitution costs by dynamic programming over states. In our
+construction (Section~\ref{sec:summaries}), each internal node instead carries
+a \emph{distribution} over states. When two children merge, their states
+are drawn independently from their distributions, and the path joining them
+through the parent has no substitution if the two states agree and exactly one,
+at a uniformly random point, if they differ. So the parent inherits the shared
+state when the children agree (a soft intersection); when they disagree it
+inherits one child's state or the other's (a soft union), favouring the child
+closer to it in proportion to the other child's share of the path length. The
+expected number of changes grows by the probability that the two children
+disagree, a soft Fitch count. There are three differences from parsimony.
+\begin{itemize}
+\item \emph{Costs come from the model.} Each change $a\to b$ on a branch of
+  length $t$ contributes $\log S_{ab}+\log t$, and time spent in each state is
+  charged by the exit rates, so the implied costs are those of weighted
+  (Sankoff) parsimony with model-derived, branch-length-dependent weights,
+  evaluated in expectation rather than minimized.
+\item \emph{There is no downward pass.} Fitch and Sankoff resolve ancestral
+  states with a second pass from the root; here each node sees only the leaves
+  below it, and the two children of a merge are independent under $q$. This
+  independence is the main source of looseness in the bound
+  (Section~\ref{sec:pfam}); re-estimating each clade's summaries from the
+  exact posterior (Section~\ref{sec:reest}) is the probabilistic counterpart of
+  the downward pass, and is done once per column outside the dynamic program.
+\item \emph{It defines a path measure.} $q$ is a probability measure on
+  continuous-time substitution histories, not a labelling of nodes: a change
+  on a branch occurs at a time drawn uniformly along it. Densities are taken
+  with respect to counting measure on discrete configurations times Lebesgue
+  measure on the substitution times (Section~\ref{sec:bound}), so the bound
+  includes the entropy of these times. A single most-parsimonious history is
+  the degenerate case in which $q$ concentrates on one discrete configuration,
+  giving the weaker bound $\log p(D)\ge\log p(h,D)$. As branch lengths shrink,
+  each extra change costs a factor of $t$, so the likelihood is dominated by
+  minimum-change histories: the regime in which parsimony and likelihood agree,
+  and which a Fitch-like construction targets.
+\end{itemize}
+
+\paragraph{Outline.} Section~\ref{sec:model} states the model,
+Section~\ref{sec:bound} the bound, Section~\ref{sec:summaries} the summaries
+and the merge rule, and Section~\ref{sec:separates} the separable pair score.
+Section~\ref{sec:reest} replaces the soft-Fitch summaries inside each clade by
+exact posterior statistics, Section~\ref{sec:pfam} tests the bound on Pfam,
+Section~\ref{sec:viterbi} gives pseudocode for Viterbi progressive
+alignment under MixFrag, with the expected-statistics computation in
+Appendix~\ref{app:hr}, and Section~\ref{sec:distances} the pairwise distances
+for the guide tree, with an alignment-free initialization in
+Appendix~\ref{app:kgram}. Section~\ref{sec:tightness} shows that the bound is too
+loose for alignment decisions at BAliBASE divergences and derives the
+alternatives, Section~\ref{sec:choose} compares all the scores,
+Section~\ref{sec:decoding} the decoding objectives, and
+Section~\ref{sec:results} reports the benchmark.
+
+\section{Model}
+\label{sec:model}
+
+A column has leaf states $D$ on a tree with branch lengths, over an alphabet
+$\Xset$ of size $A$. Columns evolve independently. Column $c$ has a latent
+class $k\in\{1,\dots,K\}$ with prior weight $w_k$; given $k$, residues evolve
+under the reversible generator
+\[
+Q^k_{xy}=r_k\,S_{xy}\,\pi^k_y\quad(x\ne y),\qquad
+q^k_x=-Q^k_{xx}=r_k\,(S\pi^k)_x ,
+\]
+with exchangeabilities $S=S^\top\ge0$ ($S_{xx}=0$) shared by all classes, and a
+class-specific profile $\pi^k$ and rate $r_k$. Profile mixtures such as CAT
+\citep{Lartillot2004} and C20/C60 \citep{LeGascuelLartillot2008} have this form. The column
+likelihood is $p(D)=\sum_kw_k\,p_k(D)$, where $p_k(D)=p(D\mid\pi^k,r_k)$.
+
+\paragraph{Exact pair score.} Let $F^k_A(x)$ and $F^k_B(x)$ be the partial
+likelihoods of column $m$ of clade $A$ and column $n$ of clade $B$ at the
+clades' top nodes, and $M^k(t)=e^{tQ^k}$. By reversibility the two branches
+to the parent combine into one of length $t=t_A+t_B$, and the exact score of
+the merged column is
+\[
+\log\sum_kw_k\sum_x\big(\pi^k_xF^k_A(x)\big)\big(M^k(t)F^k_B\big)(x).
+\]
+Only one side needs pre-multiplying by a transition matrix, once per column
+and outside the DP, at $O(KA^2)$ per column. Each DP cell is then a dot
+product of length $KA$, and each column stores $KA$ partials.
+
+\section{A bound linear in the column summaries}
+\label{sec:bound}
+
+\paragraph{Paths.} A \emph{path} $h$ is a realization of the chain on every
+branch: the root state and, on each branch, the times and targets of all
+substitutions. Its statistics are $V'_x(h)$, the number of \emph{tokens} equal
+to $x$ (the root state plus the destination of every substitution);
+$U(h)=\sum_xV'_x(h)-1$, the number of substitutions; $T_x(h)$, the total time
+spent in state $x$ summed over branches; and
+$g(h)=\prod_{\text{substitutions }x\to y}S_{xy}$.
+
+\paragraph{Path space.} A path consists of a discrete \emph{configuration}
+(the root state and, for each branch $e$, the number $n_e$ of substitutions and
+their target states) and the substitution times, which lie in
+$\prod_e\{0<\tau_1<\dots<\tau_{n_e}<t_e\}\subset\mathbb R^{U(h)}$ with
+$U(h)=\sum_en_e$. Path space is therefore a disjoint union of pieces of
+different dimensions, one per configuration. The reference measure is counting
+measure on configurations times $U(h)$-dimensional Lebesgue measure on the
+times; a configuration with no substitutions is a point of mass one. All
+densities and entropies below are taken with respect to this measure, so their
+dependence on the time unit cancels in the bound.
+
+\begin{lemma}[path density]\label{lem:density}
+With respect to this reference measure,
+\[
+\log p_k(h)=\sum_xV'_x(h)\log\pi^k_x+U(h)\log r_k+\log g(h)
+ -r_k\sum_xT_x(h)(S\pi^k)_x .
+\]
+\end{lemma}
+\begin{proof}
+The standard density of a continuous-time Markov chain path is the root
+probability times the product of the rates of the jumps taken times
+$\exp(-\int q^k_{X(u)}\,du)$. The root contributes $\log\pi^k_{x_0}$, each jump
+$x\to y$ contributes $\log r_k+\log S_{xy}+\log\pi^k_y$, and the exponent is
+$\sum_xT_xq^k_x$.
+\end{proof}
+
+\begin{lemma}[re-rooting]\label{lem:reroot}
+Because each class is reversible, $p_k(D)$ does not depend on where the root
+is placed \citep{Felsenstein81}. We may root the tree at any node, including a
+leaf.
+\end{lemma}
+
+\begin{theorem}[per-class bound]\label{thm:bound}
+Let $q$ be any distribution over paths that agrees with $D$ at the leaves, with
+a density (with respect to the same reference measure) whose support lies in
+that of $p_k$. Write $V'=\E_q[V'(h)]$, $U=\E_q[U(h)]$ and $T=\E_q[T(h)]$ for
+its expected statistics, and
+$C=\E_q[\log g(h)]+H(q)$. Then
+\begin{equation}\label{eq:Phi}
+\log p_k(D)\ \ge\ \Phi_k(s)=C+\sum_xV'_x\log\pi^k_x+U\log r_k
+ -r_k\sum_xT_x(S\pi^k)_x ,
+\end{equation}
+where $s=(V',U,T,C)$ is the \emph{summary} of $q$. Consequently
+\begin{equation}\label{eq:mix}
+\log p(D)\ \ge\ \log\sum_kw_k\,e^{\Phi_k(s)} .
+\end{equation}
+\end{theorem}
+\begin{proof}
+Jensen's inequality gives
+$\log p_k(D)=\log\E_q[p_k(h)/q(h)]\ge\E_q[\log p_k(h)]+H(q)$; substitute
+Lemma~\ref{lem:density} and take expectations, which are linear in $V',U,T$.
+Then \eqref{eq:mix} follows because $\log$ is increasing and
+$p_k(D)\ge e^{\Phi_k(s)}$ for every $k$.
+\end{proof}
+
+The key property is that $\Phi_k$ is \emph{affine in the summary $s$}, and
+that one $q$, and hence one summary, serves every class.
+
+\section{Summaries that compose across merges}
+\label{sec:summaries}
+
+Each column of an MSA carries a summary $s=(V',U,T,C)$ together with
+$q_{\mathrm{top}}$, the distribution under $q$ of the state at the clade's top
+node: $O(A)$ numbers, independent of the depth of the MSA. A leaf with residue
+$x$ has $V'=e_x$, $U=0$, $T=0$, $C=0$ and $q_{\mathrm{top}}=e_x$.
+
+\begin{lemma}[merge]\label{lem:merge}
+Let $q_A$ and $q_B$ be path distributions on the subtrees below sibling nodes
+$A$ and $B$, and $q_{\mathrm{br}}(\cdot\mid a,b)$ a distribution of paths on
+the branch of length $t=t_A+t_B$ joining $A$ to $B$ through their parent $P$.
+Then $q=q_A\,q_B\,q_{\mathrm{br}}(\cdot\mid x_A,x_B)$ is a valid path
+distribution for the merged tree, rooted where $A$'s tree is rooted, and
+\begin{itemize}
+\item $V'=V'_A+V'_B-\E[e_{x_B}]+\E[\text{destinations on the bridge}]$;
+\item $U$, $T$ and $C$ add, with the bridge's contributions added in;
+\item $q_{\mathrm{top}}(P)$ is the marginal of $q_{\mathrm{br}}$ at distance
+  $t_A$ from $A$.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+The product is a normalized distribution over paths that agree with $D$. By
+the chain rule,
+$H(q)=H(q_A)+H(q_B)+\E\,H\big(q_{\mathrm{br}}(\cdot\mid x_A,x_B)\big)$, and
+$\log g$ adds over branches, so $C$ adds.
+$B$'s summary was computed with $B$'s tree rooted at one of its leaves,
+$\ell_B$; in the merged tree, $B$'s subtree hangs from node $B$. Only the
+branches on the path between $\ell_B$ and $B$ change direction. Along that
+path the visited states $s_0,\dots,s_j$ give the same multiset of tokens in
+either direction (the start state plus the destinations, or the end state plus
+the sources), so $B$'s own tokens, directed away from $B$, are
+$V'_B-e_{x_B}$; node $B$'s state now arrives through the bridge. Dwell times,
+the number of substitutions and $\log g$ (as $S$ is symmetric) do not depend
+on direction, and time reversal is a measure-preserving bijection, so $U$,
+$T$ and the entropy are unchanged. The next merge conditions on $x_P$, a
+function of the bridge, so the construction repeats and needs only
+$q_{\mathrm{top}}(P)$.
+\end{proof}
+
+\paragraph{Single-jump bridge.} Take $x_A\sim q_{A,\mathrm{top}}$ and
+$x_B\sim q_{B,\mathrm{top}}$ independently; write $q_A,q_B$ for these two
+distributions. If $x_A\ne x_B$, the bridge makes one substitution
+$x_A\to x_B$ at a time uniform on $(0,t)$: it contributes $\log S_{x_Ax_B}$ to
+$\log g$ and $\log t$ to the entropy (this needs $S_{x_Ax_B}>0$; otherwise the
+bound is $-\infty$, which is still valid). If $x_A=x_B$, the bridge has no
+substitutions and zero entropy. Taking expectations, the merge adds
+\begin{align*}
+\Delta V'&=q_B\circ(1-q_A)-q_B=-\,q_A\circ q_B, &
+\Delta U&=1-q_A^\top q_B, \\
+\Delta T&=\tfrac t2\,(q_A+q_B), &
+\Delta C&=q_A^\top L\,q_B,\quad L=(\log S+\log t)\circ(1-I),
+\end{align*}
+where $\circ$ is the elementwise product, and
+\[
+q_{\mathrm{top}}(P)=q_A\circ q_B+\tfrac{t_B}{t}\,q_A\circ(1-q_B)
+ +\tfrac{t_A}{t}\,q_B\circ(1-q_A).
+\]
+By Lemma~\ref{lem:merge} these are exact expectations under a genuine $q$, so
+Theorem~\ref{thm:bound} applies to every summary built this way.
+
+\section{The pair score separates}
+\label{sec:separates}
+
+Substituting the merged summary into \eqref{eq:Phi} gives
+\begin{equation}\label{eq:sep}
+\Phi_k(s_P)=a_{mk}+b_{nk}+\ell_m^\top q_B+\kappa_k(m,n),
+\end{equation}
+where, with $q_A$ the top distribution of column $m$ and $q_B$ that of
+column $n$,
+\begin{align*}
+a_{mk}&=\Phi_k(s_{A,m})-\tfrac t2\,r_k\,q_A^\top S\pi^k, &
+b_{nk}&=\Phi_k(s_{B,n})-\tfrac t2\,r_k\,q_B^\top S\pi^k+\log r_k,\\
+\ell_m&=L^\top q_A, &
+\kappa_k(m,n)&=-\sum_xq_A(x)\,q_B(x)\log\pi^k_x-(q_A^\top q_B)\log r_k .
+\end{align*}
+The vectors $a_m,b_n\in\mathbb R^K$ and $\ell_m\in\mathbb R^A$ depend on one
+column each and are computed once per column in $O(KA+A^2)$ time, outside
+the DP.
+With $u_{mk}=w_ke^{a_{mk}}$ and $v_{nk}=e^{b_{nk}}$, stored with a per-column
+maximum to avoid underflow, \eqref{eq:mix} becomes
+\begin{equation}\label{eq:score}
+\log p(D)\ \ge\ \log\sum_ku_{mk}\,v_{nk}\,e^{\kappa_k(m,n)}\;+\;\ell_m^\top q_B .
+\end{equation}
+Without $\kappa$, this is one length-$K$ and one length-$A$ dot product.
+
+\paragraph{The cross term.} $\kappa_k$ is the only part that couples $m$, $n$
+and $k$. It arises from the no-substitution case $x_A=x_B$ of the bridge, in
+which $B$'s top token is inherited rather than replaced by a substitution
+destination.
+
+\begin{lemma}[sparse cross term]\label{lem:sparse}
+Dropping any subset of the terms $-q_A(x)q_B(x)\log\pi^k_x$ from $\kappa_k$
+leaves a lower bound on $\log p(D)$.
+\end{lemma}
+\begin{proof}
+Each term is $\ge0$ because $\log\pi^k_x\le0$, and the right-hand side of
+\eqref{eq:score} is increasing in every $\kappa_k$.
+\end{proof}
+
+So, for a small threshold $\epsilon$ (we use $10^{-3}$), only residues where
+both top distributions have non-negligible mass need to be kept, at $K$
+operations each. Define the \emph{supports}
+$\mathcal S_m=\{x:q_A(x)>\epsilon\}$ and $\mathcal S_n=\{x:q_B(x)>\epsilon\}$,
+short lists computed once per column, and keep the terms with
+$x\in\mathcal S_m\cap\mathcal S_n$; by the lemma, the result is still a lower
+bound. Top distributions are usually peaked, so the intersection is
+usually empty or a single
+residue; when both tops are point masses on $x$, the factor is a precomputed
+$1/\pi^k_x$. The rate part $-(q_A^\top q_B)\log r_k$ can have either sign and
+must be kept: one length-$A$ dot product and $K$ exponentials, and nothing at
+all with a single rate class.
+
+\paragraph{Cost.} Per DP cell: $O(K+A)$, plus $O(K)$ per residue in the
+overlap, against $O(KA)$ for exact pruning. Per column, outside the DP:
+$O(K+A)$ storage and $O(KA+A^2)$ precomputation (the $A^2$ is $\ell_m$),
+against $KA$ storage and $O(KA^2)$ pre-multiplication for exact pruning. An
+alignment of two MSAs of length $L$ has $O(L^2)$ cells but only $O(L)$
+columns, so the per-cell costs are the ones that matter.
+
+\section{Re-estimated clade summaries}
+\label{sec:reest}
+
+Nothing requires the summaries inside a clade to come from single-jump merges:
+Theorem~\ref{thm:bound} holds for any $q$. Once a clade's MSA is fixed, its
+column summaries can be recomputed from the exact posterior $p_{k^*}(h\mid D)$
+of a reference class $k^*$ (here the clade's best class), rooted at the clade's
+top node. The statistics $V'$, $U$, $T$ are the expected sufficient statistics
+of that posterior \citep{HolmesRubin2002,HobolthJensen2005}, computed in
+eigenspace as in Appendix~\ref{app:hr}; $q_{\mathrm{top}}$
+is the posterior at the top node; and $C=\log p_{k^*}(D)-\big(V'\cdot\log
+\pi^{k^*}+U\log r_{k^*}-r_{k^*}T\cdot S\pi^{k^*}\big)$, since
+$\E_q\log p_{k^*}(h)+H(q)=\log p_{k^*}(D)$ when $q$ is the posterior. The
+summary is rooted at the top node rather than at a leaf, so no re-orientation
+is needed in Lemma~\ref{lem:merge}: its root token is $e_{x_B}$ itself. This
+costs one up--down pass plus per-branch expected statistics per column per
+merge, outside the DP; the single-jump construction is then used only for the
+final merge, i.e.\ for the DP cell being scored, and its errors no longer
+accumulate over merges.
+
+\section{Test on Pfam}
+\label{sec:pfam}
+
+We took 60 random families from the
+test split of the Pfam seed alignments (54 had at least 6 sequences),
+subsampled to at most 64 sequences, and built BioNJ trees \citep{Gascuel1997}
+from Kimura protein
+distances. The model is LG exchangeabilities with the C20 profiles and
+weights, each class normalized to mean rate 1. For 30 random columns per
+family, the tree is restricted to the column's non-gap leaves and split at a
+random edge into two clades with at least two leaves each. The exact
+log-likelihood is computed by per-class pruning.
+
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+median gap (nats) / leaves & 4--7 & 8--15 & 16--31 & 32--64 & all\\
+\midrule
+columns & 110 & 250 & 311 & 949 & 1620\\
+single-jump summaries throughout & 5.1 & 6.8 & 17.9 & 35.2 & 21.4\\
+re-estimated, single-jump final merge & 2.9 & 2.1 & 2.0 & 1.5 & 1.8\\
+re-estimated, exact final bridge & 2.8 & 2.0 & 1.9 & 1.4 & 1.7\\
+one class's exact posterior, shared & 0.48 & 0.30 & 0.28 & 0.10 & 0.19\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The rows are: single-jump summaries throughout
+(Section~\ref{sec:summaries}); re-estimated clade summaries
+(Section~\ref{sec:reest}) with a single-jump or an exact endpoint-conditioned
+final bridge; and $q(h)$ equal to the exact posterior of the column's best
+class over the whole tree, shared by all classes. The bound was valid on every
+column. Four conclusions:
+\begin{itemize}
+\item \emph{Sharing one $q(h)$ across classes is nearly free} (last row), so
+  the class-free structure that gives $O(K+A)$ is not what costs accuracy.
+\item \emph{Single-jump summaries accumulate error}, about 0.7 nats per leaf.
+  Re-estimating clade summaries (Section~\ref{sec:reest}) removes the
+  accumulation, and the gap stays near 1.5--2 nats at every depth.
+\item \emph{The single-jump bridge is nearly free}: an exact endpoint-conditioned
+  final bridge gains only 0.07 nats, and costs $O(A^2+KA)$ per cell.
+\item \emph{The remaining gap is the independence of $x_A$ and $x_B$} at the
+  final merge: each clade's top distribution is its posterior given its own
+  leaves only. Coupling them is what exact pruning does, and it makes the class
+  readout trilinear in (column $m$, column $n$, class), i.e.\ $O(KA)$ per cell.
+\end{itemize}
+
+\paragraph{Rankings.} For each column we also scored a misaligned cell, in
+which $B$'s residues come from a different random column of the same family,
+and compared log-odds match scores $\log p(AB)-\log p(A)-\log p(B)$. For single-jump summaries
+the single-clade terms are also single-jump bounds; for re-estimated clades
+they are exact, since those clades are pruned anyway to re-estimate them.
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+ & prefers aligned & sign agrees with exact & Spearman\\
+\midrule
+exact & 85.4\% & -- & --\\
+single-jump throughout & 84.0\% & 91.7\% & 0.910\\
+re-estimated clades & 83.3\% & 92.1\% & 0.932\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Tightness at alignment divergences}
+\label{sec:tightness}
+
+The Pfam test measures how far the bound is from the exact log-likelihood of a
+column. An aligner needs something else: the \emph{difference} between the
+score of matching two columns and the scores of leaving them unmatched must be
+right, cell by cell. At the divergences of BAliBASE this fails for the
+single-jump construction.
+
+\paragraph{Diagnosis.} For columns of one residue each, the single-jump bridge
+makes no substitution when the residues agree and exactly one when they differ,
+so it misses multiple substitutions and return paths. Relative to exact pruning, the
+log-odds of a match (match score minus the two single-column scores) is biased
+low by 0.4, 1.0, 1.7 and 2.9 nats at $t=0.3$, 1, 2 and 4 under C20, and by up to
+9 nats for residue pairs with small exchangeability. On the two clades at the
+root of the guide tree of 11 BAliBASE families, with columns from the
+reference alignment, the bias is 2.7 to 7.5 nats per cell, while its spread
+about the bias is only about 1 nat. The single-column scores carry no bridge, so the slack of
+the bridge becomes a systematic penalty on every match. Run through the Pair HMM
+merge with the MixFrag parameters, the recall of reference column pairs falls
+from 0.52 (Viterbi) and 0.55 (expected-SPS decoding,
+Section~\ref{sec:decoding}) with exact pruning to 0.02 and 0.23 with the bound.
+
+\paragraph{Design study.} We compared five ways to tighten the scores on this
+harness, each implemented, measured, and then checked by independent
+reviewers who tried to break the claimed validity and audited the claimed cost;
+Section~\ref{sec:choose} compares them with the scores below.
+\begin{itemize}
+\item \emph{Separable multi-jump bridges} keep the summaries and the $O(K+A)$
+  cost: each class uses its own endpoint-conditioned bridge on the final branch
+  (a valid mixture bound, since each class's term is a separate ELBO), with a
+  separable minorant fitted per branch time and exact residuals on the top-2
+  residues. The best bridge family that keeps the class statistics separable
+  improves the leaf-pair gap only marginally over the single jump.
+\item \emph{Exact bridges on a sparse block} of endpoint pairs, with
+  per-column conditional bounds, close much of the gap but cost more per cell
+  than exact pruning at $K=A=20$.
+\item \emph{Consistent singles} bound the unmatched hypotheses with the same
+  kind of slack, so that it cancels in the log-odds; this needs per-class
+  partials and a second Forward--Backward pass.
+\item A \emph{calibrated} correction of the match log-odds, fitted on Pfam, is
+  accurate but is not a bound.
+\item The \emph{sparse-class bound} below.
+\end{itemize}
+
+
+
+\paragraph{The sparse-class bound.} Keep the exact per-class partials $F^k$ of
+each column (the $KA$ numbers of exact pruning), and write
+$l^k=\pi^k\circ F^k$ and $\mathsf K^k=M^k(t)\,\Pi_k^{-1}$, which is symmetric and
+nonnegative by reversibility. The exact class term of a cell is
+$E_k=l_A^{k\top}\mathsf K^kl_B^k$. Split each side into its top residue and the
+rest, $l_A=v_Ae_{x^*}+a_2$ and $l_B=v_Be_{y^*}+b_2$:
+\[
+E_k=v_A\,(\mathsf K l_B)(x^*)+v_B\,(\mathsf K l_A)(y^*)-v_Av_B\,\mathsf K(x^*,y^*)
++a_2^\top\mathsf K b_2 ,
+\]
+where the first three terms are exact and cost $O(1)$ each from per-column
+quantities, and
+\[
+a_2^\top\mathsf Kb_2\;\ge\;\max\big(|a_2|\min_x(\mathsf Kb_2)(x),\;|b_2|\min_y(\mathsf Ka_2)(y)\big)
+\]
+because every entry is nonnegative. Summing
+over classes before taking the maximum of the two remainder bounds keeps a
+lower bound and turns the whole tier into five matrix products with $K$
+nonzeros per row. Finally, on the union $S$ of the two columns' top two classes
+by class posterior, the exact $E_k$ (cost $A$ each) replaces its lower bound.
+The result is a genuine lower bound on the exact column-pair likelihood,
+exact whenever a column is a single residue, at $5K+|S|(A+O(1))$ operations per
+cell ($|S|\approx3.7$ on average) instead of $KA$; the single-column scores are
+exact. Its log-odds differ from exact by $0.013$ nats on average (Spearman
+correlation $0.9998$), and its recall matches exact pruning, also on a harder
+set of 12 families in which both clades have several sequences (0.61 / 0.68
+against 0.62 / 0.67). The price is the per-column state: $KA$ numbers instead
+of the $O(A)$ summaries.
+
+\paragraph{The posterior-pair score.} The exact match log-odds has a compact form.
+Let $\gamma_k$ be a column's class posterior and $q^k$ its class-$k$ posterior
+distribution of the top state. Then
+\[
+\log\frac{p(A,B)}{p(A)\,p(B)}
+=\log\sum_k\frac{\gamma^A_k\gamma^B_k}{w_k}\;q^{k\top}_A\,\mathsf R^k\,q^k_B,
+\qquad \mathsf R^k=M^k(t)\,\Pi_k^{-1}.
+\]
+For one class this is $\log q_A^\top\mathsf Rq_B$, a single $A$-dimensional
+bilinear form. Collapsing the classes, i.e.\ replacing each column's tops by its
+mixture posterior $\bar q=\sum_k\gamma_kq^k$ and $\mathsf R^k$ by the
+class-marginal ratio $\bar{\mathsf R}=J(t)\oslash\bar\pi\bar\pi^\top$, gives the
+score $\log\bar q_A^\top\bar{\mathsf R}\,\bar q_B$ at $O(A)$ per cell. It is
+exact for one class and for single-residue columns, and for $K>1$ it ignores
+only that the two columns share a class. It is not a bound, so it serves
+decoding, not likelihood computation. On the C20 clade pairs its recall is
+0.54 / 0.57 against 0.54 / 0.57 for exact pruning, with a log-odds bias of
+$-0.3$ nats and a spread of 0.5; restricting the exact form to a few classes
+instead (a valid bound) loses badly (0.28 / 0.49 with each column's top two
+classes), because under this normalization the dropped classes get no lower
+bound at all.
+
+\paragraph{The log-expectation score.} With the classes collapsed, the
+posterior-pair score is
+\[
+\log\sum_{a,b}\bar q_A(a)\,\bar q_B(b)\,\frac{J_{ab}(t)}{\bar\pi_a\bar\pi_b},
+\]
+which is the form of MUSCLE's log-expectation profile score
+$\log\sum_{ij}f_{xi}f_{yj}\,p_{ij}/(p_ip_j)$ \citep{Edgar2004}, with the column
+frequencies $f$ replaced by top-state distributions and the fixed pair
+probabilities (from VTML240 in MUSCLE) by the model's time-dependent
+class-marginal pair distribution. For one substitution chain and posterior tops
+it is exactly the log-odds of matching the two columns, which gives the
+log-expectation score a probabilistic derivation; MUSCLE's column-occupancy
+factor has its counterpart in the residue-count weights of the expected-SPS
+decoder (Section~\ref{sec:decoding}). Nor does the score need the posterior: on
+the soft-Fitch tops of single-jump summaries, with no pruning and no per-class
+partials, its recall on the C20 clade pairs is 0.53 / 0.59 against 0.54 / 0.57
+for exact pruning. In that form the profile mixture enters only through $J(t)$,
+and position specificity only through the top distributions. The single-column
+scores cancel in decoding (every column contributes one, matched or not), so
+only the top distributions are needed. The score does not use the
+sufficient-statistic linearization of Section~\ref{sec:bound}, only the soft-Fitch
+recursion of Section~\ref{sec:summaries}.
+
+\paragraph{Conclusion.} Bounds built from the $O(A)$ column summaries, with a
+bridge whose class statistics are separable, are too loose to drive alignment
+decisions at these divergences; the loss comes from the bridge on the final
+branch, and the tops being independent, not from sharing one history
+distribution across classes. Keeping per-class partials per column and
+bounding only the per-cell work gives a lower bound that is practically exact;
+collapsing the classes of the exact posterior form gives an approximation that is
+as accurate for alignment at $O(A)$ per cell.
+
+\section{Choosing a column-pair score}
+\label{sec:choose}
+
+A column-pair score serves three purposes with different requirements.
+\emph{Likelihood computation} (parameter estimation, model comparison) needs the
+exact value or a genuine lower bound. \emph{Decoding} needs the differences
+between cells to be right; an approximation is acceptable, and a bound whose
+slack varies across cells is not. \emph{Markov chain Monte Carlo} over
+alignments can use any score to propose moves: the Metropolis--Hastings ratio
+corrects for the proposal, so validity as a bound is irrelevant, but the
+proposal distribution must be close to the target, and the exact score is needed
+only along the current and proposed paths, i.e.\ for $O(L)$ cells rather than
+$O(L^2)$. We measure closeness by the Kullback--Leibler divergence
+$\mathrm{KL}(p\,\|\,q)$ between the Pair HMM posteriors over alignments of a
+clade pair under the exact scores ($p$) and under the score being assessed
+($q$). Because the two Pair HMMs differ only in their emissions,
+$\log p(\text{path})-\log q(\text{path})$ is linear in the path's cell
+occupancy, so
+\[
+\mathrm{KL}(p\,\|\,q)=\sum_{\text{cells}}P_p(\text{cell})\,\Delta(\text{cell})
+-\big(\log Z_p-\log Z_q\big),
+\]
+with $\Delta$ the difference of emission scores and the occupancies
+$P_p$ the gradients of $\log Z_p$ (checked against enumeration of all paths of
+a small pair). $e^{\mathrm{KL}(p\|q)}$ roughly measures the number of proposals
+needed per effective sample of the target; we report it per column, which
+indicates the cost of proposing blocks of columns.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Column-pair scores on the C20 root clade pairs of 9 BAliBASE families
+(re-estimated clade summaries where summaries are used). Operations per cell at
+$K=A=20$; state kept per column; recall of reference column pairs by the
+MixFrag Pair HMM merge; KL per alignment column between the Pair HMM posteriors
+under the exact scores and under the score. For LG ($K=1$) the sparse-class and
+posterior-pair scores are exact.}
+\label{tab:choose}
+\begin{tabular}{lccccc}
+\toprule
+score & bound & ops/cell & state/column & recall & KL/col\\
+\midrule
+exact pruning & exact & 400 & $KA$ partials & 0.54 / 0.57 & 0\\
+sparse-class bound & yes & $\approx210$ & $KA$ partials & 0.52 / 0.57 & 0.0002\\
+posterior-pair (mixture tops) & no & $\approx A$ & $KA$ partials & 0.54 / 0.57 & 0.017\\
+log-expectation, posterior tops & no & $\approx A$ & $A$$^\ddagger$ & 0.55 / 0.57 & 0.018\\
+log-expectation, soft-Fitch tops$^*$ & no & $\approx A$ & $A$ & 0.53 / 0.59 & 0.020\\
+calibrated log-odds & no & $O(K{+}A)$ & summaries & 0.48 / 0.55 & 0.041\\
+consistent singles & yes$^\dagger$ & $O(K{+}A)$, 2 passes & $KA$ partials & 0.43 / 0.50 & 0.026\\
+separable multi-jump & yes & $\approx80$ & summaries & 0.18 / 0.32 & 0.35\\
+single-jump bound & yes & $\approx80$ & summaries & 0.00 / 0.14 & 1.0\\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize Recall is Viterbi / expected-SPS decoding. $^*$On single-jump
+summaries, whose tops are soft-Fitch distributions. $^\dagger$Every emission is
+a lower bound, but the single-column scores are deliberately loosened; use the
+tight ones for likelihoods. $^\ddagger$Plus an exact posterior pass per column
+per merge.}
+\end{table}
+
+Table~\ref{tab:choose} summarizes the comparison. For likelihoods the
+sparse-class bound is the choice: a genuine lower bound, practically exact, at
+about half the per-cell cost of exact pruning with the same per-column state.
+For decoding, the posterior-pair and log-expectation scores match exact pruning
+at $O(A)$ per cell, and the soft-Fitch version needs only $A$ numbers per column
+and no pruning at all. For MCMC they are also the natural proposals: about
+0.02 nats per column means that a block of 50 columns costs about one nat, at a
+twentieth of the per-cell cost of the exact score, with the exact per-class
+score evaluated only along the proposed and current paths. The sparse-class
+bound is an almost perfect proposal (0.0002 nats per column) but saves only a
+factor of two. The bounds built on single-jump summaries, including the
+separable multi-jump ones, are poor for all three purposes: hundreds of nats per
+clade pair.
+
+\section{Viterbi progressive alignment under MixFrag}
+\label{sec:viterbi}
+
+This section assembles the pieces into a complete progressive aligner. The
+indel model is MixFrag \citep{HolmesMixFrag}: TKF92 in which each fragment
+independently draws a \emph{fragtype} $f\in\{1,\dots,F\}$ with weight $w_f$ and
+then has geometric length with extension probability $r_f$; the indel process
+and the substitution process are shared across fragtypes, and $F=1$ is TKF92.
+The substitution model is the $K$-class profile mixture of
+Section~\ref{sec:model}. Everything the pseudocode needs is restated here.
+
+\paragraph{Pair HMM.} As in any progressive aligner, the columns of each
+clade's MSA are treated as the sequence at the clade's top node. MixFrag is
+time-reversible like TKF92 (its links follow TKF91, and each fragment's
+fragtype and length are fixed when it is born), so the joint distribution of the
+sequences at sibling nodes $A$ and $B$ is that of a single branch of length
+$t=t_A+t_B$, with $A$ playing the ancestor. Let $\lambda<\mu$ be the insertion
+and deletion rates, $\kappa=\lambda/\mu$, and
+\[
+\alpha=e^{-\mu t},\qquad
+\beta=\frac{\lambda e^{-\lambda t}-\lambda\alpha}{\mu e^{-\lambda t}-\lambda\alpha},\qquad
+\gamma=1-\frac{\mu\beta}{\lambda(1-\alpha)}.
+\]
+The TKF91 joint Pair HMM has transition probabilities $\tau_{XY}$ over
+$X,Y\in\{S,M,I,D,E\}$: the rows $X\in\{S,M,I\}$ are identical,
+\[
+\tau_{XM}=(1-\beta)\alpha\kappa,\quad
+\tau_{XI}=\beta,\quad
+\tau_{XD}=(1-\beta)(1-\alpha)\kappa,\quad
+\tau_{XE}=(1-\beta)(1-\kappa),
+\]
+and row $D$ is the same with $\gamma$ in place of $\beta$. The MixFrag Pair HMM
+has states $S$, $E$ and $Y_g$ for $Y\in\{M,I,D\}$ and $g\le F$, with
+\[
+\tau_{S,Y_g}=w_g\tau_{SY},\qquad
+\tau_{X_f,Y_g}=r_f\,\delta_{XY}\delta_{fg}+(1-r_f)\,w_g\,\tau_{XY},\qquad
+\tau_{X_f,E}=(1-r_f)\,\tau_{XE}.
+\]
+The self-loop term $r_f\delta_{XY}\delta_{fg}$ extends the current fragment;
+every other transition ends it (factor $1-r_f$) and starts a new one of a
+freshly drawn fragtype (factor $w_g$). Emissions do not depend on fragtype:
+$M$ emits a column of $A$'s MSA together with a column of $B$'s, $D$ a column
+of $A$'s alone, and $I$ a column of $B$'s alone.
+
+\paragraph{Emission scores.} The match score of columns $m$ and $n$ is the
+bound \eqref{eq:score} on the log-likelihood of the combined column, and the
+score of a column on its own is the bound $\log\sum_kw_ke^{\Phi_k(s)}$ of
+Theorem~\ref{thm:bound} for its clade. Both are computed from the column
+summaries $s=(V',U,T,C,q)$ of Section~\ref{sec:summaries}. The rank-one form of
+the fragtype transitions means that Viterbi only has to remember, for each
+state type and cell, the best way to \emph{end} a fragment there, so the DP
+costs $O(F)$ per state type per cell rather than $O(F^2)$.
+
+\begin{algorithm}[p]
+\caption{Per-column preparation for one merge (outside the DP)}
+\label{alg:prep}
+\begin{algorithmic}[1]
+\Require summaries $s_c=(V'_c,U_c,T_c,C_c,q_c)$ for the columns $c$ of one
+  clade's MSA; $t=t_A+t_B$; precomputed $\log\pi^k$, $\log r_k$, $\log w_k$,
+  $G_{kx}=(S\pi^k)_x$, $L=(\log S+\log t)\circ(1-I)$
+\Function{Prepare}{$\{s_c\}$, side}
+  \For{each column $c$}
+    \State $\Phi_{ck}\gets C_c+V'_c\cdot\log\pi^k+U_c\log r_k-r_k\,T_c\cdot G_k$
+      \Comment{all $k$: $O(KA)$}
+    \State $\mathrm{single}_c\gets\operatorname{LSE}_k\big(\log w_k+\Phi_{ck}\big)$
+      \Comment{emission score of $c$ alone}
+    \If{side $=A$}
+      \State $a_{ck}\gets\log w_k+\Phi_{ck}-\tfrac t2\,r_k\,q_c\cdot G_k$;
+        \quad $\ell_c\gets L^\top q_c$ \Comment{$O(KA+A^2)$}
+    \Else
+      \State $a_{ck}\gets\Phi_{ck}-\tfrac t2\,r_k\,q_c\cdot G_k+\log r_k$
+    \EndIf
+    \State $\hat a_c\gets\max_ka_{ck}$;\quad $u_{ck}\gets e^{a_{ck}-\hat a_c}$
+      \Comment{scaled to avoid underflow}
+    \State $\mathcal S_c\gets\{x:q_c(x)>\epsilon\}$ \Comment{support of the top distribution (Section~\ref{sec:separates})}
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[p]
+\caption{Match score of column $m$ of $A$ and column $n$ of $B$ (inside the DP)}
+\label{alg:pair}
+\begin{algorithmic}[1]
+\Function{PairScore}{$m,n$}
+  \State $\sigma\gets q_m\cdot q_n$ \Comment{$O(A)$}
+  \State $\chi_k\gets-\sigma\log r_k$ for all $k$ \Comment{rate cross term; zero if all $r_k=1$}
+  \For{$x\in\mathcal S_m\cap\mathcal S_n$} \Comment{sparse $\log\pi$ cross term; usually 0--1 residues}
+    \State $\chi_k\gets\chi_k-q_m(x)\,q_n(x)\log\pi^k_x$ for all $k$
+  \EndFor
+  \State \Return $\hat a_m+\hat b_n+\log\sum_ku_{mk}\,v_{nk}\,e^{\chi_k}+\ell_m\cdot q_n$
+    \Comment{$O(K+A)$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+Here $u$, $\hat a$ are the \textsc{Prepare} outputs for $A$'s columns and $v$,
+$\hat b$ those for $B$'s, and $\mathcal S_m$, $\mathcal S_n$ the supports of
+the two columns' top distributions, also from \textsc{Prepare}. By
+Lemma~\ref{lem:sparse}, restricting the $\log\pi$ cross term to
+$\mathcal S_m\cap\mathcal S_n$ keeps the score a lower bound.
+
+\begin{algorithm}[p]
+\caption{Viterbi alignment of two clade MSAs under the MixFrag Pair HMM}
+\label{alg:viterbi}
+\begin{algorithmic}[1]
+\Require $L_A,L_B$ columns; emission scores $e_M(i,j)=\textsc{PairScore}(i,j)$,
+  $e_D(i)=\mathrm{single}^A_i$, $e_I(j)=\mathrm{single}^B_j$; all logs of
+  $\tau$, $r_f$, $1-r_f$, $w_g$
+\Function{Viterbi}{}
+  \State predecessor offsets: $\Delta_M=(1,1)$, $\Delta_D=(1,0)$, $\Delta_I=(0,1)$
+  \State $H_S(0,0)\gets0$; all other $H_X$, $V_{Y,g}$ $\gets-\infty$
+    \Comment{$H_X(i,j)$: best score ending a fragment in state $X$ at $(i,j)$}
+  \For{$i=0,\dots,L_A$}
+    \For{$j=0,\dots,L_B$}
+      \For{$Y\in\{M,D,I\}$ with $(i',j')=(i,j)-\Delta_Y\ge(0,0)$}
+        \State $\mathrm{new}\gets\max_{X\in\{S,M,I,D\}}\big(H_X(i',j')+\log\tau_{XY}\big)$;
+          \ record the argmax $X^\star_Y(i,j)$
+        \For{$g=1,\dots,F$}
+          \State $\mathrm{ext}\gets V_{Y,g}(i',j')+\log r_g$;
+            \quad $\mathrm{fresh}\gets\mathrm{new}+\log w_g$
+          \State $V_{Y,g}(i,j)\gets e_Y(i,j)+\max(\mathrm{ext},\mathrm{fresh})$;
+            \ record which of the two won
+        \EndFor
+        \State $H_Y(i,j)\gets\max_g\big(V_{Y,g}(i,j)+\log(1-r_g)\big)$;
+          \ record the argmax $g^\star_Y(i,j)$
+      \EndFor
+    \EndFor
+  \EndFor
+  \State $\mathrm{best}\gets\max_{X\in\{M,I,D\}}\big(H_X(L_A,L_B)+\log\tau_{XE}\big)$
+    \Comment{$L_A,L_B\ge1$, so $S\to E$ is impossible}
+  \State \textbf{traceback:} start in $(X,g^\star_X(L_A,L_B))$ at $(L_A,L_B)$ for the
+    maximizing $X$. From $(Y,g)$ at $(i,j)$, output the column type $Y$ and move to
+    $(i',j')=(i,j)-\Delta_Y$; if ``ext'' won, stay in $(Y,g)$; otherwise go to
+    $X=X^\star_Y(i,j)$ in fragtype $g^\star_X(i',j')$, and stop on reaching $S$.
+  \State \Return best, and the column sequence read in reverse
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The DP makes $3F$ updates and three emission evaluations per cell: $O(F+K+A)$
+per cell, $O(L_AL_B(F+K+A))$ per merge. Only the $H_X$ values of the
+predecessor row are needed for the scores, but the back-pointers
+($X^\star_Y$, $g^\star_Y$ and one bit per $(Y,g)$) take $O(L_AL_BF)$ memory.
+
+\begin{algorithm}[p]
+\caption{Summaries of the parent MSA's columns}
+\label{alg:newsum}
+\begin{algorithmic}[1]
+\Function{Merge}{$s_A,s_B,t_A,t_B$} \Comment{single-jump merge, Section~\ref{sec:summaries}}
+  \State $t\gets t_A+t_B$;\quad $q_A,q_B\gets$ the two top distributions
+  \State $V'\gets V'_A+V'_B-q_A\circ q_B$;\quad $U\gets U_A+U_B+1-q_A\cdot q_B$
+  \State $T\gets T_A+T_B+\tfrac t2(q_A+q_B)$;\quad $C\gets C_A+C_B+q_A^\top Lq_B$
+  \State $q\gets q_A\circ q_B+\tfrac{t_B}{t}q_A\circ(1-q_B)+\tfrac{t_A}{t}q_B\circ(1-q_A)$
+  \State \Return $(V',U,T,C,q)$
+\EndFunction
+\Function{Extend}{$s,t_A$} \Comment{column present on one side only}
+  \State \Return $s$ with $T\gets T+t_A\,q$ \Comment{no substitution on the branch up to the parent; top unchanged}
+\EndFunction
+\Function{Reestimate}{column $c$, its tree rooted at the parent $P$, cheap summary $s$}
+  \State $k^\star\gets\arg\max_k\big(\log w_k+\Phi_k(s)\big)$ \Comment{class chosen from the cheap summary}
+  \State $(q,V',U,T,\log p_{k^\star}(c))\gets\textsc{CladeStatistics}(c,\ \text{tree rooted at }P,\ k^\star)$
+    \Comment{Algorithm~\ref{alg:clade}}
+  \State $C\gets\log p_{k^\star}(c)-\big(V'\cdot\log\pi^{k^\star}+U\log r_{k^\star}
+    -r_{k^\star}T\cdot G_{k^\star}\big)$
+  \State \Return $(V',U,T,C,q)$ \Comment{$O(n_cA^2+A^3)$ for $n_c$ leaves}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[p]
+\caption{Progressive alignment}
+\label{alg:progressive}
+\begin{algorithmic}[1]
+\Require rooted binary guide tree with branch lengths (Section~\ref{sec:distances});
+  sequences at its leaves;
+  MixFrag parameters $(\lambda,\mu,\{r_f,w_f\})$; profile mixture $(S,\{w_k,\pi^k,r_k\})$
+\For{each leaf $\ell$}
+  \State MSA$_\ell\gets$ the sequence itself; each residue $x$ gets the leaf summary
+    $(e_x,0,0,0,e_x)$
+\EndFor
+\For{each internal node $P$ in postorder, with children $A,B$ at distances $t_A,t_B$}
+  \State $\textsc{Prepare}(\text{columns of }A,A)$;\quad $\textsc{Prepare}(\text{columns of }B,B)$
+  \State (best, path) $\gets\textsc{Viterbi}()$
+  \For{each step of the path}
+    \If{$M(m,n)$}
+      \State new column = rows of $A$'s column $m$ and $B$'s column $n$;
+        \ $s\gets\textsc{Merge}(s_{A,m},s_{B,n},t_A,t_B)$
+    \ElsIf{$D(m)$}
+      \State new column = $A$'s column $m$ with gaps in $B$'s rows;
+        \ $s\gets\textsc{Extend}(s_{A,m},t_A)$
+    \Else \Comment{$I(n)$}
+      \State new column = $B$'s column $n$ with gaps in $A$'s rows;
+        \ $s\gets\textsc{Extend}(s_{B,n},t_B)$
+    \EndIf
+    \State optionally $s\gets\textsc{Reestimate}(\text{new column},\ \text{tree below }P,\ s)$
+      \Comment{removes accumulated error}
+  \EndFor
+\EndFor
+\State \Return the MSA at the root
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Remarks.}
+\begin{itemize}
+\item \textsc{Extend} is a valid choice of $q$ (no substitution on the branch
+  from the child to $P$), so every summary stays exact bookkeeping for a
+  genuine $q$ and Theorem~\ref{thm:bound} applies throughout.
+\item Without \textsc{Reestimate}, the per-merge cost outside the DP is
+  $O((L_A+L_B)(KA+A^2))$. With it, add $O(n_cA^2+A^3)$ per column of the parent
+  MSA; the Pfam test (Section~\ref{sec:pfam}) shows this removes error that
+  otherwise accumulates at about 0.7 nats per leaf.
+\item With $F=1$ ($w_1=1$, $r_1=r$) MixFrag is TKF92, and
+  Algorithm~\ref{alg:viterbi} becomes the standard three-state TKF92 Viterbi:
+  $H_X=V_X+\log(1-r)$, and each state either extends its fragment
+  ($\log r$) or starts a new one ($\log\tau_{XY}$ from the fragment-end score).
+  With $K=1$ as well, the emissions are single-GTR bounds, i.e.\ a TKF92
+  profile aligner without position-specific scoring.
+\item Replacing $\max$ by log-sum-exp in Algorithm~\ref{alg:viterbi} gives the
+  Forward algorithm, which sums over alignments and fragtypes, and
+  posterior-decoding variants follow in the usual way.
+\end{itemize}
+
+\section{Decoding objectives}
+\label{sec:decoding}
+
+Algorithm~\ref{alg:viterbi} maximizes over complete state paths, which fixes
+the fragtype of every column as well as the order of insertions and deletions
+within each gap. Neither is part of an alignment. We compared the natural
+alternatives on the MixFrag Pair HMM with the Pfam-trained parameters, by exact
+enumeration of all state paths on 9{,}000 short pairs and on 540 pairs of
+realistic length; every exact algorithm below agreed with enumeration to
+$10^{-14}$.
+
+\paragraph{Objectives.} Let $\mathrm{O1}$ be the Viterbi objective (maximum over
+state paths); $\mathrm{O2}$ the maximum over column-type sequences (alignments
+including the order of gap columns) of the probability summed over fragtype
+labels; and $\mathrm{O3}$ the maximum over homology skeletons (the set of matched
+pairs) of their probability, also summed over the orders of insertions and
+deletions between consecutive matches. Always
+$\mathrm{O1}\le\mathrm{O2}\le\mathrm{O3}\le\log p(x,y)$.
+
+\paragraph{Fragtypes.} Because every transition between column types is rank
+one in MixFrag (the new fragment's type is redrawn from $w$), the sum over
+fragtype labels of an alignment factorizes over its maximal runs of one column
+type, with run factor $\varphi_a(k)=w^\top\mathsf A_a^{k-1}(1-r)$. Hence
+$\mathrm{O2}$ is computed exactly by an explicit-duration (semi-Markov) Viterbi
+over runs. With $s_f=\sqrt{w_f(1-r_f)}$, $\varphi_a(k)=s^\top(\mathrm{diag}(r)
++\tau_{aa}ss^\top)^{k-1}s$ is a positive mixture of $F$ geometric terms, so run
+lengths can be capped at about 30 with a geometric tail at a cost of
+$10^{-4}$ nats per run. For labelled HMMs in general this problem is NP-hard
+\citep{LyngsoPedersen2002,Brejova2007}; MixFrag escapes because of the rank-one
+transitions. Viterbi's maximum over fragtypes is systematically unfair to
+MixFrag: with the Pfam parameters it scores every alignment below
+$\mathrm{O2}$ by about 0.1 nats per run of length one, 1.5 nats per match run of
+length 10 and 9--11 nats per match run of length 100, whereas for TKF92
+$\mathrm{O1}=\mathrm{O2}$.
+
+\paragraph{Gap orderings.} $\mathrm{O3}$ is computed exactly by a DP over
+alternating match runs and gap blocks, in which a gap block of $a$ deletions and
+$b$ insertions contributes the order-summed gap factor $G(a,b)$ of the
+summarized-count likelihood, at $O(L^4)$ time. $\log G$ is nearly separable
+(residual at most 0.02 nats for $a,b\le40$, $t\le2.5$), so an $\mathrm{O2}$-cost
+variant that folds both single-alternation orders into a canonical order is
+within $\sum\log(1+\delta)\le0.065$ nats per mixed gap of $\mathrm{O3}$ at
+$t\le1$. The order sum gains 0.4--0.6 nats per mixed gap over the best single
+order.
+
+\paragraph{The naive hybrid.} Taking the log-sum-exp over predecessors at insert
+and delete states and the maximum at match states is a common shortcut. It
+computes the best \emph{policy bundle}: one predecessor fixed at each match
+state and all predecessors kept at each gap cell. It satisfies
+$\mathrm{O1}\le H\le\log p(x,y)$ but is neither above nor below $\mathrm{O2}$ or
+$\mathrm{O3}$ (strict inequalities in both directions in thousands of the
+brute-force instances, even for TKF92): a gap cell's sum pools paths that entered
+the gap from different match cells, i.e.\ different skeletons, while a match
+cell keeps only one fragtype and one last gap state. It has no well-defined
+traceback through gap cells, and its greedy traceback gives a skeleton that is
+not $\mathrm{O3}$-optimal in 4\% of short pairs and 8--15\% of realistic ones.
+It maximizes no clean objective.
+
+\paragraph{Posterior decoding.} Summing everything gives the posterior
+probability $p_{mn}$ that columns $m$ and $n$ are matched, which is the gradient
+of the log Forward probability with respect to the match table, computed by
+reverse-mode differentiation of the checkpointed wavefront Forward pass.
+Matching the two columns creates $n_mn_n$ new residue pairs (the numbers of
+residues in each column), each correct with probability about $p_{mn}$, so the
+merge that maximizes the expected sum-of-pairs score maximizes
+$\sum_{\text{matched}}p_{mn}n_mn_n$, a Needleman--Wunsch problem with no gap
+penalty that the same wavefront kernel solves in the max-plus semiring. This is
+expected-SPS decoding at each sibling merge: a form of maximum expected accuracy
+decoding \citep{HolmesDurbin1998,Do2005} in which the accuracy is the sum-of-pairs
+score, so that, unlike alignment metric accuracy, correctly unaligned residues
+earn nothing and there is no gap term. It is greedy (each merge maximizes its own
+expected contribution given the clade alignments below it), and it sums over
+fragtypes, gap orderings and skeletons, which is what the objectives above
+approximate.
+
+\section{Pairwise distances and the guide tree}
+\label{sec:distances}
+
+Algorithm~\ref{alg:progressive} needs a rooted guide tree with branch
+lengths. We estimate the evolutionary time $t$ separating every pair of
+input sequences under the same Pair HMM, build a tree from these distances
+with BioNJ \citep{Gascuel1997}, and root it at the midpoint of its longest
+path. The distance estimate is one iteration of expectation--maximization
+(EM) for $t$, in the style used by FSA \citep{Bradley2009}: a single
+Forward--Backward pass at a fixed initial time, followed by maximization of
+the expected complete-data log-likelihood, in which the complete data are
+the alignment and the expected counts are held fixed.
+
+\paragraph{Model.} Distances use TKF92 (MixFrag with one fragtype) and a
+single substitution chain, LG, whatever column model the aligner itself uses:
+this is the model under which FSA estimates distances, and it keeps the guide
+tree independent of the profile mixture. With $\pi$ and $M(t)$ the LG
+equilibrium and transition matrix, the match emissions are
+$J_{ab}(t)=\pi_aM_{ab}(t)$ and the insert and delete emissions $\pi_x$.
+
+\paragraph{E-step.} Fix $t_0$ (we use $t_0=1$; Appendix~\ref{app:kgram}
+gives an alignment-free alternative). For a pair of sequences $X$, $Y$, run
+Forward--Backward on the TKF92 Pair HMM at $t_0$. This gives the expected number
+$n_{XY}$ of transitions from state $X$ to state $Y$ and the expected number
+$W_{ab}$ of aligned pairs $(a,b)$. Both are gradients of the log Forward
+probability, with respect to $\log\tau_{XY}$ and to $\log J_{ab}$
+respectively, so reverse-mode differentiation of the linear-space Forward
+pass computes them without storing per-cell posteriors.
+
+\paragraph{M-step.} With the counts fixed, the expected complete-data
+log-likelihood as a function of $t$ is
+\begin{equation}\label{eq:qt}
+\mathcal Q(t)=\sum_{X,Y}n_{XY}\log\tau_{XY}(t)+\sum_{a,b}W_{ab}\log J_{ab}(t)
++\text{const},
+\end{equation}
+where the constant collects the insert and delete emissions, which do not
+depend on $t$. We maximize $\mathcal Q$ over $u=\log t$ by a fixed number of
+Newton--Raphson steps, with the step clipped and $t$ kept in a bounded
+interval. Derivatives come from automatic differentiation, and each step
+costs $O(A^3)$ for $M(t)$, independent of the sequence lengths.
+
+\paragraph{Parallelism.} Every pair is independent. Pairs are grouped by
+their lengths rounded up to a geometric grid, padded to the grid values, and
+processed in batches, with the true lengths passed as traced values so that
+one compiled kernel serves a whole batch; the Forward pass runs over
+anti-diagonals, whose cells are independent. The Newton steps act on the
+fixed-size counts $(n,W)$ and are vectorized over all pairs at once.
+
+\begin{algorithm}[tbp]
+\caption{Pairwise distance by one EM iteration}
+\label{alg:distance}
+\begin{algorithmic}[1]
+\Require sequences $X,Y$; TKF92 parameters; LG; $t_0$;
+  number of Newton steps $n_{\mathrm{N}}$ (we use 5)
+\Function{PairDistance}{$X,Y$}
+  \State $\ell(\theta)\gets$ log Forward probability of $(X,Y)$ at $t_0$, as a
+    function of $\theta=(\log\tau(t_0),\log J(t_0))$
+    \Comment{anti-diagonal, linear space}
+  \State $(n,W)\gets\nabla_\theta\,\ell$ \Comment{expected transition and
+    aligned-pair counts}
+  \State $u\gets\log t_0$
+  \For{$1,\dots,n_{\mathrm{N}}$}
+    \State $g\gets\mathcal Q'(u)$;\quad $h\gets\mathcal Q''(u)$
+      \Comment{Equation~\eqref{eq:qt} as a function of $u=\log t$}
+    \State $u\gets u-\mathrm{clip}(g/h,\,-1,\,1)$ if $h<0$, else
+      $u\gets u+\mathrm{clip}(g,\,-1,\,1)$
+    \State $u\gets\mathrm{clip}(u,\ \log t_{\min},\ \log t_{\max})$
+  \EndFor
+  \State \Return $e^u$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\section{Results on BAliBASE}
+\label{sec:results}
+
+We implemented the aligner in JAX: anti-diagonal wavefront Forward and Viterbi
+kernels with geometric length padding, pairwise distances by
+Algorithm~\ref{alg:distance} batched by padded length, BioNJ guide trees, and
+the scorings and decoders above. The indel parameters are the Pfam-trained
+TKF92 and MixFrag ($\mathcal F=2$) fits of paper~1; LG is used alone or with
+the C20 profiles, the latter with a substitution clock scaled by the family's
+C20/LG time ratio (the indel parameters were fitted on the LG clock). We scored
+the 120 families of BAliBASE~3 \texttt{bali3pdbm} by sum-of-pairs (SP) and
+total-column (TC) scores on the reference core columns, and ran MUSCLE~5.3 and
+MAFFT~7.526 through the same scorer. MUSCLE reproduces paper~1's numbers
+exactly; so does MAFFT, but only when run with \texttt{--auto}, whereas papers~1
+and~3 label the row ``FFT-NS-2''.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Accuracy on BAliBASE~3 \texttt{bali3pdbm}: all 120 families, and the
+22 families whose sequences are all shorter than 150 residues (the subset of
+paper~3). ESPS: expected-SPS decoding; refinement: two rounds of
+Section~\ref{sec:refine}. FSA rows are quoted from papers~1 and~3 (sequence
+annealing of pairwise posteriors).}
+\label{tab:results}
+\begin{tabular}{llcccc}
+\toprule
+& & \multicolumn{2}{c}{120 families} & \multicolumn{2}{c}{22 families, $L<150$}\\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+method & scoring & SP & TC & SP & TC\\
+\midrule
+MUSCLE 5.3 (default) & & \textbf{0.841} & \textbf{0.715} & \textbf{0.760} & \textbf{0.662}\\
+MAFFT (\texttt{--auto}) & & 0.797 & 0.653 & 0.691 & 0.558\\
+MAFFT (FFT-NS-2) & & 0.760 & 0.595 & 0.731 & 0.613\\
+\midrule
+FSA, TKF92 (paper 1 / 3) & & 0.776 & 0.622 & 0.724 & 0.631\\
+FSA, MixFrag $\mathcal F{=}2$ (paper 1) & & 0.790 & 0.640 & -- & --\\
+FSA, TKF92-$K{=}20$ (paper 3) & & -- & -- & 0.732 & 0.637\\
+\midrule
+TKF92, LG, Viterbi & exact & 0.735 & 0.566 & 0.709 & 0.606\\
+TKF92, LG, ESPS & exact & 0.748 & 0.582 & 0.734 & 0.638\\
+MixFrag, LG, Viterbi & exact & 0.665 & 0.478 & 0.600 & 0.442\\
+MixFrag, LG, ESPS & exact & 0.751 & 0.587 & 0.726 & 0.633\\
+MixFrag, LG, ESPS, refinement & exact & 0.738 & 0.569 & 0.650 & 0.515\\
+MixFrag, LG, ESPS & log-expectation & 0.718 & 0.554 & 0.707 & 0.616\\
+\midrule
+TKF92, C20, ESPS & exact & 0.730 & 0.562 & 0.699 & 0.592\\
+MixFrag, C20, Viterbi & exact & 0.630 & 0.451 & 0.569 & 0.444\\
+MixFrag, C20, ESPS & exact & 0.742 & 0.569 & 0.703 & 0.604\\
+MixFrag, C20, Viterbi & sparse-class bound & 0.608 & 0.435 & 0.553 & 0.424\\
+MixFrag, C20, ESPS & sparse-class bound & 0.736 & 0.567 & 0.702 & 0.602\\
+MixFrag, C20, Viterbi & posterior-pair & 0.655 & 0.471 & 0.601 & 0.447\\
+MixFrag, C20, ESPS & posterior-pair & 0.744 & 0.583 & 0.696 & 0.586\\
+MixFrag, C20, ESPS, refinement & posterior-pair & 0.735 & 0.560 & 0.687 & 0.562\\
+MixFrag, C20, ESPS & log-expectation & 0.736 & 0.573 & 0.695 & 0.576\\
+MixFrag, C20, ESPS & single-jump bound & 0.244 & 0.121 & 0.277 & 0.137\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:results} gives the results. Five findings:
+\begin{itemize}
+\item \emph{Scoring.} Every score that is close to exact on the clade pairs
+  (exact pruning, the sparse-class bound, the posterior-pair and
+  log-expectation scores) gives SP within 0.015 of the others; the $O(A)$
+  scores lose essentially nothing. The single-jump bound fails (SP 0.24), as
+  the harness predicted.
+\item \emph{Decoding.} Expected-SPS decoding beats Viterbi in every
+  configuration. Viterbi is particularly bad for MixFrag (0.665 against 0.735
+  for TKF92 with LG), as Section~\ref{sec:decoding} predicts from its maximum
+  over fragtypes; with expected-SPS decoding MixFrag is the best of our
+  configurations, 0.016 SP above TKF92 Viterbi (better in 72 families, worse
+  in 33; Wilcoxon $p=0.001$).
+\item \emph{Profiles.} The C20 mixture does not improve on LG here (0.742
+  against 0.751 with exact scoring), despite its better fit to single columns.
+\item \emph{Refinement.} Two rounds of refinement lower SP (0.751 to 0.738;
+  0.726 to 0.650 on the short families), although every step increases the
+  model's expected SPS: the posteriors are not calibrated well enough against
+  the structural references for coordinate ascent on them to pay.
+\item \emph{Comparisons.} The best configuration is 0.09 SP below MUSCLE on the
+  full set (worse in 94 families of 120) and below FSA's sequence annealing of
+  pairwise posteriors under the same indel models (0.790 for MixFrag). On the
+  22 short families it is level with FSA (TKF92: 0.734 against 0.724) and
+  0.026 SP below MUSCLE.
+\end{itemize}
+Our aligner takes 40--100\,s per family on a shared CPU, most of it JAX
+compilation per padded shape; the wavefront kernels are written for GPUs,
+where each anti-diagonal is one vectorized step.
+
+\paragraph{Refinement.}
+\label{sec:refine}
+After the progressive pass, each edge of the guide tree splits the sequences in
+two; the two sub-alignments (restricted to their rows, all-gap columns removed)
+are re-pruned on their sides of the edge, rooted at its endpoints, and realigned
+by expected-SPS decoding at that edge's branch length. The old alignment of the
+two halves is a feasible path, so each step can only increase the expected
+number of correct cross pairs under that step's posteriors; a round visits every
+edge.
+
+\section{Open questions}
+\begin{itemize}
+\item \emph{The gap to MUSCLE and FSA.} Expected-SPS decoding is greedy, one
+  merge at a time; FSA's sequence annealing of pairwise posteriors, under the
+  same indel models, is 0.04 SP better on the full set. Consistency
+  transformations or annealing over the merged profiles' posteriors are the
+  natural next steps.
+\item \emph{Calibration.} Refinement increases the model's expected SPS but
+  lowers the true SPS, so the posteriors are overconfident or biased against
+  the structural references. Calibrating them (e.g.\ tempering, or an indel
+  model fitted to alignment accuracy rather than likelihood) would help both
+  refinement and decoding.
+\item \emph{Why C20 does not help.} The profile mixture fits single columns
+  better but does not improve alignment accuracy here; whether this is the
+  clock (the indel parameters were fitted with LG), the per-class rate
+  normalization, or the absence of rate heterogeneity is untested.
+\item \emph{MCMC.} The posterior-pair and log-expectation scores are cheap,
+  accurate proposals (Section~\ref{sec:choose}); a block-proposal sampler over
+  alignments, with exact per-class scores along proposed paths, is untested.
+\item \emph{Hardware.} The wavefront kernels are designed for GPUs; the
+  benchmark ran on a shared CPU.
+\end{itemize}
+
+\appendix
+\section{Expected substitution statistics in eigenspace}
+\label{app:hr}
+
+This appendix gives the computation behind \textsc{Reestimate}: the expected
+dwell times and substitution counts of the exact posterior of one class on one
+column \citep{HolmesRubin2002,HobolthJensen2005}. Following
+\citet{HolmesRubin2002}, the counts are accumulated over
+branches in the eigenbasis of the rate matrix, as ``eigensubstitutions'', and
+transformed back to residues once per column. Each branch then costs $O(A^2)$
+and only the final back-transformation costs $O(A^3)$.
+
+Drop the class index: $Q_{xy}=rS_{xy}\pi_y$ ($x\ne y$), $Q_{xx}=-r(S\pi)_x$.
+
+\paragraph{Symmetric eigendecomposition.} With $\Pi=\mathrm{diag}(\pi)$,
+$B=\Pi^{1/2}Q\,\Pi^{-1/2}$ is symmetric:
+$B_{xy}=rS_{xy}\sqrt{\pi_x\pi_y}$ for $x\ne y$ and $B_{xx}=Q_{xx}$. Write
+$B=\Psi\Lambda\Psi^\top$ with $\Psi$ orthogonal and $\Lambda=\mathrm{diag}(\lambda_i)$.
+Then $M(t)=e^{tQ}=\Pi^{-1/2}\Psi e^{t\Lambda}\Psi^\top\Pi^{1/2}$, so a
+matrix--vector product with $M(t)$ or $M(t)^\top$ costs $O(A^2)$ through the
+eigenbasis, and no $A\times A$ transition matrix need ever be formed.
+
+\paragraph{Messages.} Root the column's tree at $P$. For a node $v$ with
+parent $u$, on a branch of length $t_v$, let $L_v$ be the inside vector
+(likelihood of the leaves below $v$ given the state at $v$), $\eta_u$ the
+outside vector of $u$ (joint probability of the state at $u$ and all leaves
+not below $u$; $\eta_P=\pi$), and $R_v$ the joint probability of the state at
+$u$ and all leaves not below $v$, i.e.\ $\eta_u$ times the inside messages
+from $u$'s other children. Then the posterior probability that the branch starts
+in $a$ and ends in $b$ is $P_{ab}=R_{v,a}M_{ab}(t_v)L_{v,b}/Z_v$, where
+$Z_v=R_v^\top M(t_v)L_v=p(D)$ (up to the scaling of $R_v$ and $L_v$). Define
+the projections
+\[
+\tilde R_v=\Psi^\top\Pi^{-1/2}R_v,\qquad \tilde L_v=\Psi^\top\Pi^{1/2}L_v,
+\qquad Z_v=\sum_i\tilde R_{v,i}\,e^{\lambda_it_v}\,\tilde L_{v,i}.
+\]
+
+\begin{lemma}[eigensubstitution counts]\label{lem:hr}
+Let
+\[
+\mathcal C=\sum_{\text{branches }v}\frac{1}{Z_v}
+\big(\tilde R_v\tilde L_v^\top\big)\circ\mathcal D(t_v),
+\qquad
+\mathcal D_{ij}(t)=\int_0^te^{\lambda_iu}e^{\lambda_j(t-u)}\,du
+=\begin{cases}\dfrac{e^{\lambda_it}-e^{\lambda_jt}}{\lambda_i-\lambda_j}&\lambda_i\ne\lambda_j,\\[6pt]
+te^{\lambda_it}&\lambda_i=\lambda_j,\end{cases}
+\]
+and $\tilde J=\Psi\,\mathcal C\,\Psi^\top$. Then the posterior expected total time
+in state $x$, summed over branches, is $\tilde J_{xx}$, and the posterior
+expected total number of $x\to y$ substitutions is $B_{xy}\tilde J_{xy}$.
+\end{lemma}
+\begin{proof}
+Write $I^{ab}_{xy}(t)=\int_0^tM_{ax}(u)M_{yb}(t-u)\,du$. On one branch,
+conditioned on endpoints $(a,b)$, the expected time in $x$ is
+$I^{ab}_{xx}/M_{ab}$ and the expected number of $x\to y$ jumps is
+$Q_{xy}I^{ab}_{xy}/M_{ab}$ \citep{HolmesRubin2002,HobolthJensen2005}.
+Averaging over $P_{ab}$, both are read off
+\[
+J_{xy}=\sum_{a,b}\frac{P_{ab}}{M_{ab}}I^{ab}_{xy}
+=\frac1{Z_v}\sum_{a,b}R_{v,a}\,L_{v,b}\,I^{ab}_{xy},
+\]
+since $P_{ab}/M_{ab}=R_{v,a}L_{v,b}/Z_v$ has rank one. Substituting
+$M_{ax}(u)=\sqrt{\pi_x/\pi_a}\sum_i\Psi_{ai}\Psi_{xi}e^{\lambda_iu}$ and
+$M_{yb}(t-u)=\sqrt{\pi_b/\pi_y}\sum_j\Psi_{yj}\Psi_{bj}e^{\lambda_j(t-u)}$,
+\[
+J_{xy}=\sqrt{\pi_x/\pi_y}\;\frac1{Z_v}\sum_{i,j}\Psi_{xi}\,\tilde R_{v,i}\,
+\mathcal D_{ij}(t_v)\,\tilde L_{v,j}\,\Psi_{yj}.
+\]
+Summing over branches gives $J_{xy}=\sqrt{\pi_x/\pi_y}\,\tilde J_{xy}$. So the
+total time in $x$ is $J_{xx}=\tilde J_{xx}$, and the total number of $x\to y$
+jumps is $Q_{xy}J_{xy}=rS_{xy}\pi_y\sqrt{\pi_x/\pi_y}\,\tilde J_{xy}
+=B_{xy}\tilde J_{xy}$.
+\end{proof}
+
+$\tilde R_v$ and $\tilde L_v$ are the ``left and right eigenbasis projections''
+of the up and down vectors of \citet{HolmesRubin2002}, and $\mathcal C$ is
+their matrix of eigenbasis counts. Each branch adds a rank-one matrix masked
+by $\mathcal D(t_v)$, at $O(A^2)$; the back-transformation $\Psi\mathcal C\Psi^\top$
+is done once. In floating point, use the second case of $\mathcal D$ when
+$|\lambda_i-\lambda_j|\,t$ is below a small tolerance.
+
+\begin{algorithm}[tbp]
+\caption{Posterior statistics of one column under one class, in eigenspace}
+\label{alg:clade}
+\begin{algorithmic}[1]
+\Require column $c$; tree restricted to $c$'s non-gap leaves, rooted at $P$
+  (which may have one child); class $k$ with $(\pi,r)$ and eigendecomposition
+  $B=\Psi\Lambda\Psi^\top$
+\Function{CladeStatistics}{$c$, tree, $k$}
+  \For{each node $v$ in postorder} \Comment{inside pass}
+    \State $L_v\gets e_{c_v}$ if $v$ is a leaf, else $\mathbf 1$;\quad $\sigma_v\gets0$
+    \For{each child $w$ of $v$}
+      \State $m_w\gets\Pi^{-1/2}\Psi\big(e^{t_w\Lambda}\tilde L_w\big)$
+        \Comment{$=M(t_w)L_w$, with $\tilde L_w$ from line 8}
+      \State $L_v\gets L_v\circ m_w$;\quad $\sigma_v\gets\sigma_v+\sigma_w$
+    \EndFor
+    \State $z\gets\max_xL_v(x)$;\quad $L_v\gets L_v/z$;\quad $\sigma_v\gets\sigma_v+\log z$
+    \State $\tilde L_v\gets \Psi^\top\Pi^{1/2}L_v$ \Comment{right eigenbasis projection}
+  \EndFor
+  \State $\log p\gets\log(\pi\cdot L_P)+\sigma_P$;\quad
+    $q\gets\pi\circ L_P/(\pi\cdot L_P)$ \Comment{posterior at $P$}
+  \State $\mathcal C\gets0$ ($A\times A$);\quad $\eta_P\gets\pi$
+  \For{each node $u$ in preorder, and each child $v$ of $u$}
+    \Comment{outside pass}
+    \State $R_v\gets \eta_u\circ\prod_{v'\ne v}m_{v'}$
+      \Comment{over the other children $v'$ of $u$}
+    \State $\tilde R_v\gets \Psi^\top\Pi^{-1/2}R_v$ \Comment{left eigenbasis projection}
+    \State $Z_v\gets\sum_i\tilde R_{v,i}\,e^{\lambda_it_v}\,\tilde L_{v,i}$
+    \State $\mathcal C\gets\mathcal C+\big(\tilde R_v\tilde L_v^\top\big)\circ\mathcal D(t_v)/Z_v$
+      \Comment{eigensubstitutions: $O(A^2)$}
+    \State $\eta_v\gets\Pi^{1/2}\Psi\big(e^{t_v\Lambda}\tilde R_v\big)$, normalized to sum to 1
+      \Comment{$=M(t_v)^\top R_v$}
+  \EndFor
+  \State $\tilde J\gets \Psi\,\mathcal C\,\Psi^\top$ \Comment{back-transformation, once: $O(A^3)$}
+  \State $T_x\gets\tilde J_{xx}$;\quad $N_{xy}\gets B_{xy}\tilde J_{xy}$ ($x\ne y$)
+  \State $V'_y\gets q_y+\sum_{x\ne y}N_{xy}$;\quad $U\gets\sum_{x\ne y}N_{xy}$
+  \State \Return $(q,V',U,T,\log p)$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+Every per-branch step is a matrix--vector product through the eigenbasis or a
+rank-one update, so \textsc{CladeStatistics} costs $O(n_cA^2+A^3)$ for a
+column with $n_c$ leaves: $O(n_cA^2)$ for the passes and the eigensubstitution
+counts, plus one $O(A^3)$ back-transformation. The rescaling of $L_v$ and the
+normalization of $\eta_v$ cancel in $P_{ab}$, because $Z_v$ is computed from the
+same scaled vectors. $P$ may have one child, when the column is present in
+only one of the two merged clades.
+
+\section{An alignment-free initial time from trigram counts}
+\label{app:kgram}
+
+The E-step of Algorithm~\ref{alg:distance} needs an initial time $t_0$. A
+single fixed value works well in practice, but $t_0$ can also be estimated
+per pair, without alignment, from the number of shared trigrams,
+$D_3=\sum_wc_X(w)\,c_Y(w)$, where $c_X(w)$ counts occurrences of the trigram
+$w$ in $X$.
+
+Given the alignment, residues in different columns are independent, so each
+letter of a trigram matches with probability
+$s(t)=\sum_a\pi_aM_{aa}(t)$ if the two positions are homologous and
+$\rho=\sum_a\pi_a^2$ otherwise, under the LG chain used for distances. Taking $X$ as the ancestor, each
+ancestral residue survives with probability $\alpha=e^{-\mu t}$. Fragments
+are indivisible and insertions occur only between them, so adjacent residues
+in one fragment stay adjacent, while across a fragment boundary a surviving
+residue is followed directly by its surviving successor with probability
+$(1-\beta)\alpha$. Following the fragtype of the current residue, the
+probability that $j-1$ consecutive adjacencies are all preserved is
+\[
+p_j=\omega^\top\mathsf T^{\,j-1}\mathbf 1,\qquad
+\mathsf T_{fg}=r_f\,\delta_{fg}+(1-r_f)(1-\beta)\alpha\,w_g,\qquad
+\omega_f\propto\frac{w_f}{1-r_f}.
+\]
+Summing over the homology patterns of three consecutive diagonal position
+pairs, and neglecting the rare pattern in which only the outer two are
+homologous, gives, with $n=\alpha(L_X-2)$,
+\[
+\E[D_3]\approx\rho^3(L_X-2)(L_Y-2)
++n\Big(p_3(s^3-\rho^3)+2(p_2-p_3)(s^2\rho-\rho^3)
++(3-4p_2+p_3)(s\rho^2-\rho^3)\Big).
+\]
+Every term decreases in $t$, so $t_0$ is the root of $\E[D_3]=D_3$, found by
+bisection in $O(L_X+L_Y+A^3)$ time per pair. Replacing $\rho$ by the pair's
+own composition, $\sum_af_X(a)f_Y(a)$, corrects for composition bias. On
+sequences simulated from the model, this estimate is accurate to within a
+few percent up to $t\approx1.5$ and saturates beyond $t\approx2$; on real
+protein families it is biased low. It is therefore suitable only as a
+starting point for the EM iteration, not as a distance in its own right.
+
+\begin{thebibliography}{9}
+\bibitem[TKF-DP supplement(2026)]{HolmesMixFrag}
+TKF-DP supplement, Appendix~A.3, ``The TKF92 model with fragment mixtures
+(MixFrag)''. \url{https://tkfdp.net}.
+\bibitem[Hobolth and Jensen(2005)]{HobolthJensen2005}
+A.~Hobolth and J.~L. Jensen. Statistical inference in evolutionary models of
+DNA sequences via the EM algorithm. \emph{Stat.\ Appl.\ Genet.\ Mol.\ Biol.}
+4(1):18, 2005.
+\bibitem[Holmes and Rubin(2002)]{HolmesRubin2002}
+I.~Holmes and G.~M. Rubin. An expectation maximization algorithm for training
+hidden substitution models. \emph{J.\ Mol.\ Biol.} 317(5):753--764, 2002.
+\bibitem[Felsenstein(1981)]{Felsenstein81}
+J.~Felsenstein. Evolutionary trees from {DNA} sequences: a maximum likelihood
+approach. \emph{J.\ Mol.\ Evol.} 17:368--376, 1981.
+\bibitem[Lartillot and Philippe(2004)]{Lartillot2004}
+N.~Lartillot and H.~Philippe. A Bayesian mixture model for across-site
+heterogeneities in the amino-acid replacement process. \emph{Mol.\ Biol.\
+Evol.} 21:1095--1109, 2004.
+\bibitem[Le et~al.(2008)]{LeGascuelLartillot2008}
+S.~Q. Le, O.~Gascuel and N.~Lartillot. Empirical profile mixture models for
+phylogenetic reconstruction. \emph{Bioinformatics} 24(20):2317--2323, 2008.
+\bibitem[Le and Gascuel(2008)]{LeGascuel2008}
+S.~Q. Le and O.~Gascuel. An improved general amino acid replacement matrix.
+\emph{Mol.\ Biol.\ Evol.} 25(7):1307--1320, 2008.
+\bibitem[Higgins and Sharp(1988)]{HigginsSharp1988}
+D.~G. Higgins and P.~M. Sharp. CLUSTAL: a package for performing multiple
+sequence alignment on a microcomputer. \emph{Gene} 73(1):237--244, 1988.
+\bibitem[Thompson et~al.(1994)]{Thompson1994}
+J.~D. Thompson, D.~G. Higgins and T.~J. Gibson. CLUSTAL W: improving the
+sensitivity of progressive multiple sequence alignment through sequence
+weighting, position-specific gap penalties and weight matrix choice.
+\emph{Nucleic Acids Res.} 22(22):4673--4680, 1994.
+\bibitem[Bradley et~al.(2009)]{Bradley2009}
+R.~K. Bradley, A.~Roberts, M.~Smoot, S.~Juvekar, J.~Do, C.~Dewey, I.~Holmes
+and L.~Pachter. Fast statistical alignment. \emph{PLoS Comput.\ Biol.}
+5(5):e1000392, 2009.
+\bibitem[Edgar(2004)]{Edgar2004}
+R.~C. Edgar. MUSCLE: multiple sequence alignment with high accuracy and high
+throughput. \emph{Nucleic Acids Res.} 32(5):1792--1797, 2004.
+\bibitem[Do et~al.(2005)]{Do2005}
+C.~B. Do, M.~S.~P. Mahabhashyam, M.~Brudno and S.~Batzoglou. ProbCons:
+probabilistic consistency-based multiple sequence alignment. \emph{Genome
+Res.} 15(2):330--340, 2005.
+\bibitem[Hein et~al.(2000)]{Hein2000}
+J.~Hein, C.~Wiuf, B.~Knudsen, M.~B. M{\o}ller and G.~Wibling. Statistical
+alignment: computational properties, homology testing and goodness-of-fit.
+\emph{J.\ Mol.\ Biol.} 302:265--279, 2000.
+\bibitem[Thorne et~al.(1991)]{ThorneKishinoFelsenstein1991}
+J.~L. Thorne, H.~Kishino and J.~Felsenstein. An evolutionary model for
+maximum likelihood alignment of DNA sequences. \emph{J.\ Mol.\ Evol.}
+33(2):114--124, 1991.
+\bibitem[Thorne et~al.(1992)]{ThorneKishinoFelsenstein1992}
+J.~L. Thorne, H.~Kishino and J.~Felsenstein. Inching toward reality: an
+improved likelihood model of sequence evolution. \emph{J.\ Mol.\ Evol.}
+34(1):3--16, 1992.
+\bibitem[Fitch(1971)]{Fitch1971}
+W.~M. Fitch. Toward defining the course of evolution: minimum change for a
+specific tree topology. \emph{Syst.\ Zool.} 20(4):406--416, 1971.
+\bibitem[Gascuel(1997)]{Gascuel1997}
+O.~Gascuel. BIONJ: an improved version of the NJ algorithm based on a simple
+model of sequence data. \emph{Mol.\ Biol.\ Evol.} 14(7):685--695, 1997.
+\bibitem[Brejov{\'a} et~al.(2007)]{Brejova2007}
+B.~Brejov{\'a}, D.~G. Brown and T.~Vina{\v r}. The most probable annotation problem in HMMs
+and its application to bioinformatics. \emph{J.\ Comput.\ Syst.\ Sci.} 73(7):1060--1077, 2007.
+\bibitem[Holmes and Durbin(1998)]{HolmesDurbin1998}
+I.~Holmes and R.~Durbin. Dynamic programming alignment accuracy. \emph{J.\ Comput.\ Biol.}
+5(3):493--504, 1998.
+\bibitem[Lyngs{\o} and Pedersen(2002)]{LyngsoPedersen2002}
+R.~B. Lyngs{\o} and C.~N.~S. Pedersen. The consensus string problem and the complexity of
+comparing hidden Markov models. \emph{J.\ Comput.\ Syst.\ Sci.} 65(3):545--569, 2002.
+\bibitem[Sankoff(1975)]{Sankoff1975}
+D.~Sankoff. Minimal mutation trees of sequences. \emph{SIAM J.\ Appl.\ Math.}
+28(1):35--42, 1975.
+\end{thebibliography}
+
+\end{document}

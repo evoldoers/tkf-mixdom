@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-panel config for the Pfam mode of gap_heatmap_movie.py.  Each panel uses the ML fit of its respective model (from s3://tkf-mixdom-gpu-<AWS_ACCOUNT>/pfam-gap-counts/2026-05-29/).  Panel 1 sim and panel 2 flow currently borrow the closed-form ggi-flowed fit (panel 3) -- replace panel 2 with the _jointnative fit when available.",
+  "sim":     {"lam0": 0.01046943, "mu0": 0.01047910, "x_del": 0.16316417, "y_ins": 0.83664858},
+  "flow":    {"lam0": 0.01046943, "mu0": 0.01047910, "x_del": 0.16316417, "y_ins": 0.83664858},
+  "closed":  {"lam0": 0.01046943, "mu0": 0.01047910, "x_del": 0.16316417, "y_ins": 0.83664858},
+  "rtonly":  {"lam0": 0.03548354, "mu0": 0.03553011, "x_del": 0.14408430, "y_ins": 0.85568827,
+               "lam_fixed": 0.14319512, "mu_fixed": 0.14338303},
+  "plain":   {"lam": 0.05261316, "mu": 0.05261316, "r": 0.81071515}
+}

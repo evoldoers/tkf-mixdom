@@ -2,12 +2,12 @@
 # MixFrag-S (MixFrag with one substitution matrix per fragtype) under the released recipe: 1D path-conditioned
 # svi-BW on the BAliBASE-free split, staged 540 -> 1080 -> 1620 iterations with held-out scoring at each stage
 # (val path-conditioned, val order-summed, test path-conditioned; scorer MODEL=mixfrag_s), then the three benchmarks
-# through tkf-dp's fsa_c20_balibase.py (--indel mixfrag_s, posterior caches {TAG}_1620__<bench>, rows in
+# through profile_mixture/experiments/fsa_c20_balibase.py (--indel mixfrag_s, posterior caches {TAG}_1620__<bench>, rows in
 # results/fsa_c20_balibase/cache_runs/{TAG}_1620_<bench>.jsonl). Progressive and other decodings are filled from the
 # caches by the decoding scripts. Usage: launch_mixfrag_s.sh <F> <gpu> [wait-marker-regex]
 cd "$(dirname "$0")/../.."
 F=$1; GPU=$2; MARK=${3:-.}; MINFREE=${MINFREE:-4000}; SCORE_STAGES=${SCORE_STAGES:-1620}; TAG=mixfrags_F${F}_nobali; B=pfam/svibw_$TAG; P=gpu${GPU}MS
-CORPUS=${CORPUS:-pfam/precompiled_v3_train_nobali}; TKFDP=/home/yam/tkf-dp; C20=$TKFDP/results/fsa_c20_balibase/cache_runs
+CORPUS=${CORPUS:-pfam/precompiled_v3_train_nobali}; PM=$PWD/experiments/profile_mixture; C20=$PM/results/fsa_c20_balibase/cache_runs
 export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2
 export JAX_PLATFORMS=cuda XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_ENABLE_X64=1 CUDA_VISIBLE_DEVICES=$GPU
 export XLA_FLAGS="${XLA_FLAGS:-} --xla_gpu_enable_command_buffer="
@@ -35,13 +35,13 @@ score() {  # stem ckpt : val path-cond, val order-summed, test order-summed thro
     for try in 1 2 3; do gate; echo "$(date -Is) $P start score $out (try $try)"
       PATHCOND=$pc MODEL=mixfrag_s MIXFRAG_S_NPZ=$ck VAL_DIR=$dir .venv/bin/python -u experiments/ordsum_val/score_matchaligned_val.py > $out 2>&1
       echo "$(date -Is) $P end score $out rc=$?"; grep -q 'LL/pair' $out 2>/dev/null && break; sleep 600; done; done; }
-bench() {  # stem ckpt : the three benchmarks through tkf-dp's script (resumable, append-as-you-go)
+bench() {  # stem ckpt : the three benchmarks through profile_mixture script (resumable, append-as-you-go)
   local stem=$1 ck=$PWD/$2
   for b in bali3pdbm sabrem oxm; do
     local dir=$HOME/bio-datasets/data/bench1.0/$b; [ $b = bali3pdbm ] && dir=$HOME/bio-datasets/data/balibase/bali3pdbm
     [ -f $C20/${stem}_$b.json ] && continue
     for try in 1 2 3; do gate; echo "$(date -Is) $P start bench $b $stem (try $try)"
-      ( cd $TKFDP && PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $OLDPWD/.venv/bin/python experiments/fsa_c20_balibase.py --indel mixfrag_s --mixfrag-s-npz $ck --clock one --balibase-dir $dir --out $C20/${stem}_$b.json --cache-name ${stem}__$b > $C20/${stem}_$b.log 2>&1 )
+      ( cd $PM && PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $OLDPWD/.venv/bin/python experiments/fsa_c20_balibase.py --indel mixfrag_s --mixfrag-s-npz $ck --clock one --balibase-dir $dir --out $C20/${stem}_$b.json --cache-name ${stem}__$b > $C20/${stem}_$b.log 2>&1 )
       echo "$(date -Is) $P end bench $b $stem rc=$?"; [ -f $C20/${stem}_$b.json ] && break; sleep 600; done; done; }
 ( until grep -q -E "$MARK" $LOG 2>/dev/null; do sleep 120; done
   echo "$(date -Is) $P start MixFrag-S chain $TAG (3 stages)"

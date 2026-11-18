@@ -2,13 +2,13 @@
 # MixFrag-S gradient tails from the 1,620-iteration svi-BW fit, mirroring the MixDom recipe (launch_dNf1_long.sh):
 # (a) Adam, 2,000 steps, minibatch 2,000, lr 0.01, seed 42 (mixfrag_s_adam_tail.py); (b) L-BFGS refine on a 20,000-pair
 # breadth-first subset, 80 evaluations (mixfrag_s_lbfgs_refine.py). Each tail is then scored (val path-conditioned, val
-# order-summed, test path-conditioned; MODEL=mixfrag_s) and benchmarked (the three benchmarks through tkf-dp's fsa_c20_balibase.py,
+# order-summed, test path-conditioned; MODEL=mixfrag_s) and benchmarked (the three benchmarks through profile_mixture/experiments/fsa_c20_balibase.py,
 # caches {stem}__<bench>), stems mixfrags_F<F>_nobali_{adam,lbfgs}_from1620 as paper_tables.py (MFS_SUFFIXES) expects.
 # Usage: launch_mixfrag_s_tails.sh <F> <gpu> [wait-marker-regex]   (waits for the marker in the queue log, then for
 # pfam/svibw_mixfrags_F<F>_nobali_1620.npz at 1,620 iterations)
 cd "$(dirname "$0")/../.."
 F=$1; GPU=$2; MARK=${3:-.}; MINFREE=${MINFREE:-4000}; TAG=mixfrags_F${F}_nobali; B=pfam/svibw_$TAG; P=gpu${GPU}MT
-TKFDP=/home/yam/tkf-dp; C20=$TKFDP/results/fsa_c20_balibase/cache_runs
+PM=$PWD/experiments/profile_mixture; C20=$PM/results/fsa_c20_balibase/cache_runs
 export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2
 export JAX_PLATFORMS=cuda XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_ENABLE_X64=1 CUDA_VISIBLE_DEVICES=$GPU
 export XLA_FLAGS="${XLA_FLAGS:-} --xla_gpu_enable_command_buffer="
@@ -44,7 +44,7 @@ bench() {  # stem ckpt
     local dir=$HOME/bio-datasets/data/bench1.0/$b; [ $b = bali3pdbm ] && dir=$HOME/bio-datasets/data/balibase/bali3pdbm
     [ -f $C20/${stem}_$b.json ] && continue
     for try in 1 2 3; do gate; echo "$(date -Is) $P start bench $b $stem (try $try)"
-      ( cd $TKFDP && PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $OLDPWD/.venv/bin/python experiments/fsa_c20_balibase.py --indel mixfrag_s --mixfrag-s-npz $ck --clock one --balibase-dir $dir --out $C20/${stem}_$b.json --cache-name ${stem}__$b > $C20/${stem}_$b.log 2>&1 )
+      ( cd $PM && PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $OLDPWD/.venv/bin/python experiments/fsa_c20_balibase.py --indel mixfrag_s --mixfrag-s-npz $ck --clock one --balibase-dir $dir --out $C20/${stem}_$b.json --cache-name ${stem}__$b > $C20/${stem}_$b.log 2>&1 )
       echo "$(date -Is) $P end bench $b $stem rc=$?"; [ -f $C20/${stem}_$b.json ] && break; sleep 600; done; done; }
 ( until grep -q -E "$MARK" $LOG 2>/dev/null; do sleep 120; done
   until [ -f ${B}_1620.npz ] && [ "$(ckpt_iter ${B}_1620.npz)" -ge 1620 ]; do sleep 300; done

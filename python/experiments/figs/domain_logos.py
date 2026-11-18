@@ -199,8 +199,8 @@ ap.add_argument('--bottom-pad', type=float, default=1.3, help='inches reserved b
 ap.add_argument('--top-pad', type=float, default=0.25, help='inches above the first row (0.6 for the two-part paper figure, whose panel headings are two lines)')
 ap.add_argument('--glyphs', action='store_true', help='one-page variant: no per-panel text (only the logo letters), w and substitution rate as gauges, open circles for fragment length, and a large legend with scales in the empty top-left region')
 ap.add_argument('--paper', action='store_true', help='no suptitle / explanatory footer (they go in the paper caption); colour legend only; 1.5x fonts')
-ap.add_argument('--tkf92-json', default='/home/yam/tkf-dp/results/fsa_c20_balibase/cache_runs/tkf92_GTR_one_bali3pdbm.json', help="harness output JSON whose 'indel_params' are TKF92's fitted Pfam parameters (0.04428/0.04521/0.677)")
-ap.add_argument('--mixfrag-json', default='/home/yam/tkf-dp/results/fsa_c20_balibase/cache_runs/mixfrag_GTR_one_bali3pdbm.json', help="same for MixFrag F=2 (mixfrag_F2_logspace.json values)")
+ap.add_argument('--tkf92-json', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'profile_mixture/results/fsa_c20_balibase/cache_runs/tkf92_GTR_one_bali3pdbm.json'), help="harness output JSON whose 'indel_params' are TKF92's fitted Pfam parameters (0.04428/0.04521/0.677)")
+ap.add_argument('--mixfrag-json', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'profile_mixture/results/fsa_c20_balibase/cache_runs/mixfrag_GTR_one_bali3pdbm.json'), help="same for MixFrag F=2 (mixfrag_F2_logspace.json values)")
 ap.add_argument('--models', nargs='*', default=[f'd{n}f1=pfam/svibw_d{n}f1_nobali_1620.npz' for n in range(1, 6)])
 ap.add_argument('--mixfrag-s', nargs='*', default=[f'MixFrag-S\\n(F={F})=pfam/svibw_mixfrags_F{F}_nobali_1620.npz' for F in (2, 3)],
                 help="MixFrag-S rows, label=checkpoint (a literal \\n in the label breaks the line), placed after the MixFrag row; absent checkpoints are skipped")

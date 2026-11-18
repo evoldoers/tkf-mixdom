@@ -4,7 +4,7 @@
 # SABmark (sabrem) and OXBench (oxm) through the published-LG FSA script. Idempotent,
 # memory-gated. Usage: launch_mixfrag_F_scoring.sh <gpu>
 cd "$(dirname "$0")/../.."
-GPU=${1:-0}; MINFREE=${MINFREE:-8000}; R=$PWD/experiments/mixfrag_F; TKFDP=/home/yam/tkf-dp; BENCH=$HOME/bio-datasets/data/bench1.0
+GPU=${1:-0}; MINFREE=${MINFREE:-8000}; R=$PWD/experiments/mixfrag_F; PM=$PWD/experiments/profile_mixture; BENCH=$HOME/bio-datasets/data/bench1.0
 export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_THREADS=2
 export JAX_PLATFORMS=cuda XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_ENABLE_X64=1 CUDA_VISIBLE_DEVICES=$GPU
 export XLA_FLAGS="${XLA_FLAGS:-} --xla_gpu_enable_command_buffer="
@@ -17,9 +17,9 @@ ll() {  # F split kind
     PATHCOND=$pc MODEL=mixfrag MIXFRAG_PARAMS=$R/mixfrag_F${F}_logspace.json VAL_DIR=$PWD/pfam/precompiled_v3_$sp $PY -u experiments/ordsum_val/score_matchaligned_val.py > $out 2>&1
     echo "$(date -Is) gpu${GPU}MF end mixfrag F=$F $kind $sp rc=$?"; grep -q 'LL/pair  =' $out 2>/dev/null && return; sleep 900; done; }
 bench() {  # F benchdir tag
-  local F=$1 bd=$2 tag=$3; local out=$TKFDP/results/fsa_c20_balibase/mixfrag${F}_LGp_one_$tag.json
+  local F=$1 bd=$2 tag=$3; local out=$PM/results/fsa_c20_balibase/mixfrag${F}_LGp_one_$tag.json
   [ -f $out ] && return; gate; echo "$(date -Is) gpu${GPU}MF start mixfrag F=$F bench $tag"
-  ( cd $TKFDP && PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel mixfrag --subst LGp --clock one --indel-params $R/mixfrag_F${F}_logspace.json --balibase-dir $bd --out $out > $R/bench_F${F}_$tag.log 2>&1 )
+  ( cd $PM && PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel mixfrag --subst LGp --clock one --indel-params $R/mixfrag_F${F}_logspace.json --balibase-dir $bd --out $out > $R/bench_F${F}_$tag.log 2>&1 )
   echo "$(date -Is) gpu${GPU}MF end mixfrag F=$F bench $tag rc=$?"; }
 ( for F in 2 3 4 5; do
     until [ -f $R/mixfrag_F${F}_logspace.json ]; do sleep 300; done

@@ -1,0 +1,436 @@
+\documentclass[11pt]{article}
+% Internal note (not part of any submitted paper).
+% Build: cd analysis/profile_elbo && latexmk -pdf profile_elbo.tex
+\usepackage[letterpaper,margin=25mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs}
+\usepackage[round,authoryear]{natbib}
+\usepackage[hidelinks]{hyperref}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+\newtheorem{remark}{Remark}
+\newcommand{\Xset}{\mathcal X}
+\newcommand{\E}{\mathbb E}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\Dir}{\mathrm{Dir}}
+\newcommand{\Gam}{\mathrm{Gamma}}
+
+\title{Position-specific profile scoring for statistical alignment:\\
+a collapsed-Dirichlet ELBO via secret-destination augmentation}
+\author{Internal note, tkf-dp}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Give every alignment column its own equilibrium distribution
+$\pi\sim\Dir(\alpha)$ and rate $r\sim\Gam(a,b)$ on top of a shared GTR
+exchangeability matrix $S$. The secret-destination augmentation of
+\citet{Bruno1996} makes $\pi$ and $r$ jointly conjugate in the augmented
+complete data. The result is a variational lower bound on the marginal
+likelihood of a column. In progressive alignment the bound is computed from
+fixed-size per-column summaries in $O(A)$ time per DP cell, independent of the
+depth of the MSAs being aligned. We prove that the bound is an ELBO, that its
+fixed-point iteration is monotone, and that every iterate is itself an ELBO. For a
+discrete $K$-class profile mixture (e.g.\ C20) the same summaries give a bound
+whose per-cell cost is a length-$K$ plus a length-$A$ dot product, i.e.\
+$O(K+A)$ rather than the $O(KA)$ of exact per-class pruning.
+\end{abstract}
+
+\section{Model}
+
+\paragraph{Setup.} A column has leaf states $D$ on a tree with branch lengths.
+Residues evolve independently of other columns under the reversible chain
+$Q_{xy}=r\,S_{xy}\pi_y$ ($x\ne y$), with $S=S^\top\ge0$ shared by all columns and
+$\sigma_x=\sum_{y\ne x}S_{xy}$. The column-specific parameters
+$\theta=(\pi,r)$ have prior $p(\theta)=\Dir(\pi\mid\alpha)\,\Gam(r\mid a,b)$.
+Setting $r\equiv1$ gives the fixed-rate model; $a=b$ gives a continuous $+\Gamma$
+with mean rate 1. Here $r$ scales $S$, not the column's mean rate
+$r\sum_x\pi_x\sum_y S_{xy}\pi_y$, which becomes a derived quantity; normalizing
+it would break conjugacy.
+
+\paragraph{Augmentation.} The root has state $x_0\sim\pi$. While a branch is in
+state $x$, \emph{proposals} $(y,z)$ with target $y\ne x$ and token $z\in\Xset$
+arrive as a Poisson process with intensity $r\,S_{xy}\pi_z$ per unit time. A
+proposal is accepted, and the state becomes $y$, if and only if $z=y$. Write
+$h$ for the augmented history: the root state and all proposals on all
+branches.
+
+\begin{lemma}[exactness]\label{lem:exact}
+Integrating out the rejected proposals and all tokens gives the chain with
+generator $Q_{xy}=rS_{xy}\pi_y$. Hence $p(D\mid\theta)=\int p(D,h\mid\theta)\,dh$.
+\end{lemma}
+\begin{proof}
+Proposals to $y$ form a Poisson process with rate $rS_{xy}\sum_z\pi_z=rS_{xy}$,
+and each is accepted independently with probability $\pi_y$. By Poisson
+thinning the accepted proposals form a Poisson process of rate $rS_{xy}\pi_y$,
+independent of the rejected ones, and the state path depends only on the
+accepted proposals.
+\end{proof}
+
+\begin{lemma}[density]\label{lem:density}
+With respect to counting measure on the discrete part of $h$ (the root state,
+and the number and marks of the proposals on each branch) times
+$K(h)$-dimensional Lebesgue measure on the proposal times,
+\begin{equation}\label{eq:density}
+p(h\mid\theta)=g(h)\prod_x\pi_x^{N_x(h)}\;r^{K(h)}e^{-rE(h)},
+\qquad g(h)=\prod_{\text{proposals}}S_{xy},\quad E(h)=\sum_xT_x(h)\sigma_x,
+\end{equation}
+where $N_x$ counts tokens equal to $x$ (the root, accepted and rejected
+proposals), $K(h)$ counts proposals, and $T_x(h)$ is the total dwell time in
+$x$. Path space is a disjoint union of pieces of different dimensions $K(h)$;
+a history with no proposals is a point of mass one.
+\end{lemma}
+\begin{proof}
+This is the density of a marked point process with state-dependent
+(predictable) intensity: the product of intensities at the events times
+$\exp(-\int\text{total intensity})$. In state $x$ the total intensity is
+$r\sigma_x\sum_z\pi_z=r\sigma_x$.
+\end{proof}
+
+So $\pi$ enters only as $\prod\pi^{N}$ (multinomial, conjugate to the
+Dirichlet) and $r$ only as $r^Ke^{-rE}$ (Poisson, conjugate to the Gamma).
+
+\begin{lemma}[re-rooting]\label{lem:reroot}
+By reversibility $p(D\mid\theta)$ does not depend on the root position
+\citep{Felsenstein81}, for every $\theta$. So the augmented model rooted at any
+node, including a leaf, is a latent-variable model with the same $p(D)$.
+\end{lemma}
+
+\section{The bound}
+
+\paragraph{Variational family.}
+\begin{itemize}
+\item $q(\theta)=\Dir(\pi\mid\beta)\,\Gam(r\mid a',b')$. Write
+  $\bar\psi_z=\E_q\log\pi_z=\psi(\beta_z)-\psi(\beta_0)$,
+  $\tilde\ell=\E_q\log r=\psi(a')-\log b'$, $\bar r=a'/b'$ and
+  $u_z=\tilde\ell+\bar\psi_z$.
+\item $q(\text{path})$: any distribution over state paths on the tree that
+  agrees with $D$ at the leaves, with a density (with respect to counting
+  measure on configurations times Lebesgue measure on the jump times) whose
+  support lies in that of $p$. Let $V'_x$ be its expected number of root-plus-accepted tokens equal to
+  $x$, $T_x$ its expected dwell time, $U=\sum_xV'_x-1$ its expected number of
+  accepted jumps, and
+  $C=\E_q\big[\sum_{\text{accepted}}\log S_{xy}\big]+H\big(q(\text{path})\big)$.
+\item $q(\text{rejected}\mid\text{path})$: on each dwell segment in state $x$,
+  an independent Poisson process of rejected proposals $(y,z)$, $z\ne y$, with
+  intensity $\lambda(y,z)=e^{\tilde\ell}S_{xy}e^{\bar\psi_z}$.
+\end{itemize}
+
+\begin{lemma}[Poisson entropy]\label{lem:poisson}
+Let $q$ be a Poisson process with intensity $\lambda(m)$ and let the target
+contribute a factor $\phi(m)$ per event. Then
+$\E_q\big[\sum_i\log\phi(m_i)\big]+H(q)=\int\lambda-\int\lambda\log(\lambda/\phi)$,
+which equals $\int\lambda$ when $\lambda=\phi$.
+\end{lemma}
+\begin{proof}
+The Janossy density of $q$ is $e^{-\int\lambda}\prod_i\lambda(m_i)$. Expand
+$H(q)$ and apply Campbell's theorem, $\E\sum_ih(m_i)=\int\lambda h$.
+\end{proof}
+
+After taking expectations over $q(\theta)$, the per-event log-factor of the
+target for a rejected proposal is
+$\E_q\log(rS_{xy}\pi_z)=\tilde\ell+\log S_{xy}+\bar\psi_z=\log\lambda(y,z)$,
+so $\lambda=\phi$ in Lemma~\ref{lem:poisson}, and the rejected proposals
+contribute
+\begin{equation}\label{eq:rej}
+e^{\tilde\ell}\sum_xT_x\sum_{y\ne x}S_{xy}\sum_{z\ne y}e^{\bar\psi_z}
+=\sum_z e^{u_z}\,\bar w_z,
+\qquad \bar w_z=\sum_xT_x\sigma_x-\sum_xT_xS_{xz}.
+\end{equation}
+This is linear in $T$, so only $\E[T]$ under $q(\text{path})$ is needed. By
+Campbell's theorem the expected number of rejected tokens equal to $z$ is
+$V''_z=e^{u_z}\bar w_z$, the variational analogue of the $V''$ of paper~2.
+
+\begin{theorem}[ELBO]\label{thm:elbo}
+For every $(\beta,a',b')$ and every $q(\text{path})$ as above,
+\begin{equation}\label{eq:F}
+F=C+\sum_xV'_x\bar\psi_x+U\tilde\ell-\bar r\sum_xT_x\sigma_x
+ +\sum_ze^{u_z}\bar w_z-\KL\big(q(\theta)\,\|\,p(\theta)\big)
+\end{equation}
+is the ELBO of
+$q=q(\text{path})\,q(\text{rejected}\mid\text{path})\,q(\theta)$, and hence
+$F\le\log p(D)$.
+\end{theorem}
+\begin{proof}
+Substitute \eqref{eq:density} into
+$\E_q[\log p(D,h,\theta)-\log q(h,\theta)]$ and take the expectation over
+$\theta$ first; $q(\theta)$ is independent of $q(h)$.
+The factor $\prod\pi^N$ gives $V'\cdot\bar\psi$ for the root and accepted
+tokens; $r^K$ gives $U\tilde\ell$ for the accepted proposals; $e^{-rE}$ gives
+$-\bar r\sum_xT_x\sigma_x$; $g$ and the path entropy give $C$ for the accepted
+proposals. The rejected proposals, their tokens and their entropy give
+\eqref{eq:rej} by Lemma~\ref{lem:poisson}. The prior and $q(\theta)$ give
+$-\KL$. By Lemmas~\ref{lem:exact} and~\ref{lem:reroot},
+$p(D)=\iint p(D,h,\theta)\,dh\,d\theta$, and Jensen's inequality gives
+$\log p(D)\ge\E_q\log(p/q)=F$.
+\end{proof}
+
+\section{Monotone fixed point and closed form}
+
+\begin{theorem}[monotone iteration]\label{thm:mm}
+From $q_0$, let $V''_0=e^{u^{(0)}}\bar w$ and update
+\begin{equation}\label{eq:fp}
+\beta=\alpha+V'+V''_0,\qquad a'=a+U+\textstyle\sum_zV''_{0,z},
+\qquad b'=b+\sum_xT_x\sigma_x.
+\end{equation}
+Then $F(q_1)\ge F(q_0)$, and every iterate is an ELBO by
+Theorem~\ref{thm:elbo}.
+\end{theorem}
+\begin{proof}
+Only $\sum_ze^{u_z}\bar w_z$ is nonlinear in the expected sufficient statistics
+$(\log\pi,\log r,r)$. Since $\exp$ is convex,
+$e^{u}\ge e^{u_0}(1+u-u_0)$, so $F(q)\ge\hat F(q;q_0)$ with equality at
+$q=q_0$, where $\hat F$ is linear in $\E_q$ of the sufficient statistics. By the
+Gibbs variational principle,
+$\max_q\{\E_q[s(\theta)]-\KL(q\|p)\}=\log\E_p[e^{s(\theta)}]$, attained at
+$q\propto p\,e^{s}$; for $\hat F$ this maximizer is \eqref{eq:fp}. Hence
+$F(q_1)\ge\hat F(q_1;q_0)\ge\hat F(q_0;q_0)=F(q_0)$.
+\end{proof}
+
+\paragraph{Closed form.} At a fixed point, the Gibbs maximum is a
+Dirichlet--multinomial evidence plus a Gamma--Poisson evidence, and the
+linearization leaves $\sum_zV''_z(1-u_z)$:
+\begin{equation}\label{eq:closed}
+F^*=C+\log\frac{B(\beta)}{B(\alpha)}
+ +\log\frac{\Gamma(a')\,b^{a}}{\Gamma(a)\,b'^{\,a'}}
+ +\sum_zV''_z\big(1-\bar\psi_z-\tilde\ell\big),
+\end{equation}
+with $B$ the multivariate Beta function. The main term is the
+Dirichlet--multinomial column score of Dirichlet-mixture profile HMMs
+\citep{Sjolander1996}, with raw column counts replaced by phylogenetically
+corrected expected token counts. A Dirichlet-mixture prior over columns adds a
+log-sum-exp over components, and a mixture over parameter components in the
+spirit of CAT \citep{Lartillot2004} follows the same pattern.
+
+\section{Depth-independent summaries for progressive alignment}
+
+Each MSA column carries a fixed-size summary: $C$ (a scalar), $V'$ and $T$
+($A$-vectors), and $q_{\mathrm{top}}$, the distribution of the state at the top
+node. A leaf with residue $x$ has
+$(V'=e_x,\ T=0,\ C=0,\ q_{\mathrm{top}}=e_x)$.
+
+\begin{lemma}[merge]\label{lem:merge}
+Let $q_A,q_B$ be path distributions on the subtrees below sibling nodes $A$ and
+$B$, and $q_{\mathrm{br}}(\cdot\mid a,b)$ any distribution of paths on the
+branch of length $t=t_A+t_B$ joining them through their parent $P$. Then
+$q=q_A\,q_B\,q_{\mathrm{br}}(\cdot\mid x_A,x_B)$ is a valid $q(\text{path})$ for
+the merged tree rooted at $A$'s root, and
+\[
+V'=V'_A+V'_B-\E[e_{x_B}]+\E[\text{accepted tokens on the bridge}],
+\]
+while $T$, $U$ and $C$ add, and $q_{\mathrm{top}}(P)$ is the marginal of
+$q_{\mathrm{br}}$ at distance $t_A$ from $A$.
+\end{lemma}
+\begin{proof}
+The product is a normalized distribution over paths agreeing with $D$. The
+chain rule gives
+$H(q)=H(q_A)+H(q_B)+\E[H(q_{\mathrm{br}}(\cdot\mid x_A,x_B))]$, and
+$\E\log g$ adds over edges, so $C$ adds. For $V'$: $B$'s summary is rooted at
+one of its leaves, $\ell_B$; in the merged tree its subtree hangs from node
+$B$. Only the edges on the path from $\ell_B$ to $B$ change direction. Along
+that path the visited states $s_0,\dots,s_k$ give the same multiset of tokens
+in either direction (start state plus destinations, or end state plus
+sources), so $B$'s own tokens, oriented away from $B$, are $V'_B-e_{x_B}$;
+node $B$'s state now arrives through the bridge. Dwell times, jump counts and
+$\log S$ (by symmetry of $S$) are unchanged by reversal, and time reversal is
+a measure-preserving bijection, so entropies are unchanged. The next merge
+conditions on $x_P$, a function of the bridge, so the construction repeats and
+needs only the marginal $q_{\mathrm{top}}(P)$.
+\end{proof}
+
+\paragraph{Single-jump bridge.} Take $x_A\sim q_A$, $x_B\sim q_B$
+independently. If $a\ne b$, the bridge has one jump $a\to b$ at
+$\tau\sim U(0,t)$, contributing $\log S_{ab}$ to $\E\log g$ and $\log t$ to the
+entropy (this needs $S_{ab}>0$; otherwise the bound is $-\infty$, which is
+still valid). If $a=b$, it is the path with no jumps, with entropy $0$. Taking
+expectations,
+\begin{align*}
+V'&\mathrel{+}=q_B\circ(1-q_A)-q_B,\\
+T&\mathrel{+}=\tfrac t2(q_A+q_B),\\
+C&\mathrel{+}=q_A^\top\big[(\log S+\log t)\circ(1-I)\big]q_B,\\
+q_{\mathrm{top}}(P)&=q_A\circ q_B+\tfrac{t_B}{t}\,q_A\circ(1-q_B)
+ +\tfrac{t_A}{t}\,q_B\circ(1-q_A).
+\end{align*}
+The $C$ term is $O(A)$ per cell after precomputing
+$q_A^\top[(\log S+\log t)\circ(1-I)]$ once per column of $A$. By
+Lemma~\ref{lem:merge} these are exact expectations under a genuine $q$, so
+Theorem~\ref{thm:elbo} applies. Each fixed-point iteration costs $O(A)$
+(digamma, exp and lgamma of $A$ arguments), so the DP cell cost is $O(kA)$ for
+$k$ iterations, independent of MSA depth. Iteration~1 is already an ELBO.
+
+\paragraph{Exact bridges.} Replacing the single-jump bridge by the
+endpoint-conditioned bridge of a reference GTR chain is also covered by
+Lemma~\ref{lem:merge}. Its expected counts are bilinear in $(q_A,q_B)$, which
+costs $O(A^2)$ per cell with $O(A^3)$ precomputation per column.
+
+\paragraph{Invariant sites.} With $p(D)=w\,p_0(D)+(1-w)\,p_\Gamma(D)$, $p_0$ is
+exact ($\alpha_x/\alpha_0$ for a column constant at $x$, else $0$), and
+monotonicity of $\log$ gives
+$\log\big(w\,p_0+(1-w)e^{F}\big)\le\log p(D)$.
+
+\section{Numerical check}
+\label{sec:numcheck}
+
+\texttt{analysis/scripts/profile\_elbo\_check.py}: $A=4$, random symmetric $S$,
+$\alpha=0.5$, the tree $((1{:}0.1,2{:}0.15)P{:}0.05,3{:}0.2)$ built by two
+single-jump merges, and $\log p(D)$ by Monte Carlo over $4\times10^5$ draws of
+$\theta$. The bound held at every iterate and for 2000 random variational
+parameters per column; the iteration was monotone; and \eqref{eq:closed}
+matches the converged iterate.
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{3}{c}{fixed rate} & \multicolumn{3}{c}{$r\sim\Gam(2,2)$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+column & $\log p(D)$ & iter 1 & converged & $\log p(D)$ & iter 1 & converged\\
+\midrule
+(0,0,0) & $-1.80$ & $-2.78$ & $-2.49$ & $-1.75$ & $-2.71$ & $-2.55$\\
+(0,0,1) & $-4.30$ & $-5.09$ & $-4.97$ & $-4.44$ & $-5.62$ & $-5.40$\\
+(0,1,2) & $-7.05$ & $-8.00$ & $-7.92$ & $-7.01$ & $-8.69$ & $-8.37$\\
+(1,3,1) & $-4.98$ & $-5.98$ & $-5.89$ & $-5.08$ & $-6.62$ & $-6.34$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{\texorpdfstring{Discrete profile classes at $O(K+A)$ per cell}{Discrete profile classes at O(K+A) per cell}}
+\label{sec:classes}
+
+Replace the continuous prior by $K$ fixed classes $(\pi^k,r_k)$ with weights
+$w_k$, as in CAT \citep{Lartillot2004} or the C20/C60 profile mixtures, so
+$p(D)=\sum_kw_k\,p(D\mid\pi^k,r_k)$. Exact pruning scores a column pair as
+$\sum_kw_k\sum_x\pi^k_xF^k_A(x)F^k_B(x)$, a dot product of length $KA$, and must
+carry $KA$ partials per column. The bound needs only a length-$K$ and a
+length-$A$ dot product per cell, plus a sparse correction.
+
+\paragraph{The per-class bound is linear in shared summaries.} Use the same
+class-free $q(\text{path})$ for every class. With $\theta$ fixed there is no
+$q(\theta)$, and the rejected-token term \eqref{eq:rej} is
+$r_k\sum_z\pi^k_z\bar w_z=r_k\sum_xT_x\sigma_x-r_k\sum_xT_x(S\pi^k)_x$. Its first
+part cancels the exposure term, so Theorem~\ref{thm:elbo} gives
+\begin{equation}\label{eq:Phi}
+\log p(D\mid\pi^k,r_k)\ \ge\ \Phi_k(s)=C+\sum_xV'_x\log\pi^k_x+U\log r_k
+ -r_k\sum_xT_x(S\pi^k)_x,
+\end{equation}
+the expected complete-data log-likelihood of paper~2 plus the path entropy.
+The secret destinations are therefore not needed for fixed classes; they are
+needed only to make a continuous prior on $\pi$ conjugate. What makes the
+classes cheap is that $\Phi_k$ is \emph{linear} in the summary
+$s=(V',T,C)$, and the summaries do not depend on $k$. Since
+$\log\sum_kw_ke^{\Phi_k}\le\log\sum_kw_kp_k=\log p(D)$, the mixture bound is
+$\log\sum_kw_ke^{\Phi_k(s)}$.
+
+\paragraph{Separation.} Substitute the merge of Lemma~\ref{lem:merge} with the
+single-jump bridge into \eqref{eq:Phi}. On the bridge, $V'$ changes by
+$-q_A\circ q_B$ net of $B$'s removed top token, $U$ by $1-q_A^\top q_B$, and
+$T$ by $\tfrac t2(q_A+q_B)$. Then
+\begin{align}
+\Phi_k(s_P)&=a_{mk}+b_{nk}+\ell_m^\top q_{B}
+ +\kappa_k(m,n),\qquad\text{where}\notag\\
+a_{mk}&=\Phi_k(s_{A,m})-\tfrac t2\,r_k\,q_{A}^\top S\pi^k,\qquad
+b_{nk}=\Phi_k(s_{B,n})-\tfrac t2\,r_k\,q_{B}^\top S\pi^k+\log r_k,\notag\\
+\ell_m&=q_A^\top\big[(\log S+\log t)\circ(1-I)\big],\qquad
+\kappa_k(m,n)=-\sum_xq_A(x)q_B(x)\log\pi^k_x-(q_A^\top q_B)\log r_k.
+\label{eq:sep}
+\end{align}
+Here $q_A$, $q_B$ are the top-state distributions of column $m$ of $A$ and
+column $n$ of $B$. The vectors $a_m,b_n\in\mathbb R^K$ and
+$\ell_m\in\mathbb R^A$ are computed once per column, in $O(KA+A^2)$ time, outside
+the DP. With $u_{mk}=w_ke^{a_{mk}}$ and $v_{nk}=e^{b_{nk}}$ (stored with a
+per-column maximum to avoid underflow), the cell score is
+\begin{equation}\label{eq:dot}
+\log\sum_ku_{mk}v_{nk}e^{\kappa_k(m,n)}\;+\;\ell_m^\top q_B.
+\end{equation}
+
+\paragraph{The cross term is sparse.} $\kappa_k$ is the only part that couples
+$m$, $n$ and $k$. It arises from the no-jump case $x_A=x_B$ of the bridge, in
+which $B$'s top token is not replaced by an accepted token. Its first part
+is a sum of nonnegative terms, one per residue $x$.
+
+\begin{lemma}[sparse cross term]\label{lem:sparse}
+Dropping any subset of the terms $-q_A(x)q_B(x)\log\pi^k_x$ from $\kappa_k$
+leaves a lower bound on $\log p(D)$.
+\end{lemma}
+\begin{proof}
+Each term is $\ge0$ because $\log\pi^k_x\le0$, and \eqref{eq:dot} is
+increasing in every $\kappa_k$.
+\end{proof}
+
+Keeping only the residues in the overlap
+$O_{mn}=\{x:q_A(x)q_B(x)>\epsilon\}$ therefore costs $K|O_{mn}|$ extra
+operations. The overlap is usually empty or a single residue, because top-state
+distributions are peaked. When both tops are point masses on $x$, the factor
+is the precomputed $1/\pi^k_x$ and costs $K$ multiplications. The rate part
+$-(q_A^\top q_B)\log r_k$ has either sign, so it cannot be dropped; it costs
+one $A$-dot and $K$ exponentials, and vanishes with a single rate class.
+The per-cell cost is thus $O(K+A)$ plus $O(K)$ per overlapping residue,
+compared with $O(KA)$ for exact pruning.
+
+\paragraph{Numerical check.}
+\texttt{analysis/scripts/profile\_elbo\_classes\_check.py}: the tree of
+Section~\ref{sec:numcheck}, $K=6$ random profiles with rates
+$\{0.5,1,2\}$, and the exact mixture likelihood by per-class pruning. The
+script also checks \eqref{eq:Phi} against the augmented form and
+\eqref{eq:sep} against the full merged summary.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+column & $\log p(D)$ & bound \eqref{eq:dot} & $|O_{mn}|$ &
+ no $\log\pi$ cross term\\
+\midrule
+(0,0,0) & $-1.449$ & $-1.469$ & 1 & $-1.921$\\
+(0,0,1) & $-4.079$ & $-4.177$ & 0 & $-4.177$\\
+(0,1,2) & $-6.540$ & $-6.938$ & 0 & $-6.938$\\
+(1,3,1) & $-5.669$ & $-6.161$ & 1 & $-6.657$\\
+(2,2,3) & $-4.564$ & $-4.726$ & 0 & $-4.726$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+With the sparse overlap ($\epsilon=10^{-3}$) the bound equals the full one in
+every case. Dropping the cross term entirely costs about half a nat exactly
+when the two tops agree, which is the conserved-column case, so the sparse
+correction is worth keeping. The gap to $\log p(D)$ is 0.02--0.5 nats, smaller
+than for the continuous Dirichlet (Section~\ref{sec:numcheck}).
+
+\section{Open questions}
+\begin{itemize}
+\item \emph{Tightness.} The gap is 0.7--1.4 nats and grows with column
+  variability when $r$ is free, probably because the single-jump $q$(path) does
+  not respond to $e^{\tilde\ell}$. Candidates: exact reference bridges, or a bridge
+  whose clock is scaled by $e^{\tilde\ell}$.
+\item \emph{Rankings.} Whether gap differences between DP cells are small
+  enough to preserve the ranking of candidate column pairs.
+\item \emph{Depth.} How the gap grows with the number of merges, given the
+  mean-field between $x_A$ and $x_B$.
+\item \emph{Class-specific paths.} Section~\ref{sec:classes} shares one
+  $q(\text{path})$ across classes, which keeps summaries $O(A)$. Class-specific
+  bridges would tighten the bound at the price of $O(KA)$ summaries and a
+  $K\times A$ cross term.
+\item \emph{Gaps.} Gapped rows should be missing leaves, which marginalize out
+  of both $p$ and $q$; the summary bookkeeping for partly gapped columns and
+  for insertion columns still has to be written out.
+\end{itemize}
+
+\begin{thebibliography}{9}
+\bibitem[Bruno(1996)]{Bruno1996}
+W.~J. Bruno. Modeling residue usage in aligned protein sequences via maximum
+likelihood. \emph{Mol.\ Biol.\ Evol.} 13(10):1368--1375, 1996.
+\bibitem[Felsenstein(1981)]{Felsenstein81}
+J.~Felsenstein. Evolutionary trees from {DNA} sequences: a maximum likelihood
+approach. \emph{J.\ Mol.\ Evol.} 17:368--376, 1981.
+\bibitem[Lartillot and Philippe(2004)]{Lartillot2004}
+N.~Lartillot and H.~Philippe. A Bayesian mixture model for across-site
+heterogeneities in the amino-acid replacement process. \emph{Mol.\ Biol.\
+Evol.} 21:1095--1109, 2004.
+\bibitem[Sj{\"o}lander et~al.(1996)]{Sjolander1996}
+K.~Sj{\"o}lander, K.~Karplus, M.~Brown, R.~Hughey, A.~Krogh, I.~S. Mian and
+D.~Haussler. Dirichlet mixtures: a method for improved detection of weak but
+significant protein sequence homology. \emph{CABIOS} 12(4):327--345, 1996.
+\end{thebibliography}
+
+\end{document}

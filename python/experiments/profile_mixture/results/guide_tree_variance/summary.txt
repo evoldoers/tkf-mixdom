@@ -1,0 +1,9 @@
+families: 53; normalized Robinson-Foulds distance to the reference tree (BioNJ on TKF92+LG-C20 ML distances); lower is better
+      tree  mean RF  median RF
+        nj    0.816      0.892
+     bionj    0.778      0.838
+ bionj_var    0.770      0.840
+kimura_msa    0.494      0.529
+bionj_var vs bionj: better in 21, worse in 17, tied in 15 (sign test p = 0.627); mean RF difference -0.007
+bionj_var vs nj: better in 31, worse in 12, tied in 10 (sign test p = 0.0054); mean RF difference -0.046
+bionj vs nj: better in 26, worse in 10, tied in 17 (sign test p = 0.0113); mean RF difference -0.038

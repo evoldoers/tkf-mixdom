@@ -1,0 +1,9 @@
+{
+  "_comment": "Example per-panel parameter overrides for gap_heatmap_movie.py.  Each top-level key is one of {sim, flow, closed, rtonly, plain} (aliases p1_sim, p2_flow, p3_closed, p4_rt, p5_plain also accepted).  Anything not specified inherits from the CLI base flags (--lam0 --mu0 --x --y).  Use this to set per-panel parameters to the ML fits of the respective models.",
+  "sim":     {"lam0": 0.04,  "mu0": 0.04,  "x_del": 0.6, "y_ins": 0.4},
+  "flow":    {"lam0": 0.038, "mu0": 0.041, "x_del": 0.62, "y_ins": 0.39},
+  "closed":  {"lam0": 0.037, "mu0": 0.042, "x_del": 0.64, "y_ins": 0.38},
+  "rtonly":  {"lam0": 0.035, "mu0": 0.045, "x_del": 0.7,  "y_ins": 0.35,
+               "lam_fixed": 0.085, "mu_fixed": 0.109},
+  "plain":   {"lam": 0.082, "mu": 0.088, "r": 0.55}
+}

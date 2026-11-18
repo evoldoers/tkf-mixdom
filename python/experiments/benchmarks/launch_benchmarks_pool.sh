@@ -11,7 +11,7 @@ export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 NUMEXPR_NUM_TH
 export JAX_PLATFORMS=cuda XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_ENABLE_X64=1
 export XLA_FLAGS="${XLA_FLAGS:-} --xla_gpu_enable_command_buffer="
 LOG=$PWD/experiments/em_vs_gradient/results_rest_queue.log; OUT=$PWD/experiments/benchmarks; BENCH=$HOME/bio-datasets/data/bench1.0
-PY=$PWD/.venv/bin/python; TKFDP=/home/yam/tkf-dp; CLAIM=$OUT/.claims; mkdir -p $CLAIM
+PY=$PWD/.venv/bin/python; PM=$PWD/experiments/profile_mixture; CLAIM=$OUT/.claims; mkdir -p $CLAIM
 # job list: "tag|params" (mixdom) or "c20:indel" (published-LG TKF92/MixFrag), sabrem before oxm
 MODELS=(
   "mixdom_d1f1_nobali_1620|pfam/svibw_d1f1_nobali_1620.npz"
@@ -40,14 +40,14 @@ ready() {  # params file finished?
   case $p in pfam/svibw_*) grep -q 'SVI Baum-Welch complete' ${p%.npz}.log 2>/dev/null ;;
              *) [ $(( $(date +%s) - $(stat -c %Y "$p") )) -gt 120 ] ;; esac
 }
-outfile() { local b=$1 j=$2; case $j in c20:*) echo $TKFDP/results/fsa_c20_balibase/${j#c20:}_LGp_one_$b.json;; *) echo $OUT/${b}_${j%%|*}.json;; esac; }
+outfile() { local b=$1 j=$2; case $j in c20:*) echo $PM/results/fsa_c20_balibase/${j#c20:}_LGp_one_$b.json;; *) echo $OUT/${b}_${j%%|*}.json;; esac; }
 gate() { until [ $(nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits -i $1 | awk -F', ' '{print $2-$1}') -ge $MINFREE ]; do sleep 120; done; }
 run_job() {  # gpu bench job
   local G=$1 b=$2 j=$3; export CUDA_VISIBLE_DEVICES=$G
   gate $G
   if [[ $j == c20:* ]]; then local m=${j#c20:}
     echo "$(date -Is) gpu${G}BP start bench $b ${m}_LGp"
-    ( cd $TKFDP && PYTHONPATH=$TKFDP/src:$TKFDP JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel $m --subst LGp --clock one --balibase-dir $BENCH/$b --out $(outfile $b $j) > $OUT/${b}_${m}_LGp.log 2>&1 )
+    ( cd $PM && PYTHONPATH=$PM/src:$PM JAX_CACHE_DIR=$HOME/.cache/jax-fsa-c20 $PY experiments/fsa_c20_balibase.py --indel $m --subst LGp --clock one --balibase-dir $BENCH/$b --out $(outfile $b $j) > $OUT/${b}_${m}_LGp.log 2>&1 )
     echo "$(date -Is) gpu${G}BP end bench $b ${m}_LGp rc=$?"
   else local t=${j%%|*} p=${j#*|}
     echo "$(date -Is) gpu${G}BP start bench $b $t"
