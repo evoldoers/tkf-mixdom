@@ -2057,6 +2057,24 @@ def _build_per_pair_sub_matrices(t_array, params, Q_lg, pi_lg, n_dom):
     return sub_matrices_stack, pis_arr
 
 
+def _batch_grid(B):
+    """Fixed grid of batch sizes for the per-bucket E-step kernels: the next multiple of 32 up to 256, of 64 beyond.
+    The bucketed forward-backward and emission kernels are compiled per (padded_L, B); with B equal to the exact
+    number of pairs that landed in a bucket, nearly every minibatch presented new shapes and the trainer spent most
+    of each iteration compiling or reloading executables. Padding B to this grid makes the executable set finite."""
+    step = 32 if B <= 256 else 64
+    return ((B + step - 1) // step) * step
+
+
+def _pad_rows(arr, B_pad):
+    """Pad a (B, ...) array to (B_pad, ...) by repeating its last row (valid data; the padded rows' outputs are
+    discarded by the caller, and every per-pair kernel is independent across the batch axis)."""
+    arr = np.asarray(arr)
+    if arr.shape[0] >= B_pad:
+        return arr
+    return np.concatenate([arr, np.repeat(arr[-1:], B_pad - arr.shape[0], axis=0)], axis=0)
+
+
 def _build_per_pair_hr_stats(Qs, pis, t_array, mc_stack, chunk_size=128):
     """Vmapped per-pair-per-domain Holmes-Rubin weighted stats.
 
@@ -2106,12 +2124,21 @@ def _build_per_pair_hr_stats(Qs, pis, t_array, mc_stack, chunk_size=128):
     U_chunks = []
     for s in range(0, B, chunk_size):
         e = min(s + chunk_size, B)
-        W_c, U_c = fn(
-            Qs_j, pis_j,
-            jnp.asarray(t_array[s:e]),
-            jnp.asarray(mc_stack[s:e]))
-        W_chunks.append(np.asarray(W_c))
-        U_chunks.append(np.asarray(U_c))
+        t_c = np.asarray(t_array[s:e], dtype=np.float64)
+        mc_c = np.asarray(mc_stack[s:e])
+        n = e - s
+        if n < chunk_size:
+            # Pad the last chunk to a fixed shape: a data-dependent final chunk
+            # size gave every minibatch a new executable (compiled, or reloaded
+            # from the persistent cache at ~0.5 s each), which multiplied the
+            # per-iteration cost several-fold. The stats are linear in mc, so
+            # zero-count pad rows (at a harmless t = 1) contribute nothing and
+            # are sliced off below.
+            t_c = np.concatenate([t_c, np.ones(chunk_size - n, dtype=np.float64)])
+            mc_c = np.concatenate([mc_c, np.zeros((chunk_size - n,) + mc_c.shape[1:], dtype=mc_c.dtype)])
+        W_c, U_c = fn(Qs_j, pis_j, jnp.asarray(t_c), jnp.asarray(mc_c))
+        W_chunks.append(np.asarray(W_c)[:n])
+        U_chunks.append(np.asarray(U_c)[:n])
     return np.concatenate(W_chunks, axis=0), np.concatenate(U_chunks, axis=0)
 
 
@@ -2357,12 +2384,13 @@ def _process_pairs_batched(batch_pairs, chi_params, st, Q_lg, pi_lg, N,
         cd_classdist_j = jnp.asarray(cd_classdist_shared)
 
     for padded_L, plist in emit_inputs.items():
-        states_stack = jnp.asarray(np.stack([p['states_pad'] for p in plist]))
-        anc_stack = jnp.asarray(np.stack([p['anc_pad'] for p in plist]))
-        desc_stack = jnp.asarray(np.stack([p['desc_pad'] for p in plist]))
-        subs_stack = jnp.asarray(np.stack([p['subs_lin'] for p in plist]))
+        _Bp = _batch_grid(len(plist))   # fixed-grid batch size (see _batch_grid)
+        states_stack = jnp.asarray(_pad_rows(np.stack([p['states_pad'] for p in plist]), _Bp))
+        anc_stack = jnp.asarray(_pad_rows(np.stack([p['anc_pad'] for p in plist]), _Bp))
+        desc_stack = jnp.asarray(_pad_rows(np.stack([p['desc_pad'] for p in plist]), _Bp))
+        subs_stack = jnp.asarray(_pad_rows(np.stack([p['subs_lin'] for p in plist]), _Bp))
         if use_classdist:
-            cd_subs_stack = jnp.asarray(np.stack([p['cd_subs_lin'] for p in plist]))
+            cd_subs_stack = jnp.asarray(_pad_rows(np.stack([p['cd_subs_lin'] for p in plist]), _Bp))
             emit_batch = _emit_kernel(
                 st_j, states_stack, anc_stack, desc_stack,
                 subs_stack, pis_lin_j,
@@ -2371,7 +2399,7 @@ def _process_pairs_batched(batch_pairs, chi_params, st, Q_lg, pi_lg, N,
             emit_batch = _emit_kernel(
                 st_j, states_stack, anc_stack, desc_stack,
                 subs_stack, pis_lin_j)
-        emit_batch_np = np.asarray(emit_batch)  # (B_bucket, padded_L, N)
+        emit_batch_np = np.asarray(emit_batch)[:len(plist)]  # (B_bucket, padded_L, N); padded rows dropped
 
         for bi, p in enumerate(plist):
             L = p['L']
@@ -2454,22 +2482,24 @@ def _process_pairs_batched(batch_pairs, chi_params, st, Q_lg, pi_lg, N,
     # then vmap the FB and accumulate stats.
     for padded_L, bucket in buckets.items():
         B = len(bucket)
-        emit_stack = jnp.array(np.stack([item[0] for item in bucket]))  # (B, padded_L, N)
-        lengths = jnp.array([item[1] for item in bucket], dtype=jnp.int64)  # (B,)
-        t_ests = jnp.array([item[6] for item in bucket], dtype=jnp.float32)  # (B,)
+        B_pad = _batch_grid(B)   # fixed-grid batch size (see _batch_grid); padded rows are dropped below
+        emit_stack = jnp.array(_pad_rows(np.stack([item[0] for item in bucket]), B_pad))  # (B_pad, padded_L, N)
+        lengths = jnp.array(_pad_rows(np.array([item[1] for item in bucket], dtype=np.int64), B_pad))  # (B_pad,)
+        t_ests = jnp.array([item[6] for item in bucket], dtype=jnp.float32)  # (B,) the real pairs
+        t_ests_pad = jnp.array(_pad_rows(np.array([item[6] for item in bucket], dtype=np.float32), B_pad))
 
-        # Per-pair log_chi: (B, N, N), each slice at this pair's t_est.
-        log_chi_stack = _build_log_chi_stack(chi_params, t_ests)
+        # Per-pair log_chi: (B_pad, N, N), each slice at this pair's t_est.
+        log_chi_stack = _build_log_chi_stack(chi_params, t_ests_pad)
 
-        # Vmapped forward-backward: log_probs (B,), posteriors (B, padded_L, N),
-        # n_chis (B, N, N).
+        # Vmapped forward-backward: log_probs (B_pad,), posteriors (B_pad, padded_L, N),
+        # n_chis (B_pad, N, N); only the first B rows are real.
         log_probs, posteriors_batch, n_chis_batch = batched_fb_per_chi(
             log_chi_stack, emit_stack, lengths)
 
         # Transfer to NumPy for float64 accumulation (avoids float32 sum drift)
-        posteriors_np = np.asarray(posteriors_batch)
-        n_chis_np = np.asarray(n_chis_batch)
-        log_probs_np = np.asarray(log_probs)
+        posteriors_np = np.asarray(posteriors_batch)[:B]
+        n_chis_np = np.asarray(n_chis_batch)[:B]
+        log_probs_np = np.asarray(log_probs)[:B]
 
         # Step 3: Per-pair accumulation in float64
         t_ests_np = np.asarray(t_ests)
@@ -4834,6 +4864,17 @@ def _report_params(params, n_dom):
             ext_str = f"F×F ext_row_sums={[f'{s:.3f}' for s in np.asarray(ext).sum(axis=-1)]}"
         _log(f"    dom {d}: ins={params['dom_ins'][d]:.4f}, del={params['dom_del'][d]:.4f}, "
              f"w={params['dom_weights'][d]:.3f}, ext={ext_str}")
+        # the domain type's equilibrium amino-acid composition (class mixture collapsed), for settling analyses
+        try:
+            if 'class_pis' in params and 'classdist' in params:
+                cd = np.asarray(params['classdist'])[d]                      # (F, C)
+                fw = np.asarray(params['frag_weights'])[d] if 'frag_weights' in params else np.ones(cd.shape[0]) / cd.shape[0]
+                pi_d = (fw / fw.sum()) @ cd @ np.asarray(params['class_pis'])  # (A,)
+            else:
+                pi_d = np.asarray(params['dom_pis'])[d]
+            _log(f"    dom {d}: pi=[{' '.join(f'{x:.4f}' for x in np.asarray(pi_d).ravel())}]")
+        except Exception as _e:   # never let a reporting detail stop training
+            _log(f"    dom {d}: pi=unavailable ({_e})")
 
 
 def _report_suff_stats(resolved, n_dom, n_frag):
@@ -5237,14 +5278,34 @@ def train_adam(args):
         history.append({'step': step, 'loss': loss_f,
                         'll': -loss_f, 'time': elapsed})
 
+        # Observed-data LL of the batch at the parameters used in this
+        # E-step, plus the log-prior: the same MAP objective svi-BW logs per
+        # iteration, so the two optimizers can be compared on one quantity.
+        _obs_ll = float(delta.get('total_ll', float('nan')))
+        _lp_prior = float(_log_prior(cur_params_np, args, Q_lg=Q_lg, pi_lg=pi_lg))
+        history[-1]['obs_ll'] = _obs_ll
+        history[-1]['map_ll'] = _obs_ll + _lp_prior
         if step % log_every == 0 or step == args.adam_steps - 1:
             _log(f"  Step {step}/{args.adam_steps}: loss={loss_f:.4f} "
-                 f"LL/pair={-loss_f:.4f} ({elapsed:.1f}s)")
+                 f"LL/pair={-loss_f:.4f} obs_LL={_obs_ll:.1f} "
+                 f"MAP_LL={_obs_ll + _lp_prior:.1f} ({elapsed:.1f}s)")
 
         if _adam_diag_tsv is not None:
             _adam_diag_tsv.write(
                 f"{step}\t{elapsed:.2f}\t{loss_f:.6f}\t{-loss_f:.6f}\t"
                 f"{_adam_val_ll_box[0]:.6f}\t{int(delta.get('n_pairs', 0))}\n")
+
+        # --ckpt-keep-every K: keep the CURRENT parameters every K steps (and at the last step) as
+        # <checkpoint>_stepNNNN.npz, so a trajectory can be scored post hoc. Independent of the
+        # best-training-loss checkpoint saved at the end.
+        _keep = getattr(args, 'ckpt_keep_every', 0)
+        if _keep and (step % _keep == 0 or step == args.adam_steps - 1) and args.checkpoint:
+            _kp = (args.checkpoint[:-4] if args.checkpoint.endswith('.npz') else args.checkpoint) + f'_step{step:04d}.npz'
+            _save_checkpoint(_kp, _np_constrained_params(uc), _zero_suff_stats(1, n_dom), 0,
+                             len(history), [h['ll'] for h in history],
+                             {'method': 'adam', 'n_dom': n_dom, 'n_frag': n_frag, 'lr': args.adam_lr,
+                              'batch_size': args.adam_batch, 'seed': args.seed, 'step': step},
+                             None, _t_median_for_meta, None, None)
 
         # Val callback (semantics matched to SVI-BW's val_every).
         if val_every_safe and step % val_every_safe == 0 and val_cb is not None:
@@ -5871,9 +5932,18 @@ def train_svi_bw(args):
         # EMA-smoothed running stats — never raw batch — to keep the two
         # paths numerically identical under classdist=identity.
         if batch_suff is not None:
+            # The per-pair-t Holmes-Rubin aggregates (dom_W/dom_U and
+            # class_W/class_U) MUST flow through with the count tensors:
+            # the substitution M-step below consumes them, and without
+            # them it used to fall back silently to recomputing W/U at a
+            # single representative time t_rep (the per-pair-t
+            # regression documented in
+            # .claude/examples/per_pair_t_chi_axis_recidivism.md).
             for key in ['dom_match_counts', 'dom_insert_counts', 'dom_delete_counts',
+                        'dom_W', 'dom_U',
                         'class_match_counts', 'class_insert_counts',
-                        'class_delete_counts', 'classdist_counts']:
+                        'class_delete_counts', 'classdist_counts',
+                        'class_W', 'class_U']:
                 if key in batch_suff:
                     ss_batch[key] = batch_suff[key]
 
@@ -5994,6 +6064,8 @@ def train_svi_bw(args):
         # Per-domain indel rates
         dom_ins_new = np.array(params['dom_ins'], dtype=float)
         dom_del_new = np.array(params['dom_del'], dtype=float)
+        tie_indel = bool(getattr(args, 'tie_dom_indel', False))
+        pooled = dict(eb=0.0, ed=0.0, es=0.0, L=0.0, M=0.0, T=0.0)
         for d in range(n_dom):
             dom_n = jnp.array(ss['dom_M_5x5'][d])
             nk_ID = ss['dom_kappa'][d]
@@ -6012,6 +6084,10 @@ def train_svi_bw(args):
                     dom_n, params['dom_ins'][d], params['dom_del'][d], t, T=T_d)
             nk_M = float(jnp.sum(dom_n[:, M]) + jnp.sum(dom_n[:, D]))
             n1k_M = float(jnp.sum(dom_n[:, E]))
+            if tie_indel:   # --tie-dom-indel: pool the sufficient statistics; one M-step for all domains below
+                pooled['eb'] += float(eb); pooled['ed'] += float(ed); pooled['es'] += float(es)
+                pooled['L'] += nk_M + nk_ID; pooled['M'] += n1k_M + n1k_ID; pooled['T'] += T_d
+                continue
             ni, nd = m_step_indel_quadratic(
                 float(eb), float(ed), float(es),
                 L=nk_M + nk_ID, M=n1k_M + n1k_ID, T=T_d,
@@ -6021,6 +6097,13 @@ def train_svi_bw(args):
             nd = nd if np.isfinite(nd) else params['dom_del'][d]
             dom_ins_new[d] = float(ni)
             dom_del_new[d] = float(nd)
+        if tie_indel and pooled['T'] > 0:
+            ni, nd = m_step_indel_quadratic(
+                pooled['eb'], pooled['ed'], pooled['es'], L=pooled['L'], M=pooled['M'], T=pooled['T'],
+                prior_alpha_lam=args.ins_prior[0], prior_alpha_mu=args.del_prior[0], prior_beta=args.ins_prior[1])
+            if np.isfinite(ni) and np.isfinite(nd):
+                dom_ins_new[:] = float(ni); dom_del_new[:] = float(nd)
+            _log(f"    within-domain indel TIED across domains: lambda={dom_ins_new[0]:.6f}, mu={dom_del_new[0]:.6f}")
 
         # Domain weights: Dirichlet MAP
         dom_alpha = args.dom_dirichlet
@@ -6054,10 +6137,14 @@ def train_svi_bw(args):
                 n_frag, args.ext_alpha, args.ext_beta)
             ext_mask_2d, term_mask_1d = banded_3fc_ext_mask()
         ext_rates_new = np.zeros((n_dom, n_frag, n_frag))
+        ss_ext, ss_term = np.asarray(ss['ext']), np.asarray(ss['term'])
+        if bool(getattr(args, 'tie_dom_indel', False)):   # pool the extension counts across domains too
+            ss_ext = np.broadcast_to(ss_ext.sum(axis=0, keepdims=True), ss_ext.shape)
+            ss_term = np.broadcast_to(ss_term.sum(axis=0, keepdims=True), ss_term.shape)
         for d in range(n_dom):
             for f in range(n_frag):
-                row_ext = ss['ext'][d, f, :]
-                term = ss['term'][d, f]
+                row_ext = ss_ext[d, f, :]
+                term = ss_term[d, f]
                 row_counts = np.append(row_ext, term)
                 pseudocounts = np.append(
                     np.full(n_frag, args.ext_alpha - 1.0),
@@ -6159,20 +6246,16 @@ def train_svi_bw(args):
                 # time-free aggregated stats. Fall back to the legacy
                 # HR-after-EMA loop at t_rep when 'dom_W' is missing
                 # (scalar OOM path / older E-step code).
-                if 'dom_W' in ss:
-                    W_d = np.asarray(ss['dom_W'])[dd].copy()
-                    U_d = np.asarray(ss['dom_U'])[dd].copy()
-                else:
-                    W_d = np.zeros(AA)
-                    U_d = np.zeros((AA, AA))
-                    for a_idx in range(AA):
-                        for b_idx in range(AA):
-                            if mc[a_idx, b_idx] < 1e-10:
-                                continue
-                            w_ab, u_ab = holmes_rubin_expected_stats(
-                                jnp.array(Q_old), jnp.array(pi_old), t, a_idx, b_idx)
-                            W_d += mc[a_idx, b_idx] * np.array(w_ab)
-                            U_d += mc[a_idx, b_idx] * np.array(u_ab)
+                if 'dom_W' not in ss or 'dom_U' not in ss:
+                    # No silent fallback to the t_rep approximation: the
+                    # per-pair-t W/U must come from the batched E-step.
+                    raise RuntimeError(
+                        "substitution M-step: per-pair-t 'dom_W'/'dom_U' "
+                        "missing from the running sufficient statistics "
+                        "(E-step did not produce them or they were not "
+                        "flowed into ss_batch)")
+                W_d = np.asarray(ss['dom_W'])[dd].copy()
+                U_d = np.asarray(ss['dom_U'])[dd].copy()
                 # Dispatch on --subst-mode for restricted regimes.
                 _subst_mode = getattr(args, 'subst_mode', 'standard')
                 S_old_d = (np.asarray(params['dom_S_exch'])[dd]
@@ -6253,10 +6336,17 @@ def train_svi_bw(args):
                          f"keeping initial uniform values")
                 else:
                     cd_counts = np.array(ss['classdist_counts'])
+                    if getattr(args, 'tie_classdist', False):
+                        # --tie-classdist: one class mixture shared by every (domain, fragtype):
+                        # pool the posterior class counts over (d, f) and broadcast the MAP back.
+                        pooled = cd_counts.sum(axis=(0, 1), keepdims=True)
+                        cd_counts = np.broadcast_to(pooled, cd_counts.shape).copy()
                     cd_new = cd_counts + (cd_alpha - 1.0)
                     cd_new = np.maximum(cd_new, 1e-6)
                     cd_new = cd_new / cd_new.sum(axis=2, keepdims=True)
                     params['classdist'] = cd_new
+                    if getattr(args, 'tie_classdist', False):
+                        _log(f"    classdist TIED across (d, f): shared mixture {np.round(cd_new[0, 0], 4).tolist()}")
 
                 if 'class_match_counts' in ss:
                     from tkfmixdom.jax.core.ctmc import holmes_rubin_expected_stats
@@ -6278,30 +6368,13 @@ def train_svi_bw(args):
                     # E-step (key 'class_W'). If absent (older E-step or
                     # scalar OOM fallback), fall back to the legacy
                     # HR-after-EMA loop at t_rep.
-                    if 'class_W' in ss:
-                        W_c = np.asarray(ss['class_W']).copy()
-                        U_pair_c = np.asarray(ss['class_U']).copy()
-                    else:
-                        W_c = np.zeros((n_cls, AA))
-                        U_pair_c = np.zeros((n_cls, AA, AA))
-                        for cc in range(n_cls):
-                            Q_c = S_old[cc] * pi_old[cc, None, :]
-                            np.fill_diagonal(Q_c, 0.0)
-                            Q_c[np.diag_indices(AA)] = -Q_c.sum(axis=1)
-                            Wc_acc = np.zeros(AA)
-                            Uc_acc = np.zeros((AA, AA))
-                            for a_idx in range(AA):
-                                for b_idx in range(AA):
-                                    w_ab = cm[cc, a_idx, b_idx]
-                                    if w_ab < 1e-10:
-                                        continue
-                                    w_hat, u_hat = holmes_rubin_expected_stats(
-                                        jnp.array(Q_c), jnp.array(pi_old[cc]),
-                                        t, a_idx, b_idx)
-                                    Wc_acc += w_ab * np.array(w_hat)
-                                    Uc_acc += w_ab * np.array(u_hat)
-                            W_c[cc] = Wc_acc
-                            U_pair_c[cc] = Uc_acc
+                    if 'class_W' not in ss or 'class_U' not in ss:
+                        raise RuntimeError(
+                            "per-class substitution M-step: per-pair-t "
+                            "'class_W'/'class_U' missing from the running "
+                            "sufficient statistics (no t_rep fallback)")
+                    W_c = np.asarray(ss['class_W']).copy()
+                    U_pair_c = np.asarray(ss['class_U']).copy()
 
                     # ---- Joint per-class (S_c, pi_c) M-step ----
                     # Calls m_step_subst_option1 (paper's Option 2 from
@@ -6968,6 +7041,16 @@ Examples:
                         'Default 0 (uniform) is a saddle point under the M-step '
                         'gradient; values like 0.1-0.5 break the saddle and let '
                         'classdist specialise per (d, f).')
+    parser.add_argument('--tie-dom-indel', action='store_true',
+                        help='Tie the within-domain indel parameters (lambda_d, mu_d, ext_rates) across domains: '
+                        'the M-step pools their sufficient statistics. Control: domain types then differ only in '
+                        'their substitution classes (composition / rate), with one shared indel process.')
+    parser.add_argument('--tie-classdist', action='store_true',
+                        help='Tie classdist across (domain, fragtype): every domain uses the SAME '
+                        'mixture over the substitution classes, estimated from the pooled posterior '
+                        'class counts. Control for whether substitution heterogeneity and indel '
+                        'heterogeneity are coupled: the class signal cannot inform the domain '
+                        '(gap-penalty) choice of a region.')
     parser.add_argument('--freeze-classdist', action='store_true',
                         help='Freeze classdist at its initial (usually uniform) '
                         'values. Tests whether free classdist is the source of '
@@ -7029,6 +7112,10 @@ Examples:
                         help='Adam learning rate (default: 1e-3)')
     parser.add_argument('--adam-batch', type=int, default=32,
                         help='Adam minibatch size (default: 32)')
+    parser.add_argument('--ckpt-keep-every', type=int, default=0,
+                        help='Adam: also save the current parameters every K steps (and at the last step) '
+                             'as <checkpoint>_stepNNNN.npz (0 = off). The checkpoint saved at the end remains '
+                             'the lowest-minibatch-loss step.')
     parser.add_argument('--adam-steps', type=int, default=5000,
                         help='Maximum Adam steps (default: 5000)')
     parser.add_argument('--dp-mode', type=str, default='constrained',

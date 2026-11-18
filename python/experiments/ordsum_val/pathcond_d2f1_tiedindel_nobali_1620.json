@@ -1,0 +1,7 @@
+{
+ "checkpoint": "pfam/svibw_d2f1_tiedindel_nobali_1620.npz",
+ "precompiled": "pfam/precompiled_v3_val",
+ "n_pairs": 116640,
+ "total_ll": -84084129.8548559,
+ "ll_per_pair": -720.8858869586411
+}

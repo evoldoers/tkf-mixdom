@@ -1,0 +1,7 @@
+{
+ "checkpoint": "pfam/adam_d5f1_nobali_from1620_scoring.npz",
+ "precompiled": "pfam/precompiled_v3_val",
+ "n_pairs": 116640,
+ "total_ll": -83368505.11474144,
+ "ll_per_pair": -714.7505582539561
+}

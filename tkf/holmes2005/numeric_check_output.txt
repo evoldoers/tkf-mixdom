@@ -1,0 +1,46 @@
+====================================================================================================
+(1) printed (17) minus Z_** (closed form), against int_0^T beta / beta(T)
+====================================================================================================
+  lam    mu     T   Z_** (corr.)   printed (17)       excess intbeta/beta      diff
+ 1.00  0.50  0.10     0.04882755     0.10003763   0.05121007   0.05121007  -1.0e-18
+ 1.00  0.50  1.00     0.42238394     1.01807541   0.59569147   0.59569147  -1.9e-18
+ 1.00  0.50  3.00     1.04752077     3.16353196   2.11601118   2.11601118  -3.5e-18
+ 0.50  1.00  1.00     0.42238394     1.01807541   0.59569147   0.59569147  -1.9e-18
+ 2.00  0.30  1.00     0.35709606     1.01264524   0.65554918   0.65554918  -2.5e-18
+ 0.30  2.00  1.00     0.35709606     1.01264524   0.65554918   0.65554918  -2.5e-18
+ 1.00  1.30  2.50     0.91848812     2.71054110   1.79205299   1.79205299  -4.0e-18
+ 0.05  0.08  1.00     0.48979275     1.00030507   0.51051231   0.51051231  -1.1e-18
+
+====================================================================================================
+(2) zone sums vs the exact E-step  bdi.tkf91_stats_from_counts  (float64)
+====================================================================================================
+lam=1.0 mu=0.5 T=1.0 (200 random paths, length<=24):
+   max|I - E[B]| = 7.1e-15   max|D - E[D]| = 7.1e-15   max|(Z - T) - E[S]| = 1.4e-14   [corrected (17'), with -T]
+   max|(Z - E[S]) - T| = 1.4e-14   [sec 5.4 sum as printed overshoots E[S] by exactly T]
+   max|(Z_printed17 - T - E[S]) - N_** x 0.595691| = 1.3e-14   [printed (17) overshoots by N_** x int beta/beta]
+lam=0.5 mu=1.0 T=1.0 (200 random paths, length<=24):
+   max|I - E[B]| = 1.4e-14   max|D - E[D]| = 1.4e-14   max|(Z - T) - E[S]| = 1.8e-14   [corrected (17'), with -T]
+   max|(Z - E[S]) - T| = 1.8e-14   [sec 5.4 sum as printed overshoots E[S] by exactly T]
+   max|(Z_printed17 - T - E[S]) - N_** x 0.595691| = 1.8e-14   [printed (17) overshoots by N_** x int beta/beta]
+lam=2.0 mu=0.3 T=0.7 (200 random paths, length<=24):
+   max|I - E[B]| = 7.1e-15   max|D - E[D]| = 4.4e-15   max|(Z - T) - E[S]| = 8.9e-15   [corrected (17'), with -T]
+   max|(Z - E[S]) - T| = 9.5e-15   [sec 5.4 sum as printed overshoots E[S] by exactly T]
+   max|(Z_printed17 - T - E[S]) - N_** x 0.430645| = 9.3e-15   [printed (17) overshoots by N_** x int beta/beta]
+lam=0.04 mu=0.05 T=2.0 (200 random paths, length<=24):
+   max|I - E[B]| = 9.7e-13   max|D - E[D]| = 9.7e-13   max|(Z - T) - E[S]| = 2.0e-11   [corrected (17'), with -T]
+   max|(Z - E[S]) - T| = 2.0e-11   [sec 5.4 sum as printed overshoots E[S] by exactly T]
+   max|(Z_printed17 - T - E[S]) - N_** x 1.028734| = 2.0e-11   [printed (17) overshoots by N_** x int beta/beta]
+
+====================================================================================================
+(3) port of DART tkfcoeff.cc (Holmes's implementation, first-order scheme)
+====================================================================================================
+lam=1.0 mu=0.5 T=1.0:  closed Z_** = 0.422384, printed-(17) value = 1.018075
+   N=  250  max|DART - closed| per zone  o:2.69e-03  s:5.13e-04  os:3.93e-03  ss:1.90e-03   Z11=0.420480
+   N=  500  max|DART - closed| per zone  o:1.35e-03  s:2.57e-04  os:1.97e-03  ss:9.52e-04   Z11=0.421432
+   N= 1000  max|DART - closed| per zone  o:6.73e-04  s:1.28e-04  os:9.85e-04  ss:4.76e-04   Z11=0.421908
+   N= 2000  max|DART - closed| per zone  o:3.37e-04  s:6.42e-05  os:4.93e-04  ss:2.38e-04   Z11=0.422146
+lam=2.0 mu=0.3 T=1.0:  closed Z_** = 0.357096, printed-(17) value = 1.012645
+   N=  250  max|DART - closed| per zone  o:3.12e-03  s:4.62e-04  os:3.83e-03  ss:3.63e-03   Z11=0.356044
+   N=  500  max|DART - closed| per zone  o:1.56e-03  s:2.31e-04  os:1.92e-03  ss:1.82e-03   Z11=0.356571
+   N= 1000  max|DART - closed| per zone  o:7.79e-04  s:1.15e-04  os:9.60e-04  ss:9.09e-04   Z11=0.356834
+   N= 2000  max|DART - closed| per zone  o:3.90e-04  s:5.76e-05  os:4.80e-04  ss:4.54e-04   Z11=0.356965

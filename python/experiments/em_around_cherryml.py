@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""EM-around-CherryML for a site-class mixture of GTR substitution models.
+"""EM-around-CherryML for a site-class mixture of GTR substitution models, with the alphabet size a parameter.
+
+K_STATES = 21 reproduces em_around_cherryml.py (20 amino acids + gap as a character).  K_STATES = 20
+(--n-states 20) fits a pure substitution mixture: gap-containing residue pairs are dropped from the counts and
+every class is a 20-state GTR model, which is the model the pair-HMM scorers and the BAliBASE harness use.
 
 Section sec:results-mixture-sites in tkf/frontmatter-tkf.tex: "What
 components emerge when we fit a mixture-of-sites to Pfam by
@@ -61,6 +65,21 @@ from fit_fels21_cherryml import (
     _lg_exchangeabilities_alpha, _lg_pi_alpha,
 )
 
+K_STATES = 21   # set from --n-states in main()
+TIME_SOURCE = 'tree'   # 'tree': FastTree pairwise distances (original); 'pdist': the Poisson-corrected p-distance of
+                       # precompile_pairs.py, the clock of the precompiled training / validation / test pairs
+
+
+def pdist_evo_time(seq_a, seq_b):
+    """precompile_pairs.pdist_to_evo_time applied to the p-distance over columns where both are residues."""
+    mask = (seq_a < 20) & (seq_b < 20)
+    n_sites = int(mask.sum())
+    if n_sites < 5: return np.inf
+    p = float((seq_a[mask] != seq_b[mask]).sum()) / n_sites
+    if p >= 0.95: return 5.0
+    corrected = 1.0 - p * (20.0 / 19.0)
+    if corrected <= 0.01: return 5.0
+    return -np.log(corrected)
 TREE_DIR = os.path.expanduser("~/bio-datasets/data/pfam-seed/trees")
 SPLITS_PATH = os.path.join(PFAM_DIR, "splits", "v1.json")
 
@@ -142,6 +161,8 @@ def extract_per_site_counts(fams, t_bin_edges, max_pairs_per_fam=100,
                 a_name = names[msa_indices[ii]]
                 b_name = names[msa_indices[jj]]
                 t = dist_mat[leaf_to_idx[a_name], leaf_to_idx[b_name]]
+                if TIME_SOURCE == 'pdist':
+                    t = pdist_evo_time(all_seqs[msa_indices[ii]], all_seqs[msa_indices[jj]])
                 if t > 0 and np.isfinite(t):
                     pair_t[k] = t
                     valid[k] = True
@@ -155,7 +176,7 @@ def extract_per_site_counts(fams, t_bin_edges, max_pairs_per_fam=100,
             pair_t = np.empty(len(all_pairs))
             valid = np.zeros(len(all_pairs), dtype=bool)
             for k, (ii, jj) in enumerate(all_pairs):
-                t = kimura_distance(all_seqs[ii], all_seqs[jj])
+                t = pdist_evo_time(all_seqs[ii], all_seqs[jj]) if TIME_SOURCE == 'pdist' else kimura_distance(all_seqs[ii], all_seqs[jj])
                 if t > 0 and np.isfinite(t):
                     pair_t[k] = t
                     valid[k] = True
@@ -180,7 +201,14 @@ def extract_per_site_counts(fams, t_bin_edges, max_pairs_per_fam=100,
             ai = a_residues[:, col]
             bj = b_residues[:, col]
             # Hash (bin, ai, bj) into a single key for aggregation.
-            key = bin_idx_per_pair * (21 * 21) + ai * 21 + bj
+            if K_STATES == 20:   # pure substitution mixture: residue-residue pairs only
+                keep = (ai < 20) & (bj < 20)
+                if not keep.any():
+                    continue
+                ai = ai[keep]; bj = bj[keep]; bins_here = bin_idx_per_pair[keep]
+            else:
+                bins_here = bin_idx_per_pair
+            key = bins_here * (K_STATES * K_STATES) + ai * K_STATES + bj
             counts = np.bincount(key)
             keep = counts > 0
             keys = np.where(keep)[0]
@@ -189,10 +217,10 @@ def extract_per_site_counts(fams, t_bin_edges, max_pairs_per_fam=100,
                 meta.append({'fam': fam, 'col': col, 'L': L})
                 continue
             cnts = counts[keys]
-            site_bin = (keys // (21 * 21)).astype(np.int8)
-            rest = keys % (21 * 21)
-            site_i_local = (rest // 21).astype(np.int8)
-            site_j_local = (rest % 21).astype(np.int8)
+            site_bin = (keys // (K_STATES * K_STATES)).astype(np.int8)
+            rest = keys % (K_STATES * K_STATES)
+            site_i_local = (rest // K_STATES).astype(np.int8)
+            site_j_local = (rest % K_STATES).astype(np.int8)
             bins_acc.append(site_bin)
             i_acc.append(site_i_local)
             j_acc.append(site_j_local)
@@ -225,8 +253,8 @@ def _build_Q(S, pi):
     Mean rate normalised to 1.
     """
     Q = S * pi[None, :]
-    Q = Q.at[jnp.diag_indices(21)].set(0.0)
-    Q = Q.at[jnp.diag_indices(21)].set(-Q.sum(axis=1))
+    Q = Q.at[jnp.diag_indices(K_STATES)].set(0.0)
+    Q = Q.at[jnp.diag_indices(K_STATES)].set(-Q.sum(axis=1))
     mean_rate = -jnp.sum(pi * jnp.diag(Q))
     return Q / jnp.maximum(mean_rate, 1e-30)
 
@@ -263,15 +291,16 @@ def _per_class_total_counts(site_bins, site_i, site_j, site_w,
     weights = np.repeat(resp_c.astype(np.float64),
                           site_offsets[1:] - site_offsets[:-1])
     contrib = site_w.astype(np.float64) * weights
-    flat_idx = (site_bins.astype(np.int64) * (21 * 21)
-                  + site_i.astype(np.int64) * 21
+    flat_idx = (site_bins.astype(np.int64) * (K_STATES * K_STATES)
+                  + site_i.astype(np.int64) * K_STATES
                   + site_j.astype(np.int64))
-    out = np.zeros(n_bins * 21 * 21, dtype=np.float64)
+    out = np.zeros(n_bins * K_STATES * K_STATES, dtype=np.float64)
     np.add.at(out, flat_idx, contrib)
-    return out.reshape(n_bins, 21, 21)
+    return out.reshape(n_bins, K_STATES, K_STATES)
 
 
-def _make_e_step_jax(n_sites, n_classes, n_bins, K=21):
+def _make_e_step_jax(n_sites, n_classes, n_bins, K=None):
+    K = K or K_STATES
     """Build a JIT-compiled E-step that computes (n_sites, n_classes)
     log-lik in a single vectorised GPU pass.
 
@@ -281,11 +310,11 @@ def _make_e_step_jax(n_sites, n_classes, n_bins, K=21):
     rows_i, cols_i = jnp.triu_indices(K, k=1)
 
     def _build_Q_vec(S_c, pi_c):
+        # Q = S pi as fitted (absolute rate, matching the M-step and the pair-HMM scorers); classes may differ in rate
         Q = S_c * pi_c[None, :]
         Q = Q.at[jnp.diag_indices(K)].set(0.0)
         Q = Q.at[jnp.diag_indices(K)].set(-Q.sum(axis=1))
-        mean_rate = -jnp.sum(pi_c * jnp.diag(Q))
-        return Q / jnp.maximum(mean_rate, 1e-30)
+        return Q
 
     @jax.jit
     def e_step(log_S_classes, log_pi_classes, t_centers,
@@ -302,9 +331,10 @@ def _make_e_step_jax(n_sites, n_classes, n_bins, K=21):
             return jax.vmap(lambda t: jax.scipy.linalg.expm(Qc * t))(t_centers)
         P = jax.vmap(expm_grid_for_class)(Q)          # (C, n_bins, K, K)
         log_P = jnp.log(jnp.maximum(P, 1e-30))        # (C, n_bins, K, K)
-        # Per-entry contribution: shape (C, N_total).
-        # log_P[:, bin_n, i_n, j_n] * w_n.
-        per_entry = log_P[:, site_bins, site_i, site_j] * site_w[None, :]
+        log_pi = jnp.log(jnp.maximum(pi, 1e-30))      # (C, K)
+        # Per-entry contribution: shape (C, N_total): the full joint log pi_c(i) + log P_c(i -> j | t_b), so that
+        # pi_c is the class's residue distribution (the emission marginal of the pair HMM), not a free shape parameter
+        per_entry = (log_P[:, site_bins, site_i, site_j] + log_pi[:, site_i]) * site_w[None, :]
         # Segment-sum to (C, n_sites) via .at[].add (GPU scatter).
         out = jnp.zeros((C, n_sites))
         out = out.at[:, site_idx].add(per_entry)
@@ -313,7 +343,8 @@ def _make_e_step_jax(n_sites, n_classes, n_bins, K=21):
     return e_step
 
 
-def _make_m_step_total_counts_jax(n_classes, n_bins, K=21):
+def _make_m_step_total_counts_jax(n_classes, n_bins, K=None):
+    K = K or K_STATES
     """Build a JIT-compiled total-counts builder for the M-step,
     vectorised across classes."""
     @jax.jit
@@ -342,7 +373,7 @@ def _make_inner_loss_fn(t_centers):
     Returns:
         Function (log_S_vec, log_pi_logits, total_counts) -> neg log lik.
     """
-    n = 21
+    n = K_STATES
     rows, cols = np.triu_indices(n, k=1)
     rows_j = jnp.array(rows)
     cols_j = jnp.array(cols)
@@ -356,10 +387,11 @@ def _make_inner_loss_fn(t_centers):
         pi = jax.nn.softmax(log_pi_logits)
         Q = _build_Q(S, pi)
         # Per-bin: sum_{ij} N[bin, i, j] * log P(i, j; t_bin).
+        log_pi = jnp.log(jnp.maximum(pi, 1e-30))
         def per_bin(t, N):
             P = jax.scipy.linalg.expm(Q * t)
             P = jnp.maximum(P, 1e-30)
-            return jnp.sum(N * jnp.log(P))
+            return jnp.sum(N * (jnp.log(P) + log_pi[:, None]))   # full joint: pi(i) P(i -> j | t)
         ll = jax.vmap(per_bin)(t_centers, total_counts).sum()
         return -ll
 
@@ -399,18 +431,19 @@ def em_around_cherryml(site_bins, site_i, site_j, site_w, site_offsets,
     lg_S20 = _lg_exchangeabilities_alpha()  # (20, 20) — AA only.
     lg_pi20 = _lg_pi_alpha()                # (20,)
     # Extend to 21x21 with gap-row/col exchangeabilities at LG mean.
-    lg_S = np.zeros((21, 21))
+    lg_S = np.zeros((K_STATES, K_STATES))
     lg_S[:20, :20] = lg_S20
-    lg_mean = float(lg_S20[np.triu_indices(20, k=1)].mean())
-    lg_S[:20, 20] = lg_mean
-    lg_S[20, :20] = lg_mean
-    rows, cols = np.triu_indices(21, k=1)
+    if K_STATES == 21:
+        lg_mean = float(lg_S20[np.triu_indices(20, k=1)].mean())
+        lg_S[:20, 20] = lg_mean
+        lg_S[20, :20] = lg_mean
+    rows, cols = np.triu_indices(K_STATES, k=1)
     log_S_init = np.log(np.maximum(lg_S[rows, cols], 1e-6))
     # Tile + perturb.
     log_S_classes = np.tile(log_S_init, (n_classes, 1))
     log_S_classes += 0.3 * rng.standard_normal(log_S_classes.shape)
     # Stationary: full 21-vector, init alphabet+gap with LG, perturb.
-    pi_init = np.concatenate([lg_pi20, [0.05]])
+    pi_init = np.concatenate([lg_pi20, [0.05]]) if K_STATES == 21 else np.asarray(lg_pi20, float)
     pi_init = pi_init / pi_init.sum()
     log_pi_classes = np.tile(np.log(np.maximum(pi_init, 1e-6)),
                                 (n_classes, 1))
@@ -494,8 +527,8 @@ def em_around_cherryml(site_bins, site_i, site_j, site_w, site_offsets,
                           'weights': weights_new.tolist()})
 
     # Build final outputs.
-    S_out = np.zeros((n_classes, 21, 21))
-    pi_out = np.zeros((n_classes, 21))
+    S_out = np.zeros((n_classes, K_STATES, K_STATES))
+    pi_out = np.zeros((n_classes, K_STATES))
     for c in range(n_classes):
         Sv = np.exp(log_S_classes[c])
         S_out[c, rows, cols] = Sv
@@ -530,13 +563,16 @@ def main():
     p.add_argument('--max-pairs-per-fam', type=int, default=100)
     p.add_argument('--init-seed', type=int, default=0)
     p.add_argument('--output', type=str, default=None)
+    p.add_argument('--time-source', type=str, default='tree', choices=('tree', 'pdist'), help="pair times: FastTree tree distances (original) or the Poisson-corrected p-distance of the precompiled pairs")
+    p.add_argument('--n-states', type=int, default=21, choices=(20, 21), help='21: amino acids + gap character (original); 20: substitution-only mixture, gap pairs dropped')
     args = p.parse_args()
+    global K_STATES, TIME_SOURCE; K_STATES = args.n_states; TIME_SOURCE = args.time_source
 
     if args.output is None:
         out_dir = os.path.join(os.path.dirname(__file__), '..', 'pfam')
         os.makedirs(out_dir, exist_ok=True)
         args.output = os.path.join(out_dir,
-            f'cherryml_mixture_C{args.n_classes}_n{args.n_families}.npz')
+            f'cherryml_mixture_C{args.n_classes}_n{args.n_families}' + ('_aa20' if args.n_states == 20 else '') + ('pd' if args.time_source == 'pdist' else '') + '.npz')
 
     with open(SPLITS_PATH) as f:
         splits = json.load(f)
@@ -565,7 +601,7 @@ def main():
               S=out['S'], pi=out['pi'], weights=out['weights'],
               history=np.array(out['history'], dtype=object),
               t_centers=t_centers,
-              n_classes=args.n_classes, n_families=args.n_families)
+              n_classes=args.n_classes, n_families=args.n_families, n_states=args.n_states, time_source=args.time_source)
     print(f'Saved to {args.output}')
 
 

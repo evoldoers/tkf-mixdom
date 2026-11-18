@@ -236,7 +236,8 @@ def main():
                          "Isolates whether GGI dynamics or its geometric prior "
                          "is the binding constraint on Pfam.")
     # Substitution model
-    p.add_argument("--Q", choices=["lg", "jc"], default="lg")
+    p.add_argument("--Q", choices=["lg", "jc", "npz"], default="lg")
+    p.add_argument("--subst-npz", default="", help="with --Q npz: file with Q, pi (e.g. pfam/gtr_refit_Qpi.npz)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", required=True)
     # OOM knobs (also read pre-import, see top of file)
@@ -252,6 +253,9 @@ def main():
 
     if args.Q == "lg":
         Q, pi = rate_matrix_lg()
+    elif args.Q == "npz":
+        _d = np.load(args.subst_npz, allow_pickle=True)
+        Q = np.asarray(_d["Q"], float); pi = np.asarray(_d["pi"], float); pi = pi / pi.sum()
     else:
         Q, pi = rate_matrix_jc69(20)
     Q_np, pi_np = np.asarray(Q), np.asarray(pi)

@@ -445,6 +445,29 @@ def _tkf92_fb_at_tau_one(x, y, real_Lx, real_Ly, tau,
     return log_p, mp, n_trans, match_W
 
 
+def _tkf92_fb_at_tau_one_sitemix(x, y, real_Lx, real_Ly, tau,
+                                  ins_rate, del_rate, ext, Qs, pis, ws):
+    """As `_tkf92_fb_at_tau_one`, but the emissions are a site-class mixture shared by every indel component:
+    match emission sum_c w_c pi_c(a) P_c(a -> b | tau), insert/delete emission sum_c w_c pi_c(a), realised as one
+    effective (pi', sub'(tau)) with pi' = sum_c w_c pi_c and sub'(tau)[a, b] = sum_c w_c pi_c(a) P_c(a, b | tau) / pi'(a).
+    Qs: (C, A, A) class rate matrices; pis: (C, A); ws: (C,).  Returns (log_p, mp)."""
+    from ..models.left_regular import make_tkf92_pair_hmm
+    from ..core.ctmc import transition_matrix
+    Lx, Ly = x.shape[0], y.shape[0]
+    log_trans, st, _sub_unused, _pi_unused = make_tkf92_pair_hmm(
+        ins_rate, del_rate, tau, ext, Qs[0], pis[0])
+    Pc = jax.vmap(lambda Qc: transition_matrix(Qc, tau))(Qs)              # (C, A, A)
+    pi_mix = jnp.einsum('c,ca->a', ws, pis)
+    joint = jnp.einsum('c,ca,cab->ab', ws, pis, Pc)
+    sub_mix = joint / jnp.maximum(pi_mix, 1e-300)[:, None]
+    log_p, posteriors, _n_trans = forward_backward_2d(
+        log_trans, st, x, y, sub_mix, pi_mix,
+        real_Lx=real_Lx, real_Ly=real_Ly)
+    is_match = (st == M)
+    mp = jnp.sum(posteriors[1:Lx + 1, 1:Ly + 1, :] * is_match[None, None, :], axis=-1)
+    return log_p, mp
+
+
 def pairwise_posteriors_tkf92_mixture_family(
         pairs_x, pairs_y, real_Lxs, real_Lys,
         *,
@@ -691,7 +714,7 @@ def pairwise_posteriors_tkf92_mixture_family(
 def pairwise_posteriors_tkf92_mixture_streaming(
         pairs_x, pairs_y, real_Lxs, real_Lys, tau_anchor,
         mix_ins, mix_del, mix_ext, mix_Q, mix_pi, mix_weights,
-        pair_chunk=None):
+        pair_chunk=None, emit_sitemix=None):
     """Streaming-accumulate mixture FSA: never materialise the full
     (K, n_pairs, Lx, Ly) tensor.  Two scans over K:
       pass 1: compute log_p_K (K, n_pairs) — small.
@@ -706,6 +729,8 @@ def pairwise_posteriors_tkf92_mixture_streaming(
         tau_anchor: (n_pairs,) — fixed tau per pair (e.g. from single-TKF92 anchor).
         mix_ins, mix_del, mix_ext: (K,).
         mix_Q: (K, A, A); mix_pi: (K, A); mix_weights: (K,).
+        emit_sitemix: None, or (Qs (C,A,A), pis (C,A), ws (C,)): a site-class mixture used as the emission
+            model of EVERY component (mix_Q / mix_pi are then ignored): the components are indel classes only.
 
     Returns:
         mp_mixture: (n_pairs, Lx_pad, Ly_pad) — R-weighted posterior.
@@ -724,9 +749,19 @@ def pairwise_posteriors_tkf92_mixture_streaming(
             f"tau_i — passing a scalar or family-mean would re-introduce "
             f"the tau_rep regression.")
 
-    fb_per_pair = jax.vmap(
-        _tkf92_fb_at_tau_one,
-        in_axes=(0, 0, 0, 0, 0, None, None, None, None, None))
+    if emit_sitemix is None:
+        fb_per_pair = jax.vmap(
+            _tkf92_fb_at_tau_one,
+            in_axes=(0, 0, 0, 0, 0, None, None, None, None, None))
+    else:
+        _Qs, _pis, _ws = (jnp.asarray(a) for a in emit_sitemix)
+        _fb_sm = jax.vmap(
+            _tkf92_fb_at_tau_one_sitemix,
+            in_axes=(0, 0, 0, 0, 0, None, None, None, None, None, None))
+
+        def fb_per_pair(px, py, rlx, rly, tau, ins_k, del_k, ext_k, Q_k, pi_k):
+            lp, mp = _fb_sm(px, py, rlx, rly, tau, ins_k, del_k, ext_k, _Qs, _pis, _ws)
+            return lp, mp, None, None
 
     # Pair-chunked variant: process pairs in slices of pair_chunk
     # (sequential), vmap within each slice (parallel).  This bounds the
@@ -1141,7 +1176,7 @@ def pairwise_posteriors_wfst(x_seq, y_seq, maraschino_params, n_classes,
 
 
 def pairwise_posteriors_mixdom(x_seq, y_seq, params, n_dom, n_frag,
-                                n_newton=5, tau_init=1.0):
+                                n_newton=5, tau_init=1.0, n_em_rounds=1):
     """Compute pairwise residue alignment posteriors using MixDom.
 
     Args:
@@ -1175,14 +1210,14 @@ def pairwise_posteriors_mixdom(x_seq, y_seq, params, n_dom, n_frag,
         x_padded, y_padded,
         jnp.int32(real_Lx), jnp.int32(real_Ly),
         params, n_dom, n_frag,
-        n_newton=n_newton, tau_init=tau_init)
+        n_newton=n_newton, tau_init=tau_init, n_em_rounds=n_em_rounds)
     # Trim posterior back to (real_Lx, real_Ly).
     mp_real = np.asarray(mp)[:real_Lx, :real_Ly]
     return mp_real, float(tau), float(lp)
 
 
 def _pairwise_posteriors_mixdom_jax(x, y, real_Lx, real_Ly, params, n_dom, n_frag,
-                                     n_newton=5, tau_init=1.0):
+                                     n_newton=5, tau_init=1.0, n_em_rounds=1):
     """vmap-safe core of pairwise_posteriors_mixdom.
 
     x, y: jnp int arrays of shape (Lx,), (Ly,). Under vmap they will be the
@@ -1203,10 +1238,14 @@ def _pairwise_posteriors_mixdom_jax(x, y, real_Lx, real_Ly, params, n_dom, n_fra
     Ly = y.shape[0]
     is_match = (st == M)
 
-    # Step 1: tau optimization via FB counts + NR (returns jnp scalar).
-    tau_opt = _optimize_tau_mixdom(
-        x, y, real_Lx, real_Ly, params, n_dom, n_frag,
-        n_newton=n_newton, tau_init=tau_init)
+    # Step 1: tau optimization via FB counts + NR (returns jnp scalar). One round is a single generalized EM
+    # step from tau_init (the submitted paper's anchor time); n_em_rounds > 1 repeats the E-step at the current
+    # tau, which converges to the maximum-likelihood branch length.
+    tau_opt = jnp.float64(tau_init)
+    for _ in range(int(n_em_rounds)):
+        tau_opt = _optimize_tau_mixdom(
+            x, y, real_Lx, real_Ly, params, n_dom, n_frag,
+            n_newton=n_newton, tau_init=tau_opt)
 
     # Step 2: FB at optimal tau for per-domain posteriors.
     chi_opt, _ = build_nested_trans(
@@ -1572,13 +1611,15 @@ def consistency_transform(pair_posteriors, n_iters=1, n_seqs=None):
     of seq x aligned to residue b of seq y)), reweight each pair by routing
     through every other sequence z (a "third witness"):
 
-        P'^{xy} = (1/|S|) * ( P^{xy}  +  sum_{z != x,y} P^{xz} @ P^{zy} )
+        P'^{xy} = (1/|S|) * ( 2 P^{xy}  +  sum_{z != x,y} P^{xz} @ P^{zy} )
 
-    where |S| is the number of sequences, ``@`` is matrix multiply, and the
-    direct term P^{xy} is included once (the z==x and z==y self/identity terms
-    of ProbCons both collapse to the direct term P^{xy}). This is exactly the
-    ProbCons transform (Do et al. 2005): a simple AVERAGE over witnesses, with
-    NO renormalisation — posteriors stay sub-stochastic (rows/cols sum <= 1).
+    where |S| is the number of sequences and ``@`` is matrix multiply. ProbCons
+    (Do et al. 2005) sums over ALL z in S with P(x_i ~ x_k | x) defined as the
+    identity, so the z == x and z == y terms each contribute the direct term
+    P^{xy}: it is counted TWICE. (Until 2026-11-07 this function counted it
+    once, which halves the weight of the direct evidence relative to ProbCons
+    and MUSCLE 5; no published number used the transform.) A simple AVERAGE,
+    with NO renormalisation — posteriors stay sub-stochastic (rows/cols sum <= 1).
 
     The transform is applied ``n_iters`` times (each iteration uses the output
     of the previous one). It is deterministic but NOT idempotent.
@@ -1641,7 +1682,7 @@ def consistency_transform(pair_posteriors, n_iters=1, n_seqs=None):
             if (x, y) in done or (y, x) in done:
                 continue
             P_xy = dense[(x, y)]                       # (Lx, Ly)
-            acc = P_xy                                 # direct term, once
+            acc = 2.0 * P_xy                           # direct term, twice (z == x and z == y)
             for z in seqs:
                 if z == x or z == y:
                     continue
@@ -2650,3 +2691,264 @@ def run_fsa_alignment(input_fasta_path, output_fasta_path,
                 f.write(f'>{name}\n{aln_str}\n')
 
     return True
+
+
+# ============================================================
+# MEA progressive alignment and iterative refinement (ProbCons / MUSCLE 5 style)
+# ============================================================
+
+def _mea_dp(S):
+    """Maximum-expected-accuracy DP on a score matrix S (n, m) >= 0: the monotone
+    pairing of rows and columns maximising the summed score, gaps free. Vectorised
+    over anti-diagonals. Returns (best_score, pairs) with pairs a list of (i, j)."""
+    n, m = S.shape
+    if n == 0 or m == 0:
+        return 0.0, []
+    M = np.zeros((n + 1, m + 1), dtype=np.float64)
+    tb = np.zeros((n + 1, m + 1), dtype=np.uint8)        # 1 = diag, 2 = up (skip row), 3 = left (skip col)
+    for d in range(2, n + m + 1):                          # cell (i, j) lies on anti-diagonal i + j = d
+        i_lo, i_hi = max(1, d - m), min(n, d - 1)
+        if i_lo > i_hi:
+            continue
+        ii = np.arange(i_lo, i_hi + 1); jj = d - ii
+        diag = M[ii - 1, jj - 1] + S[ii - 1, jj - 1]
+        up = M[ii - 1, jj]
+        left = M[ii, jj - 1]
+        best = np.maximum(np.maximum(diag, up), left)
+        M[ii, jj] = best
+        tb[ii, jj] = np.where(diag >= best, 1, np.where(up >= best, 2, 3))
+    pairs = []; i, j = n, m
+    while i > 0 and j > 0:
+        t = tb[i, j]
+        if t == 1:
+            pairs.append((i - 1, j - 1)); i -= 1; j -= 1
+        elif t == 2:
+            i -= 1
+        else:
+            j -= 1
+    pairs.reverse()
+    return float(M[n, m]), pairs
+
+
+def _dense_posteriors(pair_posteriors):
+    """{(x, y): array} for both orientations of every supplied pair (float64 numpy)."""
+    dense = {}
+    for (i, j), arr in pair_posteriors.items():
+        if i == j:
+            continue
+        a = np.asarray(arr, dtype=np.float64)
+        dense[(i, j)] = a
+        dense.setdefault((j, i), a.T)
+    return dense
+
+
+def _group_columns(col_assignments, members):
+    """Compact the columns used by ``members`` to 0..k-1 (dropping all-gap columns).
+    Returns ({seq: compact column array}, k)."""
+    used = np.unique(np.concatenate([col_assignments[s] for s in members if len(col_assignments[s]) > 0])) \
+        if any(len(col_assignments[s]) > 0 for s in members) else np.zeros(0, dtype=np.int64)
+    remap = {int(c): k for k, c in enumerate(used)}
+    return {s: np.array([remap[int(c)] for c in col_assignments[s]], dtype=np.int64) for s in members}, len(used)
+
+
+def _profile_score_matrix(colsA, kA, colsB, kB, dense):
+    """S[a, b] = sum over x in A, y in B of P_xy[residue of x in column a, residue of y in column b]."""
+    S = np.zeros((kA, kB), dtype=np.float64)
+    for x, cx in colsA.items():
+        if len(cx) == 0:
+            continue
+        for y, cy in colsB.items():
+            P = dense.get((x, y))
+            if P is None or len(cy) == 0:
+                continue
+            S[np.ix_(cx, cy)] += P
+    return S
+
+
+def _merge_groups(col_assignments, A, B, dense):
+    """Align group A to group B by MEA profile-profile DP; returns new col arrays for A | B and
+    the number of columns. Within-group columns are kept intact."""
+    colsA, kA = _group_columns(col_assignments, A)
+    colsB, kB = _group_columns(col_assignments, B)
+    S = _profile_score_matrix(colsA, kA, colsB, kB, dense)
+    _, pairs = _mea_dp(S)
+    # merged column order: walk both column lists, matched pairs share a column
+    mapA = np.zeros(kA, dtype=np.int64); mapB = np.zeros(kB, dtype=np.int64)
+    a = b = col = 0
+    for (pa, pb) in pairs + [(kA, kB)]:
+        while a < pa:
+            mapA[a] = col; a += 1; col += 1
+        while b < pb:
+            mapB[b] = col; b += 1; col += 1
+        if pa < kA and pb < kB:
+            mapA[pa] = col; mapB[pb] = col; a = pa + 1; b = pb + 1; col += 1
+    out = {}
+    for s, cx in colsA.items():
+        out[s] = mapA[cx]
+    for s, cy in colsB.items():
+        out[s] = mapB[cy]
+    return out, col
+
+
+def _upgma_order(n_seqs, dist):
+    """UPGMA on a distance matrix; returns the merge list [(A_members, B_members), ...] root last."""
+    clusters = {i: [i] for i in range(n_seqs)}
+    D = {(i, j): dist[i, j] for i in range(n_seqs) for j in range(i + 1, n_seqs)}
+    merges = []
+    nxt = n_seqs
+    while len(clusters) > 1:
+        (i, j), _ = min(D.items(), key=lambda kv: kv[1])
+        A, B = clusters.pop(i), clusters.pop(j)
+        merges.append((A, B))
+        new = A + B
+        for k in list(clusters.keys()):
+            dik = D.pop((min(i, k), max(i, k))); djk = D.pop((min(j, k), max(j, k)))
+            D[(min(nxt, k), max(nxt, k))] = (dik * len(A) + djk * len(B)) / (len(A) + len(B))
+        D.pop((i, j), None)
+        clusters[nxt] = new; nxt += 1
+    return merges
+
+
+def _single_linkage_order(n_seqs, dist):
+    """Single-linkage clustering on a distance matrix (MUSCLE's guide-tree linkage); same merge-list format as
+    ``_upgma_order``."""
+    clusters = {i: [i] for i in range(n_seqs)}
+    D = {(i, j): dist[i, j] for i in range(n_seqs) for j in range(i + 1, n_seqs)}
+    merges = []
+    nxt = n_seqs
+    while len(clusters) > 1:
+        (i, j), _ = min(D.items(), key=lambda kv: kv[1])
+        A, B = clusters.pop(i), clusters.pop(j)
+        merges.append((A, B))
+        for k in list(clusters.keys()):
+            dik = D.pop((min(i, k), max(i, k))); djk = D.pop((min(j, k), max(j, k)))
+            D[(min(nxt, k), max(nxt, k))] = min(dik, djk)
+        D.pop((i, j), None)
+        clusters[nxt] = A + B; nxt += 1
+    return merges
+
+
+def _nj_order(n_seqs, dist):
+    """Neighbour joining (Saitou & Nei 1987) on a distance matrix, midpoint-rooted, returned as the merge list
+    [(A_members, B_members), ...] in post-order (root last), the format of ``_upgma_order``. NJ assumes additive
+    rather than ultrametric distances, which suits maximum-likelihood branch lengths; UPGMA assumes a clock."""
+    if n_seqs == 2:
+        return [([0], [1])]
+    D = {(i, j): float(dist[i, j]) for i in range(n_seqs) for j in range(n_seqs) if i != j}
+    active = list(range(n_seqs)); adj = {i: {} for i in range(n_seqs)}; nxt = n_seqs
+    while len(active) > 2:
+        m = len(active); r = {i: sum(D[(i, k)] for k in active if k != i) for i in active}
+        (i, j) = min(((a, b) for a in active for b in active if a < b), key=lambda ab: (m - 2) * D[ab] - r[ab[0]] - r[ab[1]])
+        d_iu = 0.5 * D[(i, j)] + (r[i] - r[j]) / (2.0 * (m - 2)); d_ju = D[(i, j)] - d_iu
+        u = nxt; nxt += 1; adj[u] = {}
+        adj[u][i] = adj[i][u] = max(d_iu, 0.0); adj[u][j] = adj[j][u] = max(d_ju, 0.0)
+        for k in active:
+            if k in (i, j): continue
+            D[(u, k)] = D[(k, u)] = 0.5 * (D[(i, k)] + D[(j, k)] - D[(i, j)])
+        active = [k for k in active if k not in (i, j)] + [u]
+    a, b = active; adj[a][b] = adj[b][a] = max(D[(a, b)], 0.0)
+    # midpoint rooting: the longest leaf-to-leaf path, root at its middle
+    def paths_from(src):
+        seen = {src: (0.0, [src])}; stack = [src]
+        while stack:
+            v = stack.pop()
+            for w, d in adj[v].items():
+                if w not in seen: seen[w] = (seen[v][0] + d, seen[v][1] + [w]); stack.append(w)
+        return seen
+    leaves = range(n_seqs); best = None
+    for x in leaves:
+        P = paths_from(x)
+        for y in leaves:
+            if y > x and (best is None or P[y][0] > best[0]): best = (P[y][0], P[y][1])
+    total, path = best; half = 0.5 * total; acc = 0.0; root_edge = (path[0], path[1])
+    for v, w in zip(path, path[1:]):
+        if acc + adj[v][w] >= half: root_edge = (v, w); break
+        acc += adj[v][w]
+    v, w = root_edge; root = nxt; d = adj[v].pop(w); adj[w].pop(v)
+    adj[root] = {v: 0.5 * d, w: 0.5 * d}; adj[v][root] = 0.5 * d; adj[w][root] = 0.5 * d
+    merges = []
+    def members(node, parent):
+        kids = [c for c in adj[node] if c != parent]
+        if not kids: return [node]
+        subs = [members(c, node) for c in kids]
+        if len(subs) == 2: merges.append((subs[0], subs[1])); return subs[0] + subs[1]
+        acc = subs[0]
+        for sub in subs[1:]: merges.append((acc, sub)); acc = acc + sub
+        return acc
+    members(root, None)
+    return merges
+
+
+def progressive_mea_align(n_seqs, seq_lengths, pair_posteriors, consistency_iters=0,
+                          refine_iters=0, seed=42, verbose=False,
+                          posterior_floor=0.0, tree_before_consistency=False, linkage='upgma', guide_dist=None):
+    """Maximum-expected-accuracy progressive alignment (ProbCons / MUSCLE 5 style), with optional
+    ProbCons consistency transformation beforehand and optional iterative refinement afterwards.
+
+    1. (optional) consistency_iters rounds of ``consistency_transform`` on the pair posteriors.
+    2. Guide tree: UPGMA on 1 - expected accuracy, where the expected accuracy of a pair is the
+       score of its pairwise MEA alignment divided by the shorter length.
+    3. Progressive alignment up the tree: two groups are aligned by dynamic programming over the
+       profile score S[a, b] = sum of posteriors between the residues in column a of one group and
+       column b of the other, gaps free (MUSCLE 5's PPP-pa objective, i.e. gap factor 0).
+    4. (optional) refine_iters rounds of iterative refinement: a random bipartition of the sequences
+       (each sequence to either side with probability 1/2, both sides non-empty), the two sides
+       realigned by the same profile DP. The old alignment is feasible for the DP, so the objective,
+       the summed posterior over aligned residue pairs, never decreases.
+
+    MUSCLE 5's conventions can be switched on one at a time: ``posterior_floor`` zeroes every posterior below
+    it before anything else (MUSCLE drops entries below 0.01); ``tree_before_consistency`` builds the guide tree
+    from the raw posteriors and applies the consistency transformation afterwards (MUSCLE's order; ours is the
+    reverse); ``linkage='single'`` clusters the guide tree by single linkage instead of UPGMA and ``linkage='nj'`` builds it by
+    midpoint-rooted neighbour joining; ``guide_dist`` (an (n, n) array)
+    replaces the expected-accuracy distances by given ones, e.g. the pairs' maximum-likelihood branch lengths under
+    the evolutionary model, so that the guide tree is a phylogenetic tree rather than a similarity clustering.
+
+    Returns (col_assignments, n_cols) in the convention of ``sequence_annealing``."""
+    if posterior_floor and posterior_floor > 0:
+        pair_posteriors = {k: np.where(np.asarray(a) < posterior_floor, 0.0, np.asarray(a)) for k, a in pair_posteriors.items()}
+
+    def _tree_dist(dense):
+        dist = np.ones((n_seqs, n_seqs))
+        for x in range(n_seqs):
+            for y in range(x + 1, n_seqs):
+                P = dense.get((x, y))
+                if P is None or seq_lengths[x] == 0 or seq_lengths[y] == 0:
+                    continue
+                sc, _ = _mea_dp(P)
+                ea = sc / max(1, min(seq_lengths[x], seq_lengths[y]))
+                dist[x, y] = dist[y, x] = 1.0 - ea
+        return dist
+
+    dist = None
+    if guide_dist is not None: dist = np.asarray(guide_dist, dtype=np.float64)
+    elif tree_before_consistency and n_seqs > 1: dist = _tree_dist(_dense_posteriors(pair_posteriors))
+    if consistency_iters and consistency_iters > 0:
+        pair_posteriors = consistency_transform(pair_posteriors, n_iters=consistency_iters, n_seqs=n_seqs)
+    dense = _dense_posteriors(pair_posteriors)
+    col_assignments = [np.arange(L, dtype=np.int64) for L in seq_lengths]
+    if n_seqs == 1:
+        return col_assignments, int(seq_lengths[0])
+    # guide tree from pairwise expected accuracies (after the consistency transformation unless tree_before_consistency)
+    if dist is None:
+        dist = _tree_dist(dense)
+    merges = {'single': _single_linkage_order, 'nj': _nj_order}.get(linkage, _upgma_order)(n_seqs, dist)
+    n_cols = 0
+    for A, B in merges:
+        new, n_cols = _merge_groups(col_assignments, A, B, dense)
+        for s, c in new.items():
+            col_assignments[s] = c
+    if verbose:
+        print(f"  progressive MEA: {n_cols} cols, score={_score_alignment(col_assignments, seq_lengths, pair_posteriors):.4f}")
+    rng = np.random.RandomState(seed)
+    for it in range(int(refine_iters)):
+        side = rng.rand(n_seqs) < 0.5
+        if side.all() or (~side).all():
+            k = rng.randint(n_seqs); side[k] = ~side[k]
+        A = [s for s in range(n_seqs) if side[s]]; B = [s for s in range(n_seqs) if not side[s]]
+        new, n_cols = _merge_groups(col_assignments, A, B, dense)
+        for s, c in new.items():
+            col_assignments[s] = c
+        if verbose and (it + 1) % 10 == 0:
+            print(f"  refinement {it + 1}: {n_cols} cols, score={_score_alignment(col_assignments, seq_lengths, pair_posteriors):.4f}")
+    return col_assignments, int(n_cols)

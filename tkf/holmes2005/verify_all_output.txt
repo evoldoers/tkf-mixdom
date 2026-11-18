@@ -1,0 +1,192 @@
+==============================================================================
+1. Pair-HMM zone bookkeeping
+==============================================================================
+[ok] count relations #I=N_o*+N_**, #D=N_o+N_o*, #M=N_*-N_o*-1, i=N_o+N_*-1, j-i=N_**-N_o on all 3280 paths of length<=7:  True
+[ok] path weight == prod_z P_z^{N_z} / alpha on all those paths (P_o=(1-a)(1-g), P_*=a(1-b), P_o*=(1-a)g/a, P_**=b):  True
+[ok] affine rank: vectors (1,N_o,N_*,N_o*,N_**) over alignments span R^5 (rank==5):  True
+[ok] witness alignments '', M, D, I, DI: det != 0:  True
+==============================================================================
+2. Closed forms from the score identities and conservation
+==============================================================================
+[ok] Lemma: lam_x == mu*beta  [q_0 = (1-alpha)(1-gamma) = mu*beta/lam]:  reduced = 0
+[ok] Lemma: lam_v + lam_w + lam_x == lam:  reduced = 0
+[ok] Riccati for beta: D beta == (1-beta)(lam - mu beta):  reduced = 0
+[ok] (1-beta)(lam_v+lam_w) == D beta:  reduced = 0
+[ok] constant: lam d_lam(-log alpha) == 0:  reduced = 0
+[ok] constant: mu d_mu(-log alpha) == mu T:  reduced = 0
+[ok] Theorem 1: E[S|pi] + T == sum_z N_z Z_z:  reduced = 0
+[ok] Theorem 1: E[B|pi] == sum_z N_z I_z:  reduced = 0
+[ok] Theorem 1: E[D|pi] == sum_z N_z (I_z - c_z):  reduced = 0
+[ok] explicit form I_o == score-identity definition:  reduced = 0
+[ok] explicit form Z_o == score-identity definition:  reduced = 0
+[ok] explicit form I_* == score-identity definition:  reduced = 0
+[ok] explicit form Z_* == score-identity definition:  reduced = 0
+[ok] explicit form I_o* == score-identity definition:  reduced = 0
+[ok] explicit form Z_o* == score-identity definition:  reduced = 0
+[ok] explicit form I_** == score-identity definition:  reduced = 0
+[ok] explicit form Z_** == score-identity definition:  reduced = 0
+[ok] I_o* == (k/eps) I_*:  reduced = 0
+[ok] P_o / P_** == mu/lam (T-free)  => I_** = I_o + 1, Z_** = Z_o:  reduced = 0
+[ok] I_** - I_o - 1 == 0:  reduced = 0
+[ok] Z_** - Z_o == 0:  reduced = 0
+[ok] route-A form Z_o == definition:  reduced = 0
+[ok] route-A form I_o == definition:  reduced = 0
+[ok] route-A form Z_* == definition:  reduced = 0
+[ok] route-A form I_* == definition:  reduced = 0
+[ok] route-A form Z_o* == definition:  reduced = 0
+[ok] route-C form I_o == definition:  reduced = 0
+[ok] route-C form Z_o == definition:  reduced = 0
+[ok] route-C form I_* == definition:  reduced = 0
+[ok] route-C form Z_* == definition:  reduced = 0
+[ok] route-C form I_o* == definition:  reduced = 0
+[ok] route-C form Z_o* == definition:  reduced = 0
+==============================================================================
+3. Holmes's equations (8)-(17)
+==============================================================================
+[ok] (8): beta'/(1-beta) == lam_v + lam_w  [so d_t log v = -(mu + lam_v + lam_w)(T-t)]:  reduced = 0
+[ok] (8): v(0|T) == 1:  reduced = 0
+[ok] (13) a(t|T) == F_a(T) G_a(T-t):  reduced = 0
+[ok] (13) b(t|T) == F_b(T) G_b(T-t):  reduced = 0
+[ok] (13) c(t|T) == F_c(T) G_c(T-t):  reduced = 0
+[ok] (S): d_t[v(t|T) q(T-t)] == -mu v(t|T)   (i.e. q*dlog == -mu):  reduced = 0
+[ok] (S) endpoint: q(0) == 0:  reduced = 0
+[ok] side identity: D[beta/(alpha(1-beta))] == lam/(alpha(1-beta))  [<=> int_0^T lam v(t|T) dt = beta(T)]:  reduced = 0
+[ok] side identity: beta/(alpha(1-beta)) -> 0 at T=0:  reduced = 0
+[ok] (13) b: D[1/F_b] == G_b (lam_v+lam_w)   [int b (lam_v+lam_w) = 1]:  reduced = 0
+[ok] (13) b: 1/F_b -> 0 at T=0:  reduced = 0
+[ok] (13) c: D[1/F_c] == G_c (lam_v+lam_w)   [int c (lam_v+lam_w) = 1]:  reduced = 0
+[ok] (13) c: 1/F_c -> 0 at T=0:  reduced = 0
+[ok] q nondecreasing: D q == mu (1-beta)(lam - mu beta)/lam:  reduced = 0
+[ok] (1-alpha)gamma / T^2 -> lam mu / 2 at T=0:  reduced = 0
+[ok] q / T -> mu at T=0:  reduced = 0
+[ok] Theorem 3 kernel for (9),(14): G_a F_a lam_x == lam_x (G_a F_a == 1):  reduced = 0
+[ok] Theorem 3 kernel for (11),(16): G_b F_b lam_w == lam q:  reduced = 0
+[ok] (1-alpha) gamma == -alpha eps / delta:  reduced = 0
+[ok] (9)  I_o : D[X/F_a] == G_a R:  reduced = 0
+[ok] (9)  I_o : lim_(T->0) X/F_a == 0:  reduced = 0
+[ok] (10) I_* : D X == R:  reduced = 0
+[ok] (10) I_* : X(0) == 0:  reduced = 0
+[ok] (11) I_o*: D[X/F_b] == G_b R:  reduced = 0
+[ok] (11) I_o*: lim_(T->0) X/F_b == 0:  reduced = 0
+[ok] (12) I_**: D[X/F_c] == G_c R:  reduced = 0
+[ok] (12) I_**: lim_(T->0) X/F_c == 0:  reduced = 0
+[ok] (14) Z_o : D[X/F_a] == G_a R:  reduced = 0
+[ok] (14) Z_o : lim_(T->0) X/F_a == 0:  reduced = 0
+[ok] (15) Z_* : D X == R:  reduced = 0
+[ok] (15) Z_* : X(0) == 0:  reduced = 0
+[ok] (16) Z_o*: D[X/F_b] == G_b R:  reduced = 0
+[ok] (16) Z_o*: lim_(T->0) X/F_b == 0:  reduced = 0
+[ok] (17') Z_** (no 't+'): D[X/F_c] == G_c R:  reduced = 0
+[ok] (17') Z_** (no 't+'): lim_(T->0) X/F_c == 0:  reduced = 0
+[ok] lim_(T->0) I_o == 0:  reduced = 0
+[ok] lim_(T->0) I_* == 0:  reduced = 0
+[ok] lim_(T->0) I_o* == 1:  reduced = 0
+[ok] lim_(T->0) I_** == 1:  reduced = 0
+[ok] lim_(T->0) Z_o == 0:  reduced = 0
+[ok] lim_(T->0) Z_* == 0:  reduced = 0
+[ok] lim_(T->0) Z_o* == 0:  reduced = 0
+[ok] lim_(T->0) Z_** == 0:  reduced = 0
+[ok] (17) excess: D[(lam T + log(1-beta))/mu] == beta:  reduced = 0
+[ok] (17) excess: (lam T + log(1-beta))/mu -> 0 at T=0:  reduced = 0
+[ok] (17) excess integrand: c(t|T)(lam_v+lam_w)(s) == beta'(s)/beta(T):  reduced = 0
+==============================================================================
+4. Equal rates lam = mu
+==============================================================================
+[ok] lam->mu: no pole in k for I_o:  True
+[ok] lam->mu: limit of I_o == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for Z_o:  True
+[ok] lam->mu: limit of Z_o == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for I_*:  True
+[ok] lam->mu: limit of I_* == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for Z_*:  True
+[ok] lam->mu: limit of Z_* == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for I_o*:  True
+[ok] lam->mu: limit of I_o* == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for Z_o*:  True
+[ok] lam->mu: limit of Z_o* == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for I_**:  True
+[ok] lam->mu: limit of I_** == stated equal-rate form:  reduced = 0
+[ok] lam->mu: no pole in k for Z_**:  True
+[ok] lam->mu: limit of Z_** == stated equal-rate form:  reduced = 0
+[ok] lam=mu: beta = muT/(1+muT) is the lam->mu limit of beta:  reduced = 0
+[ok] lam=mu: D beta == (1-beta)(mu - mu beta):  reduced = 0
+[ok] lam=mu: lam_x == mu beta:  reduced = 0
+[ok] lam=mu (9): D[X/F] == G R:  reduced = 0
+[ok] lam=mu (9): lim X/F == 0:  reduced = 0
+[ok] lam=mu (10): D X == R:  reduced = 0
+[ok] lam=mu (10): X(0) == 0:  reduced = 0
+[ok] lam=mu (11): D[X/F] == G R:  reduced = 0
+[ok] lam=mu (11): lim X/F == 0:  reduced = 0
+[ok] lam=mu (12): D[X/F] == G R:  reduced = 0
+[ok] lam=mu (12): lim X/F == 0:  reduced = 0
+[ok] lam=mu (14): D[X/F] == G R:  reduced = 0
+[ok] lam=mu (14): lim X/F == 0:  reduced = 0
+[ok] lam=mu (15): D X == R:  reduced = 0
+[ok] lam=mu (15): X(0) == 0:  reduced = 0
+[ok] lam=mu (16): D[X/F] == G R:  reduced = 0
+[ok] lam=mu (16): lim X/F == 0:  reduced = 0
+[ok] lam=mu (17'): D[X/F] == G R:  reduced = 0
+[ok] lam=mu (17'): lim X/F == 0:  reduced = 0
+[ok] lam=mu (13) b normalisation:  reduced = 0
+[ok] lam=mu (13) c normalisation:  reduced = 0
+==============================================================================
+5. Generating-function route (tilted Riccati / Volterra)
+==============================================================================
+[ok] tilted Riccati: d_t f == lam f^2 - (lam+mu+th) f + mu w:  reduced = 0
+[ok] tilted Riccati: f(t=0) == z:  reduced = 0
+[ok] I_D: d_Tw log I_D(t,Tw) == lam (f_{t-Tw} - 1)   [I_D = exp(lam int (f-1))]:  reduced = 0
+[ok] I_D: I_D(t,0) == 1:  reduced = 0
+[ok] Lemma: F_T(0;th,w) == (mu w/lam) B:  reduced = 0
+[ok] Lemma: F^(1) := [z^1]F == (1 - p B)(1 - m B):  reduced = 0
+[ok] Lemma: d_T B == lam F^(1):  reduced = 0
+[ok] Lemma: d_T B == lam - (lam+mu+th) B + mu w B^2 (same Riccati as F(0) after scaling):  reduced = 0
+[ok] Lemma: B(0) == 0:  reduced = 0
+[ok] Lemma: I_D(T,T;z) == I_D(T,T;0)/(1 - B z):  reduced = 0
+[ok] W == e^{-th T} e^{lam(p-1)T} (p-m)/(pE-m):  reduced = 0
+[ok] F^(1)/W == (p-m) E /(Ep1 Eth (pE-m))   [= (p-m)e^{(lam+th-lam m)T}/(pE-m)]:  reduced = 0
+[ok] root derivative consistency: d(p+m)/dth == 1/lam:  reduced = 0
+[ok] root derivative consistency: d(pm)/dw == mu/lam:  reduced = 0
+[ok] base point: B == beta:  reduced = 0
+[ok] base point: W == 1 - beta:  reduced = 0
+[ok] base point: R == (1-alpha) gamma:  reduced = 0
+[ok] base point: F_T(0) == q:  reduced = 0
+[ok] GF route == score route: I_o:  reduced = 0
+[ok] GF route == score route: Z_o:  reduced = 0
+[ok] GF route == score route: I_*:  reduced = 0
+[ok] GF route == score route: Z_*:  reduced = 0
+[ok] GF route == score route: I_o*:  reduced = 0
+[ok] GF route == score route: Z_o*:  reduced = 0
+[ok] GF route == score route: I_**:  reduced = 0
+[ok] GF route == score route: Z_**:  reduced = 0
+[ok] family: E[X|surv,0] == X_* (births):  reduced = 0
+[ok] family: E[X|surv,0] == X_* (exposure):  reduced = 0
+[ok] family: E[X|die,0] == X_o (births):  reduced = 0
+[ok] family: E[X|die,0] == X_o (exposure):  reduced = 0
+[ok] family: E[B|surv,1]-E[B|surv,0] == I_**:  reduced = 0
+[ok] family: E[S|surv,1]-E[S|surv,0] == Z_**:  reduced = 0
+[ok] family: E[B|surv,2]-E[B|surv,1] == I_**:  reduced = 0
+[ok] family: E[S|surv,2]-E[S|surv,1] == Z_**:  reduced = 0
+[ok] family: E[B|die,2]-E[B|die,1] == I_**:  reduced = 0
+[ok] family: E[S|die,2]-E[S|die,1] == Z_**:  reduced = 0
+[ok] family: E[B|die,1] - I_* == I_o*:  reduced = 0
+[ok] family: E[S|die,1] - Z_* == Z_o*:  reduced = 0
+[ok] (star): d_T[R e^{mu T}] == lam (1 + e^{mu T} R) F_T(0)   [general th, w]:  reduced = 0
+[ok] (star): R(0) == 0:  reduced = 0
+[ok] Lemma: B == lam int_0^T W (e^{-mu s} + R) ds  <=> d_T B == lam W (1/Emu + R):  reduced = 0
+[ok] (g)/(d) setup: d_t log I_D(T,t;0) == lam (F_{T-t}(0) - 1):  reduced = 0
+[ok] (g) semigroup: d_t[e^{-(mu+th)t} I_D(T,t;0) F_{T-t}(0)] == -mu w e^{-(mu+th)t} I_D(T,t;0):  reduced = 0
+[ok] (g) semigroup: right-hand side vanishes at t = T:  reduced = 0
+[ok] (d) additivity: I_D(T,t;0) e^{-th t} W(T-t) == W(T):  reduced = 0
+==============================================================================
+6. Remark: lam <-> mu symmetry of all zone coefficients
+==============================================================================
+[ok] I_o(lam,mu) == I_o(mu,lam):  reduced = 0
+[ok] Z_o(lam,mu) == Z_o(mu,lam):  reduced = 0
+[ok] I_*(lam,mu) == I_*(mu,lam):  reduced = 0
+[ok] Z_*(lam,mu) == Z_*(mu,lam):  reduced = 0
+[ok] I_o*(lam,mu) == I_o*(mu,lam):  reduced = 0
+[ok] Z_o*(lam,mu) == Z_o*(mu,lam):  reduced = 0
+[ok] I_**(lam,mu) == I_**(mu,lam):  reduced = 0
+[ok] Z_**(lam,mu) == Z_**(mu,lam):  reduced = 0
+==============================================================================
+SUMMARY: ALL CHECKS PASSED   [63s]

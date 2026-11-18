@@ -1,0 +1,794 @@
+[
+ {
+  "family": "BB20028",
+  "seq": "1tis_",
+  "length": 286,
+  "coverage": 0.9965034965034965
+ },
+ {
+  "family": "BB40036",
+  "seq": "1tis_",
+  "length": 286,
+  "coverage": 0.9965034965034965
+ },
+ {
+  "family": "BB50013",
+  "seq": "1tis_",
+  "length": 286,
+  "coverage": 0.9965034965034965
+ },
+ {
+  "family": "BB50008",
+  "seq": "1atk_",
+  "length": 215,
+  "coverage": 0.9953488372093023
+ },
+ {
+  "family": "BB12028",
+  "seq": "1ppn_",
+  "length": 212,
+  "coverage": 0.9905660377358491
+ },
+ {
+  "family": "BB50008",
+  "seq": "1ppn_",
+  "length": 212,
+  "coverage": 0.9905660377358491
+ },
+ {
+  "family": "BB12028",
+  "seq": "1deu_A",
+  "length": 243,
+  "coverage": 0.9753086419753086
+ },
+ {
+  "family": "BB20030",
+  "seq": "1gua_B",
+  "length": 77,
+  "coverage": 0.961038961038961
+ },
+ {
+  "family": "BB50008",
+  "seq": "1aec_",
+  "length": 218,
+  "coverage": 0.9495412844036697
+ },
+ {
+  "family": "BB11003",
+  "seq": "1uzb_A",
+  "length": 516,
+  "coverage": 0.9031007751937985
+ },
+ {
+  "family": "BB30001",
+  "seq": "1uzb_A",
+  "length": 516,
+  "coverage": 0.9031007751937985
+ },
+ {
+  "family": "BB40017",
+  "seq": "1yat_",
+  "length": 109,
+  "coverage": 0.8532110091743119
+ },
+ {
+  "family": "BB40016",
+  "seq": "1yat_",
+  "length": 109,
+  "coverage": 0.8532110091743119
+ },
+ {
+  "family": "BB12015",
+  "seq": "1a7x_A",
+  "length": 107,
+  "coverage": 0.8504672897196262
+ },
+ {
+  "family": "BB40017",
+  "seq": "1a7x_A",
+  "length": 107,
+  "coverage": 0.8504672897196262
+ },
+ {
+  "family": "BB40016",
+  "seq": "1a7x_A",
+  "length": 107,
+  "coverage": 0.8504672897196262
+ },
+ {
+  "family": "BB50012",
+  "seq": "1st3_",
+  "length": 269,
+  "coverage": 0.8215613382899628
+ },
+ {
+  "family": "BB12015",
+  "seq": "1pbk_",
+  "length": 116,
+  "coverage": 0.8017241379310345
+ },
+ {
+  "family": "BB20030",
+  "seq": "1awd_",
+  "length": 94,
+  "coverage": 0.7978723404255319
+ },
+ {
+  "family": "BB40013",
+  "seq": "1frr_A",
+  "length": 95,
+  "coverage": 0.7894736842105263
+ },
+ {
+  "family": "BB40016",
+  "seq": "1r9h_A",
+  "length": 118,
+  "coverage": 0.788135593220339
+ },
+ {
+  "family": "BB40017",
+  "seq": "1r9h_A",
+  "length": 118,
+  "coverage": 0.788135593220339
+ },
+ {
+  "family": "BB40013",
+  "seq": "1a70_",
+  "length": 97,
+  "coverage": 0.7731958762886598
+ },
+ {
+  "family": "BB11009",
+  "seq": "1a70_",
+  "length": 97,
+  "coverage": 0.7731958762886598
+ },
+ {
+  "family": "BB30006",
+  "seq": "1jwo_A",
+  "length": 97,
+  "coverage": 0.7731958762886598
+ },
+ {
+  "family": "BB20008",
+  "seq": "1aya_A",
+  "length": 101,
+  "coverage": 0.7524752475247525
+ },
+ {
+  "family": "BB30006",
+  "seq": "1aya_A",
+  "length": 101,
+  "coverage": 0.7524752475247525
+ },
+ {
+  "family": "BB20030",
+  "seq": "1a5r_",
+  "length": 103,
+  "coverage": 0.7184466019417476
+ },
+ {
+  "family": "BB20008",
+  "seq": "2pld_A",
+  "length": 105,
+  "coverage": 0.7047619047619048
+ },
+ {
+  "family": "BB30006",
+  "seq": "2pld_A",
+  "length": 105,
+  "coverage": 0.7047619047619048
+ },
+ {
+  "family": "BB30006",
+  "seq": "1mil_",
+  "length": 104,
+  "coverage": 0.6923076923076923
+ },
+ {
+  "family": "BB12006",
+  "seq": "1bev_ac",
+  "length": 243,
+  "coverage": 0.6790123456790124
+ },
+ {
+  "family": "BB11017",
+  "seq": "1dm0_A",
+  "length": 264,
+  "coverage": 0.6515151515151515
+ },
+ {
+  "family": "BB12006",
+  "seq": "1bbt_ac",
+  "length": 221,
+  "coverage": 0.6244343891402715
+ },
+ {
+  "family": "BB20010",
+  "seq": "1dlc_",
+  "length": 584,
+  "coverage": 0.583904109589041
+ },
+ {
+  "family": "BB40017",
+  "seq": "1jvw_A",
+  "length": 160,
+  "coverage": 0.56875
+ },
+ {
+  "family": "BB40016",
+  "seq": "1jvw_A",
+  "length": 160,
+  "coverage": 0.56875
+ },
+ {
+  "family": "BB20030",
+  "seq": "1ubi_",
+  "length": 76,
+  "coverage": 0.5526315789473685
+ },
+ {
+  "family": "BB50002",
+  "seq": "1rfl_A",
+  "length": 172,
+  "coverage": 0.5523255813953488
+ },
+ {
+  "family": "BB30011",
+  "seq": "1ez4_A",
+  "length": 307,
+  "coverage": 0.5407166123778502
+ },
+ {
+  "family": "BB20018",
+  "seq": "1ez4_A",
+  "length": 307,
+  "coverage": 0.5407166123778502
+ },
+ {
+  "family": "BB20028",
+  "seq": "1qzf_A",
+  "length": 519,
+  "coverage": 0.5394990366088632
+ },
+ {
+  "family": "BB40036",
+  "seq": "1qzf_A",
+  "length": 519,
+  "coverage": 0.5394990366088632
+ },
+ {
+  "family": "BB20028",
+  "seq": "1ci7_A",
+  "length": 292,
+  "coverage": 0.5171232876712328
+ },
+ {
+  "family": "BB40036",
+  "seq": "1ci7_A",
+  "length": 292,
+  "coverage": 0.5171232876712328
+ },
+ {
+  "family": "BB11015",
+  "seq": "1emd_",
+  "length": 312,
+  "coverage": 0.5128205128205128
+ },
+ {
+  "family": "BB40022",
+  "seq": "1bht_A",
+  "length": 176,
+  "coverage": 0.48295454545454547
+ },
+ {
+  "family": "BB20028",
+  "seq": "1j3i_C",
+  "length": 328,
+  "coverage": 0.47560975609756095
+ },
+ {
+  "family": "BB40036",
+  "seq": "1j3i_C",
+  "length": 328,
+  "coverage": 0.47560975609756095
+ },
+ {
+  "family": "BB40043",
+  "seq": "1qfj_A",
+  "length": 226,
+  "coverage": 0.4646017699115044
+ },
+ {
+  "family": "BB20035",
+  "seq": "1qfj_A",
+  "length": 226,
+  "coverage": 0.4646017699115044
+ },
+ {
+  "family": "BB50015",
+  "seq": "1qfj_A",
+  "length": 226,
+  "coverage": 0.4646017699115044
+ },
+ {
+  "family": "BB30024",
+  "seq": "1qfj_A",
+  "length": 226,
+  "coverage": 0.4646017699115044
+ },
+ {
+  "family": "BB11032",
+  "seq": "1qfj_A",
+  "length": 226,
+  "coverage": 0.4646017699115044
+ },
+ {
+  "family": "BB11038",
+  "seq": "1omw_A",
+  "length": 614,
+  "coverage": 0.42833876221498374
+ },
+ {
+  "family": "BB50004",
+  "seq": "13pk_A",
+  "length": 415,
+  "coverage": 0.42409638554216866
+ },
+ {
+  "family": "BB12006",
+  "seq": "1mec_ac",
+  "length": 232,
+  "coverage": 0.4224137931034483
+ },
+ {
+  "family": "BB12005",
+  "seq": "1ar5_A",
+  "length": 201,
+  "coverage": 0.40298507462686567
+ },
+ {
+  "family": "BB40043",
+  "seq": "1fdr_",
+  "length": 244,
+  "coverage": 0.3975409836065574
+ },
+ {
+  "family": "BB20035",
+  "seq": "1fdr_",
+  "length": 244,
+  "coverage": 0.3975409836065574
+ },
+ {
+  "family": "BB50015",
+  "seq": "1fdr_",
+  "length": 244,
+  "coverage": 0.3975409836065574
+ },
+ {
+  "family": "BB30024",
+  "seq": "1fdr_",
+  "length": 244,
+  "coverage": 0.3975409836065574
+ },
+ {
+  "family": "BB11032",
+  "seq": "1fdr_",
+  "length": 244,
+  "coverage": 0.3975409836065574
+ },
+ {
+  "family": "BB11036",
+  "seq": "2mnr_",
+  "length": 357,
+  "coverage": 0.3445378151260504
+ },
+ {
+  "family": "BB20039",
+  "seq": "2mnr_",
+  "length": 357,
+  "coverage": 0.3445378151260504
+ },
+ {
+  "family": "BB11019",
+  "seq": "1vj0_A",
+  "length": 366,
+  "coverage": 0.3442622950819672
+ },
+ {
+  "family": "BB40027",
+  "seq": "1vj0_A",
+  "length": 366,
+  "coverage": 0.3442622950819672
+ },
+ {
+  "family": "BB11010",
+  "seq": "1ct9_A",
+  "length": 492,
+  "coverage": 0.3434959349593496
+ },
+ {
+  "family": "BB40027",
+  "seq": "1h2b_A",
+  "length": 343,
+  "coverage": 0.3323615160349854
+ },
+ {
+  "family": "BB20022",
+  "seq": "1h2b_A",
+  "length": 343,
+  "coverage": 0.3323615160349854
+ },
+ {
+  "family": "BB50004",
+  "seq": "1qpg_",
+  "length": 415,
+  "coverage": 0.327710843373494
+ },
+ {
+  "family": "BB20010",
+  "seq": "1i5p_A",
+  "length": 633,
+  "coverage": 0.325434439178515
+ },
+ {
+  "family": "BB40026",
+  "seq": "1m7x_A",
+  "length": 587,
+  "coverage": 0.31175468483816016
+ },
+ {
+  "family": "BB11018",
+  "seq": "1m7x_A",
+  "length": 587,
+  "coverage": 0.31175468483816016
+ },
+ {
+  "family": "BB30013",
+  "seq": "1m7x_A",
+  "length": 587,
+  "coverage": 0.31175468483816016
+ },
+ {
+  "family": "BB20021",
+  "seq": "1m7x_A",
+  "length": 587,
+  "coverage": 0.31175468483816016
+ },
+ {
+  "family": "BB50006",
+  "seq": "1m7x_A",
+  "length": 587,
+  "coverage": 0.31175468483816016
+ },
+ {
+  "family": "BB30006",
+  "seq": "1a81_A",
+  "length": 254,
+  "coverage": 0.30708661417322836
+ },
+ {
+  "family": "BB12008",
+  "seq": "1buc_A",
+  "length": 383,
+  "coverage": 0.3028720626631854
+ },
+ {
+  "family": "BB40008",
+  "seq": "1buc_A",
+  "length": 383,
+  "coverage": 0.3028720626631854
+ },
+ {
+  "family": "BB30004",
+  "seq": "1buc_A",
+  "length": 383,
+  "coverage": 0.3028720626631854
+ },
+ {
+  "family": "BB30006",
+  "seq": "1lui_A",
+  "length": 108,
+  "coverage": 0.28703703703703703
+ },
+ {
+  "family": "BB20008",
+  "seq": "1lui_A",
+  "length": 108,
+  "coverage": 0.28703703703703703
+ },
+ {
+  "family": "BB11032",
+  "seq": "1cqx_A",
+  "length": 403,
+  "coverage": 0.2704714640198511
+ },
+ {
+  "family": "BB40043",
+  "seq": "1cqx_A",
+  "length": 403,
+  "coverage": 0.2704714640198511
+ },
+ {
+  "family": "BB30024",
+  "seq": "1cqx_A",
+  "length": 403,
+  "coverage": 0.2704714640198511
+ },
+ {
+  "family": "BB50002",
+  "seq": "1ega_A",
+  "length": 292,
+  "coverage": 0.2671232876712329
+ },
+ {
+  "family": "BB11036",
+  "seq": "1muc_A",
+  "length": 360,
+  "coverage": 0.24444444444444444
+ },
+ {
+  "family": "BB30012",
+  "seq": "1nhp_",
+  "length": 447,
+  "coverage": 0.24384787472035793
+ },
+ {
+  "family": "BB30026",
+  "seq": "1nhp_",
+  "length": 447,
+  "coverage": 0.24384787472035793
+ },
+ {
+  "family": "BB30026",
+  "seq": "3grs_",
+  "length": 461,
+  "coverage": 0.24295010845986983
+ },
+ {
+  "family": "BB50013",
+  "seq": "1b02_A",
+  "length": 279,
+  "coverage": 0.24014336917562723
+ },
+ {
+  "family": "BB40036",
+  "seq": "1b02_A",
+  "length": 279,
+  "coverage": 0.24014336917562723
+ },
+ {
+  "family": "BB30012",
+  "seq": "1lvl_",
+  "length": 458,
+  "coverage": 0.23799126637554585
+ },
+ {
+  "family": "BB50015",
+  "seq": "2pia_",
+  "length": 321,
+  "coverage": 0.23052959501557632
+ },
+ {
+  "family": "BB11032",
+  "seq": "2pia_",
+  "length": 321,
+  "coverage": 0.23052959501557632
+ },
+ {
+  "family": "BB11009",
+  "seq": "2pia_",
+  "length": 321,
+  "coverage": 0.23052959501557632
+ },
+ {
+  "family": "BB40013",
+  "seq": "2pia_",
+  "length": 321,
+  "coverage": 0.23052959501557632
+ },
+ {
+  "family": "BB20035",
+  "seq": "2pia_",
+  "length": 321,
+  "coverage": 0.23052959501557632
+ },
+ {
+  "family": "BB20010",
+  "seq": "1ciy_",
+  "length": 577,
+  "coverage": 0.22357019064124783
+ },
+ {
+  "family": "BB50015",
+  "seq": "1amo_A",
+  "length": 601,
+  "coverage": 0.22296173044925124
+ },
+ {
+  "family": "BB20035",
+  "seq": "1fnc_",
+  "length": 296,
+  "coverage": 0.21621621621621623
+ },
+ {
+  "family": "BB11032",
+  "seq": "1fnc_",
+  "length": 296,
+  "coverage": 0.21621621621621623
+ },
+ {
+  "family": "BB50015",
+  "seq": "1fnc_",
+  "length": 296,
+  "coverage": 0.21621621621621623
+ },
+ {
+  "family": "BB30024",
+  "seq": "1fnc_",
+  "length": 296,
+  "coverage": 0.21621621621621623
+ },
+ {
+  "family": "BB20028",
+  "seq": "1bo7_A",
+  "length": 316,
+  "coverage": 0.21518987341772153
+ },
+ {
+  "family": "BB40008",
+  "seq": "1is2_A",
+  "length": 637,
+  "coverage": 0.20251177394034536
+ },
+ {
+  "family": "BB30004",
+  "seq": "1is2_A",
+  "length": 637,
+  "coverage": 0.20251177394034536
+ },
+ {
+  "family": "BB50015",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB20035",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB11032",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB30024",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB11009",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB40013",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB40043",
+  "seq": "1krh_A",
+  "length": 337,
+  "coverage": 0.20178041543026706
+ },
+ {
+  "family": "BB50002",
+  "seq": "1dar_",
+  "length": 619,
+  "coverage": 0.19224555735056542
+ },
+ {
+  "family": "BB50012",
+  "seq": "1ot5_A",
+  "length": 477,
+  "coverage": 0.18029350104821804
+ },
+ {
+  "family": "BB12033",
+  "seq": "1ot5_A",
+  "length": 477,
+  "coverage": 0.18029350104821804
+ },
+ {
+  "family": "BB50004",
+  "seq": "1php_",
+  "length": 394,
+  "coverage": 0.17766497461928935
+ },
+ {
+  "family": "BB30002",
+  "seq": "1h4q_A",
+  "length": 465,
+  "coverage": 0.14623655913978495
+ },
+ {
+  "family": "BB30002",
+  "seq": "1nj8_A",
+  "length": 456,
+  "coverage": 0.13596491228070176
+ },
+ {
+  "family": "BB11004",
+  "seq": "1nj8_A",
+  "length": 456,
+  "coverage": 0.13596491228070176
+ },
+ {
+  "family": "BB50012",
+  "seq": "1p8j_A",
+  "length": 470,
+  "coverage": 0.13404255319148936
+ },
+ {
+  "family": "BB12033",
+  "seq": "1p8j_A",
+  "length": 470,
+  "coverage": 0.13404255319148936
+ },
+ {
+  "family": "BB30026",
+  "seq": "1bhy_",
+  "length": 482,
+  "coverage": 0.12240663900414937
+ },
+ {
+  "family": "BB30004",
+  "seq": "1ivh_A",
+  "length": 387,
+  "coverage": 0.12144702842377261
+ },
+ {
+  "family": "BB40008",
+  "seq": "1ivh_A",
+  "length": 387,
+  "coverage": 0.12144702842377261
+ },
+ {
+  "family": "BB12008",
+  "seq": "1ivh_A",
+  "length": 387,
+  "coverage": 0.12144702842377261
+ },
+ {
+  "family": "BB11018",
+  "seq": "1jdc_",
+  "length": 418,
+  "coverage": 0.08133971291866028
+ },
+ {
+  "family": "BB20021",
+  "seq": "1jdc_",
+  "length": 418,
+  "coverage": 0.08133971291866028
+ },
+ {
+  "family": "BB50006",
+  "seq": "1jdc_",
+  "length": 418,
+  "coverage": 0.08133971291866028
+ },
+ {
+  "family": "BB40026",
+  "seq": "1jdc_",
+  "length": 418,
+  "coverage": 0.08133971291866028
+ }
+]

@@ -348,90 +348,23 @@ def _extract_aligned_pairs(aligned_seqs):
     return pairs
 
 
+
 def compute_sp_score(test_alignment, ref_alignment):
-    """Compute Sum-of-Pairs (SP) score.
+    """Sum-of-Pairs (SP) score; thin wrapper over the single authoritative
+    scorer :func:`tkfmixdom.util.msa_benchmark.sp_tc_score` (every column
+    scored).  Alignments are {name: gapped int array, -1 = gap}."""
+    from tkfmixdom.jax.evaluate.metrics import sp_score
+    return sp_score(test_alignment, ref_alignment)
 
-    For each pair of sequences, counts the fraction of aligned residue
-    pairs in the reference that are also aligned in the test alignment.
-
-    Args:
-        test_alignment: dict of {name: gapped_int_array} (-1 = gap)
-        ref_alignment: dict of {name: gapped_int_array} (-1 = gap)
-
-    Returns:
-        float: SP score in [0, 1]
-    """
-    # Only score sequences present in both alignments
-    common_names = sorted(set(test_alignment.keys()) & set(ref_alignment.keys()))
-    if len(common_names) < 2:
-        return 0.0
-
-    test_sub = {n: test_alignment[n] for n in common_names}
-    ref_sub = {n: ref_alignment[n] for n in common_names}
-
-    test_pairs = _extract_aligned_pairs(test_sub)
-    ref_pairs = _extract_aligned_pairs(ref_sub)
-
-    total_ref = 0
-    total_correct = 0
-
-    for key, ref_set in ref_pairs.items():
-        test_set = test_pairs.get(key, set())
-        total_ref += len(ref_set)
-        total_correct += len(ref_set & test_set)
-
-    if total_ref == 0:
-        return 1.0
-    return total_correct / total_ref
 
 
 def compute_tc_score(test_alignment, ref_alignment):
-    """Compute Total Column (TC) score.
-
-    Fraction of columns in the reference alignment that are exactly
-    reproduced in the test alignment. A column is a set of
-    (sequence_name, residue_position) pairs for non-gap entries.
-
-    Args:
-        test_alignment: dict of {name: gapped_int_array} (-1 = gap)
-        ref_alignment: dict of {name: gapped_int_array} (-1 = gap)
-
-    Returns:
-        float: TC score in [0, 1]
-    """
-    common_names = sorted(set(test_alignment.keys()) & set(ref_alignment.keys()))
-    if len(common_names) < 2:
-        return 0.0
-
-    def _columns_to_sets(aligned, names):
-        """Convert alignment columns to sets of (name, ungapped_pos)."""
-        n_cols = len(next(iter(aligned.values())))
-        # Track ungapped position per sequence
-        positions = {n: 0 for n in names}
-        columns = []
-        for col in range(n_cols):
-            col_set = set()
-            for n in names:
-                c = aligned[n][col]
-                if c != -1:
-                    col_set.add((n, positions[n]))
-                    positions[n] += 1
-                # else gap: don't increment
-            if len(col_set) >= 2:
-                columns.append(frozenset(col_set))
-        return columns
-
-    ref_sub = {n: ref_alignment[n] for n in common_names}
-    test_sub = {n: test_alignment[n] for n in common_names}
-
-    ref_columns = _columns_to_sets(ref_sub, common_names)
-    test_column_set = set(_columns_to_sets(test_sub, common_names))
-
-    if len(ref_columns) == 0:
-        return 1.0
-
-    correct = sum(1 for c in ref_columns if c in test_column_set)
-    return correct / len(ref_columns)
+    """Total Column (TC) score; thin wrapper over the single authoritative
+    scorer :func:`tkfmixdom.util.msa_benchmark.sp_tc_score` (qscore semantics:
+    a reference column with >= 2 residues is correct when all its residues fall
+    in one test column).  Alignments are {name: gapped int array, -1 = gap}."""
+    from tkfmixdom.jax.evaluate.metrics import tc_score
+    return tc_score(test_alignment, ref_alignment)
 
 
 def prepare_sequence_pairs(sequences, max_pairs=None):

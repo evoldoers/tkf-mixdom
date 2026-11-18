@@ -1,0 +1,7 @@
+{
+ "checkpoint": "pfam/svibw_d3f1_perdomain_v4_fix.npz",
+ "precompiled": "pfam/precompiled_v3_val",
+ "n_pairs": 116640,
+ "total_ll": -83805859.89568192,
+ "ll_per_pair": -718.5001705734046
+}

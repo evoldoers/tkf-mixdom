@@ -115,110 +115,55 @@ def root_accuracy(pred_root: np.ndarray, true_root: np.ndarray,
     return float(np.mean(pred_root == true_root))
 
 
+
+def _int_msa_to_str(msa, names):
+    """-1 = gap, anything else = residue; all residues upper-case so that
+    every column is scored (core_only=False)."""
+    return {n: ''.join('-' if int(x) < 0 else 'A' for x in np.asarray(msa[n])) for n in names}
+
+
 def sp_score(pred_msa: Dict[str, np.ndarray],
              true_msa: Dict[str, np.ndarray],
              names: Optional[list] = None) -> float:
-    """Sum-of-pairs alignment accuracy.
+    """Sum-of-pairs score of ``pred_msa`` against ``true_msa``.
 
-    For each pair of sequences, count the fraction of homologous residue
-    pairs that are correctly identified in the predicted alignment.
+    Thin wrapper over the single authoritative scorer,
+    :func:`tkfmixdom.util.msa_benchmark.sp_tc_score` (qscore / BAliBASE
+    semantics; every column of the reference is scored, there is no core
+    annotation in an int-array MSA).
 
     Args:
         pred_msa: {name: (L_pred,) int array, -1=gap} predicted alignment.
         true_msa: {name: (L_true,) int array, -1=gap} true alignment.
         names: sequence names to compare (default: intersection of keys).
-
-    Returns:
-        SP score in [0, 1].
     """
+    from tkfmixdom.util.msa_benchmark import sp_tc_score
     if names is None:
         names = sorted(set(pred_msa) & set(true_msa))
     if len(names) < 2:
         return 0.0
+    sp, _ = sp_tc_score(_int_msa_to_str(pred_msa, names), _int_msa_to_str(true_msa, names), core_only=False)
+    return sp
 
-    total_true_pairs = 0
-    correct_pairs = 0
-
-    for i in range(len(names)):
-        for j in range(i + 1, len(names)):
-            ni, nj = names[i], names[j]
-            # Extract pairwise alignment from true MSA
-            true_pairs = set()
-            pi = pj = 0
-            for col in range(len(true_msa[ni])):
-                gi = true_msa[ni][col] >= 0
-                gj = true_msa[nj][col] >= 0
-                if gi and gj:
-                    true_pairs.add((pi, pj))
-                if gi:
-                    pi += 1
-                if gj:
-                    pj += 1
-
-            # Extract pairwise alignment from pred MSA
-            pred_pairs = set()
-            pi = pj = 0
-            for col in range(len(pred_msa[ni])):
-                gi = pred_msa[ni][col] >= 0
-                gj = pred_msa[nj][col] >= 0
-                if gi and gj:
-                    pred_pairs.add((pi, pj))
-                if gi:
-                    pi += 1
-                if gj:
-                    pj += 1
-
-            total_true_pairs += len(true_pairs)
-            correct_pairs += len(true_pairs & pred_pairs)
-
-    return correct_pairs / max(total_true_pairs, 1)
 
 
 def tc_score(pred_msa: Dict[str, np.ndarray],
              true_msa: Dict[str, np.ndarray],
              names: Optional[list] = None) -> float:
-    """Total-column alignment accuracy.
+    """Total-column score of ``pred_msa`` against ``true_msa``.
 
-    Fraction of true alignment columns that are exactly reproduced in
-    the predicted alignment.
-
-    Args:
-        pred_msa: {name: (L_pred,) int array} predicted alignment.
-        true_msa: {name: (L_true,) int array} true alignment.
-        names: sequence names to compare.
-
-    Returns:
-        TC score in [0, 1].
+    Thin wrapper over :func:`tkfmixdom.util.msa_benchmark.sp_tc_score`
+    (qscore / BAliBASE semantics: a reference column with >= 2 residues is
+    correct when all of its residues fall in one predicted column; predicted
+    residues from sequences gapped in that reference column are not examined).
     """
+    from tkfmixdom.util.msa_benchmark import sp_tc_score
     if names is None:
         names = sorted(set(pred_msa) & set(true_msa))
     if len(names) < 2:
         return 0.0
-
-    # Build column signatures for true and predicted MSAs.
-    def column_sigs(msa, names):
-        L = len(next(iter(msa.values())))
-        pos = {n: 0 for n in names}
-        sigs = []
-        for col in range(L):
-            sig = []
-            for n in names:
-                if msa[n][col] >= 0:
-                    sig.append(pos[n])
-                    pos[n] += 1
-                else:
-                    sig.append(-1)
-            sigs.append(tuple(sig))
-        return set(sigs)
-
-    true_sigs = column_sigs(true_msa, names)
-    pred_sigs = column_sigs(pred_msa, names)
-
-    # Only count true columns where all sequences are present.
-    true_full = {s for s in true_sigs if all(x >= 0 for x in s)}
-    if len(true_full) == 0:
-        return 0.0
-    return len(true_full & pred_sigs) / len(true_full)
+    _, tc = sp_tc_score(_int_msa_to_str(pred_msa, names), _int_msa_to_str(true_msa, names), core_only=False)
+    return tc
 
 
 def domain_accuracy(pred_domains: np.ndarray,

@@ -1,0 +1,7 @@
+{
+ "checkpoint": "pfam/lbfgs_d5f1_nobali_from1620.npz",
+ "precompiled": "pfam/precompiled_v3_val",
+ "n_pairs": 116640,
+ "total_ll": -83461710.68653154,
+ "ll_per_pair": -715.549645803597
+}

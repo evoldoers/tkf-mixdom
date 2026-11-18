@@ -159,6 +159,70 @@ def run_factor_scan(tau_aa, s, r, q, Lmax):
     return jnp.concatenate([jnp.zeros((1,), dtype=phi_pos.dtype), phi_pos])
 
 
+def log_run_factor_scan(tau_aa, s, r, q, Lmax):
+    """LOG-SPACE run factor: log_phi(k) = log(q^T T^{k-1} s) for k=1..Lmax, with
+    a -inf sentinel at k=0 (matching phi(0) := 0).  Numerically stable for
+    arbitrarily long match runs (k up to ~2000), where the linear
+    ``run_factor_scan`` underflows phi(k) to exactly 0.0 and its log gives -inf
+    (and NaN gradients).  The log-value is genuinely finite --
+    log_phi(k) ~ (k-1) log(lambda_max(T)) + const for large k -- so the -inf in
+    the linear path is pure floating-point underflow, removed here.
+
+    The transfer matrix is the same as ``run_factor_scan``,
+
+        T_{gf} = r_f delta_{gf} + s_g tau_aa q_f,
+
+    with T entrywise >= 0 (r_f, tau_aa, s, q all >= 0), so the propagated vector
+    w_k = T^{k-1} s stays entrywise >= 0 and log(q^T w_k) is well defined.  We
+    carry the FORWARD vector w in a per-step RESCALED form (forward-algorithm
+    scaling): at each step factor out log(max_f w_f) into an accumulated
+    log-scale ``ls`` and keep the vector O(1); then
+        log_phi(k) = ls_k + log(q^T w_hat_k).
+    ``jax.lax.scan`` carries (w_hat, ls) sequentially -- Lmax up to ~2000 and F
+    tiny (1 or 2), so the sequential graph is cheap; it is jit-able and
+    reverse-mode differentiable (the score-identity E-step relies on that).
+
+    Same SPLIT atoms (s = w, r, q = 1-r) as ``m_full`` / ``run_factor`` /
+    ``run_factor_scan``, so d log_phi / d(atom) matches the linear factor's
+    gradient wherever the linear factor does not underflow.  Returns a
+    (Lmax+1,) array of log_phi indexed by k (index 0 = -inf).
+    """
+    F = s.shape[0]
+    T = jnp.diag(r) + tau_aa * jnp.outer(s, q)         # T_{gf} = r_f d_gf + s_g tau q_f
+    neg_inf = jnp.asarray(-jnp.inf, dtype=T.dtype)
+    if Lmax <= 0:
+        return jnp.full((1,), neg_inf, dtype=T.dtype)  # only phi(0) := 0 -> log = -inf
+
+    # w_1 = s (T^0 s).  Rescale by its max magnitude so the carried vector is
+    # O(1); the pulled-out log-magnitude accumulates in ls.
+    def _rescale(w):
+        # log-magnitude scale = log(max_f w_f); w entrywise >= 0.  Guard the all-
+        # zero case (cannot happen for s>0 but keeps grads finite) with a safe
+        # max, then subtract it out.
+        mx = jnp.max(w)
+        safe = jnp.where(mx > 0, mx, 1.0)
+        return w / safe, jnp.log(safe)
+
+    w0, ls0 = _rescale(s)
+    logdot0 = ls0 + jnp.log(jnp.dot(q, w0))            # log_phi(1) = log(q^T s)
+
+    def _step(carry, _):
+        w, ls = carry
+        w_next = T @ w                                  # w_{k} = T w_{k-1}
+        w_hat, dls = _rescale(w_next)
+        ls_next = ls + dls
+        logdot = ls_next + jnp.log(jnp.dot(q, w_hat))   # log_phi(k) = ls + log(q^T w_hat)
+        return (w_hat, ls_next), logdot
+
+    if Lmax == 1:
+        log_phi_pos = logdot0[None]
+    else:
+        (_wf, _lsf), log_phi_rest = jax.lax.scan(
+            _step, (w0, ls0), None, length=Lmax - 1)     # k = 2..Lmax
+        log_phi_pos = jnp.concatenate([logdot0[None], log_phi_rest])
+    return jnp.concatenate([neg_inf[None], log_phi_pos])  # index 0 = -inf
+
+
 def _causal_toeplitz(phi):
     """(n,n) upper-triangular Toeplitz T[m, c] = phi[c-m] (phi[0]=0, so the
     diagonal is 0 and only strictly-causal taps appear).  Built with a gather +
@@ -225,6 +289,20 @@ def gap_factors(tau, phi_I, phi_D, i_max, j_max):
 
     G_M = aI * tIM + aD * tDM
     G_E = aI * tIE + aD * tDE
+    # G_M, G_E are sums of non-negative terms, so mathematically >= 0. At very
+    # low tau, near-impossible small gap cells (e.g. (i,j)=(1,1)) are ~0 and
+    # float rounding of the run-convolution/scan can flip them to tiny negatives
+    # (~ -1e-7). Left unclamped, _xlogy(count>0, G<0) = count*log(neg) = NaN,
+    # which poisons the reported bin logZ (params/gradients are unaffected since
+    # the counts there are negligible, but the loglik display goes NaN). Floor to
+    # a tiny positive value: restores non-negativity and, for a populated
+    # near-impossible gap, yields a large-but-finite negative log-weight (an
+    # exact-zero floor would give -inf and still poison the sum). Real gap
+    # weights are >> this floor, so they are untouched; the reported val loglik
+    # is unchanged (verified) since these low-tau/small-gap cells are negligible.
+    _GAP_FLOOR = 1e-30
+    G_M = jnp.maximum(G_M, _GAP_FLOOR)
+    G_E = jnp.maximum(G_E, _GAP_FLOOR)
     return G_M, G_E
 
 
@@ -379,6 +457,56 @@ def _bin_indel_logZ(tau, s, r, q, Nmatch, NgapM, NgapE, Nstart, Nend, Nempty):
 _BIN_VALGRAD = jax.jit(jax.value_and_grad(_bin_indel_logZ, argnums=(0, 1, 2, 3)))
 
 
+def _bin_indel_logZ_logspace(tau, s, r, q, Nmatch, NgapM, NgapE,
+                             Nstart, Nend, Nempty):
+    """LOG-SPACE variant of ``_bin_indel_logZ``: identical value & gradient
+    wherever the linear path is finite, but the match-run term uses
+    ``log_run_factor_scan`` so arbitrarily long match runs (k up to ~2000)
+    never underflow.
+
+    The only change from ``_bin_indel_logZ`` is the match term: instead of
+    ``_xlogy(Nmatch, phiM)`` = Nmatch * log(phiM) -- which is Nmatch * log(0) =
+    -inf (NaN grad) once phiM underflows to exactly 0 at large k -- we form
+    ``Nmatch * log_phiM`` directly from the stable log factor.  The k=0 entry of
+    ``Nmatch`` is always 0 (phi(0):=0 is never referenced by real counts), so the
+    -inf sentinel at log_phiM[0] is masked to 0 by the same double-where guard.
+
+    The gap side is unchanged: gaps are bounded by ``prep_bins(max_gap=...)`` so
+    phiI/phiD never reach the underflow regime, and G_M/G_E stay finite; keeping
+    the linear gap path means this variant matches the linear one to machine
+    precision on the gap terms.  This is the function ``estep(...,
+    use_logspace=True)`` autodiffs.
+    """
+    kmax = Nmatch.shape[0] - 1
+    imax = NgapM.shape[0] - 1
+    jmax = NgapM.shape[1] - 1
+    z = 0.0
+
+    if kmax >= 1:
+        log_phiM = log_run_factor_scan(tau[M, M], s, r, q, kmax)
+        # Nmatch * log_phiM with the double-where guard: never multiply (nor
+        # differentiate) log_phiM at counts == 0, where log_phiM may be -inf
+        # (k=0 sentinel).  Elsewhere log_phiM is finite by construction.
+        safe_log = jnp.where(Nmatch > 0, log_phiM, 0.0)
+        z = z + jnp.sum(jnp.where(Nmatch > 0, Nmatch * safe_log, 0.0))
+
+    if imax >= 1 or jmax >= 1:
+        phiI = run_factor_scan(tau[I, I], s, r, q, jmax)
+        phiD = run_factor_scan(tau[D, D], s, r, q, imax)
+        G_M, G_E = gap_factors(tau, phiI, phiD, imax, jmax)
+        z = z + jnp.sum(_xlogy(NgapM, G_M))
+        z = z + jnp.sum(_xlogy(NgapE, G_E))
+
+    z = z + _xlogy(Nstart, tau[S, M])
+    z = z + _xlogy(Nend, tau[M, E])
+    z = z + _xlogy(Nempty, tau[S, E])
+    return z
+
+
+_BIN_VALGRAD_LOGSPACE = jax.jit(
+    jax.value_and_grad(_bin_indel_logZ_logspace, argnums=(0, 1, 2, 3)))
+
+
 def _bin_args(bn):
     """The (Nmatch, NgapM, NgapE, Nstart, Nend, Nempty) jnp arguments for a
     prep_bins struct."""
@@ -388,18 +516,24 @@ def _bin_args(bn):
             jnp.asarray(float(bn["Nempty"])))
 
 
-def corpus_indel_loglik(bins, lam, mu, exts, weights):
+def corpus_indel_loglik(bins, lam, mu, exts, weights, use_logspace=False):
     """Total indel log-likelihood (eq:mixfrag-summary-ll, indel terms) summed
-    over bins, at parameters (lam, mu, exts, weights)."""
+    over bins, at parameters (lam, mu, exts, weights).
+
+    ``use_logspace`` selects the log-space match-run factor
+    (``log_run_factor_scan``), which never underflows for arbitrarily long match
+    runs -- so no match-run cap is needed.  The linear path (default) is exact but
+    underflows phiM to 0 for very long runs."""
     exts = np.asarray(exts, np.float64)
     weights = np.asarray(weights, np.float64)
     s = jnp.asarray(weights)
     r = jnp.asarray(exts)
     qv = jnp.asarray(1.0 - exts)
+    valgrad = _BIN_VALGRAD_LOGSPACE if use_logspace else _BIN_VALGRAD
     total = 0.0
     for bn in bins:
         tau = tkf91_trans(float(lam), float(mu), bn["t"])
-        logZ, _ = _BIN_VALGRAD(tau, s, r, qv, *_bin_args(bn))
+        logZ, _ = valgrad(tau, s, r, qv, *_bin_args(bn))
         total += float(logZ)
     return total
 
@@ -422,7 +556,7 @@ def corpus_substitution_loglik(bins, Q, pi):
     return total
 
 
-def estep(bins, lam, mu, exts, weights):
+def estep(bins, lam, mu, exts, weights, use_logspace=False):
     """E-step: corpus expected complete-data sufficient statistics.
 
     For each bin the score-function identity turns the gradient of the indel
@@ -431,6 +565,11 @@ def estep(bins, lam, mu, exts, weights):
     extension/fragment counts F_f, E_f.  n_hat is mapped to (B,D,S) by the exact
     TKF91 BDI machinery at the bin time t (with T = t x #cherries), and to the
     kappa-quadratic coefficients (L, M).  Everything sums over bins.
+
+    ``use_logspace`` autodiffs the log-space bin factor
+    (``_bin_indel_logZ_logspace``) instead of the linear one; the gradient (=
+    expected counts, by the score identity) is unchanged wherever the linear path
+    is finite, but never NaNs on long match runs (no cap needed).
 
     Returns a dict with scalars B,D,S,L,M,T and arrays F_f,E_f (length F), plus
     the indel log-likelihood 'loglik'.
@@ -441,6 +580,7 @@ def estep(bins, lam, mu, exts, weights):
     s = jnp.asarray(weights)
     r = jnp.asarray(exts)
     qv = jnp.asarray(1.0 - exts)
+    valgrad = _BIN_VALGRAD_LOGSPACE if use_logspace else _BIN_VALGRAD
 
     n_hats, t_list, T_list = [], [], []
     L_sum = M_sum = loglik = 0.0
@@ -448,7 +588,7 @@ def estep(bins, lam, mu, exts, weights):
 
     for bn in bins:
         tau = tkf91_trans(float(lam), float(mu), bn["t"])
-        logZ, (g_tau, g_s, g_r, _g_q) = _BIN_VALGRAD(tau, s, r, qv, *_bin_args(bn))
+        logZ, (g_tau, g_s, g_r, _g_q) = valgrad(tau, s, r, qv, *_bin_args(bn))
 
         # Expected counts via the expectation-semiring identity
         # E[n_e] = d logZ / d log p_e = p_e * d logZ / d p_e.
@@ -527,7 +667,8 @@ def em_fit(agg, *, n_fragtypes, Q, pi,
            n_iter=100, tol=1e-7,
            prior_alpha_lam=2.0, prior_alpha_mu=2.0, prior_beta=10.0,
            ext_prior_alpha=2.0, ext_prior_beta=3.0, weight_prior_alpha=1.5,
-           max_gap=None, checkpoint_path=None, checkpoint_every=0, resume=True,
+           max_gap=None, use_logspace=False,
+           checkpoint_path=None, checkpoint_every=0, resume=True,
            log_fn=print, log_every=10):
     """Exact EM on the MixFrag alignment-summary count tensors (supplement B.6).
 
@@ -535,6 +676,12 @@ def em_fit(agg, *, n_fragtypes, Q, pi,
     are FIXED (shared substitution model, e.g. LG08), as in svi_bw_mixfrag.
     M-steps are closed form: kappa-quadratic for (lam,mu), Beta for r_f,
     Dirichlet for w_f.  Iterates to convergence of the total log-likelihood.
+
+    ``use_logspace`` runs the E-step through the log-space match-run factor
+    (``log_run_factor_scan`` / ``_bin_indel_logZ_logspace``), which never
+    underflows for arbitrarily long match runs -- so the trainer needs NO
+    match-run cap and never NaNs the M-step on long runs.  The value and gradient
+    are unchanged wherever the linear path is finite.
 
     ``max_gap`` caps the gap grid (see ``prep_bins``).  ``checkpoint_path`` +
     ``checkpoint_every`` (>0) write a resume checkpoint every N iters; with
@@ -584,7 +731,7 @@ def em_fit(agg, *, n_fragtypes, Q, pi,
 
     t0 = time.time()
     for it in range(start_iter, n_iter):
-        suff = estep(bins, lam, mu, exts, weights)
+        suff = estep(bins, lam, mu, exts, weights, use_logspace=use_logspace)
         total_ll = suff["loglik"] + sub_ll
 
         lam, mu = m_step_indel_quadratic(
@@ -622,3 +769,14 @@ def em_fit(agg, *, n_fragtypes, Q, pi,
             "weights": np.asarray(weights), "history": history,
             "final_ll": history[-1]["total_ll"] if history else float("nan"),
             "sub_ll": sub_ll}
+
+
+def em_fit_logspace(agg, **kwargs):
+    """Drop-in for ``em_fit`` that runs the LOG-SPACE E-step (no match-run cap
+    needed).  Equivalent to ``em_fit(agg, ..., use_logspace=True)``; pass
+    ``max_gap=None`` (the default here) to fit MixFrag fully uncapped.  The
+    log-space match-run factor never underflows, so long match runs (k up to
+    ~2000) no longer NaN the M-step."""
+    kwargs.setdefault("max_gap", None)
+    kwargs["use_logspace"] = True
+    return em_fit(agg, **kwargs)

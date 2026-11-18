@@ -1,0 +1,868 @@
+[
+ {
+  "model": "TKF92 (Table 2 params)",
+  "group": "fixed",
+  "val_pathcond": -725.889559,
+  "val_ordsum": -721.29,
+  "test_pathcond": -733.028927,
+  "test_ordsum": -727.955492,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.7935886056057221,
+    "tc": 0.6456271348923887,
+    "sp_full": 0.6495591269466208,
+    "tc_full": 0.4582511404744997,
+    "f1": 0.3741586750839317,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6445096186418298,
+    "tc": 0.4463533439841345,
+    "sp_full": 0.547400164233221,
+    "tc_full": 0.37850805041247976,
+    "f1": 0.2765450977167204,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.9087478525709536,
+    "tc": 0.8365492083584404,
+    "sp_full": 0.8673388599543234,
+    "tc_full": 0.7742084782694867,
+    "f1": 0.676074829007023,
+    "n": 336
+   }
+  }
+ },
+ {
+  "model": "MixFrag F=2 (Table 2 params)",
+  "group": "fixed",
+  "val_pathcond": null,
+  "val_ordsum": -719.35,
+  "test_pathcond": -732.607187,
+  "test_ordsum": -726.153388,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8036440890368591,
+    "tc": 0.6547143141612796,
+    "sp_full": 0.6562056212535012,
+    "tc_full": 0.46515008183283846,
+    "f1": 0.37852060539606064,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6497333422719944,
+    "tc": 0.45860976129778885,
+    "sp_full": 0.5568359245166985,
+    "tc_full": 0.3866032859700378,
+    "f1": 0.28267981529310476,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixFrag F=2 (refit)",
+  "group": "mixfrag",
+  "val_pathcond": -725.437681,
+  "val_ordsum": -719.08274,
+  "test_pathcond": -732.596701,
+  "test_ordsum": -725.88777,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8036564876108547,
+    "tc": 0.6535499521805435,
+    "sp_full": 0.6551497378517778,
+    "tc_full": 0.4629545139628578,
+    "f1": 0.37870399540882155,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6517783490649226,
+    "tc": 0.4523060632959195,
+    "sp_full": 0.5545314163957556,
+    "tc_full": 0.3837238474070959,
+    "f1": 0.2854360716038657,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.9055165419310709,
+    "tc": 0.8315742045278239,
+    "sp_full": 0.864609804755679,
+    "tc_full": 0.7700430322959962,
+    "f1": 0.674413154766732,
+    "n": 336
+   }
+  }
+ },
+ {
+  "model": "MixFrag F=3 (refit)",
+  "group": "mixfrag",
+  "val_pathcond": -725.415286,
+  "val_ordsum": -718.70447,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixFrag F=4 (refit)",
+  "group": "mixfrag",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixFrag F=5 (refit)",
+  "group": "mixfrag",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d1f1 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -723.196951,
+  "val_ordsum": -717.132416,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8073499000035637,
+    "tc": 0.6651298112658667,
+    "sp_full": 0.6638137034528796,
+    "tc_full": 0.47593554735607374,
+    "f1": 0.37540264702679693,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6537522966503608,
+    "tc": 0.45267286245710847,
+    "sp_full": 0.5606737587345431,
+    "tc_full": 0.38992534697452536,
+    "f1": 0.2797570002716822,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.9068293357263132,
+    "tc": 0.8334361704510155,
+    "sp_full": 0.8683582094840728,
+    "tc_full": 0.77652245375833,
+    "f1": 0.6745762947611464,
+    "n": 336
+   }
+  }
+ },
+ {
+  "model": "MixDom d1f1 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": -722.81045,
+  "val_ordsum": -717.862985,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.806876243462924,
+    "tc": 0.6620336212823096,
+    "sp_full": 0.6639626795820793,
+    "tc_full": 0.4758711358296284,
+    "f1": 0.37392346630476775,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6514387074008126,
+    "tc": 0.45446000515630824,
+    "sp_full": 0.5599711265141221,
+    "tc_full": 0.3901841115133591,
+    "f1": 0.27640820401443233,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d1f1 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d1f2 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -723.160868,
+  "val_ordsum": -716.796832,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8072351602648644,
+    "tc": 0.6636795326562835,
+    "sp_full": 0.6662861188209557,
+    "tc_full": 0.47753996238183877,
+    "f1": 0.37348789129388366,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6559885350450041,
+    "tc": 0.4607713742327453,
+    "sp_full": 0.5639931073939175,
+    "tc_full": 0.394398073253558,
+    "f1": 0.27993440489705945,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d1f2 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d1f2 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -719.835226,
+  "val_ordsum": -715.297336,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8149709261740535,
+    "tc": 0.6809702364511997,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.37599609436517684,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6538543770012617,
+    "tc": 0.466292119752997,
+    "sp_full": 0.5626153548617052,
+    "tc_full": 0.39688736522898116,
+    "f1": 0.28124094328097343,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": -719.427582,
+  "val_ordsum": -715.548834,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8164385794707721,
+    "tc": 0.6842343107759922,
+    "sp_full": 0.6788383613085578,
+    "tc_full": 0.502210543769635,
+    "f1": 0.3761135133857896,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6594128802988968,
+    "tc": 0.4725928730353095,
+    "sp_full": 0.5652456757553312,
+    "tc_full": 0.3975203994762325,
+    "f1": 0.27913201057386533,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": -719.754618,
+  "val_ordsum": -715.752531,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8120670077707811,
+    "tc": 0.6760086749722094,
+    "sp_full": 0.6760882521505579,
+    "tc_full": 0.49746581717426724,
+    "f1": 0.37427082431294134,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f2 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -719.764419,
+  "val_ordsum": -715.424318,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.813563671667548,
+    "tc": 0.6796817787161636,
+    "sp_full": 0.673802563027775,
+    "tc_full": 0.49230902354093825,
+    "f1": 0.37664537732734776,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6559338389998448,
+    "tc": 0.46698904945298125,
+    "sp_full": 0.5631326968081527,
+    "tc_full": 0.3976660974508388,
+    "f1": 0.2784273460442158,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f2 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": -719.311812,
+  "val_ordsum": -715.495915,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.816840417490273,
+    "tc": 0.6752676528468804,
+    "sp_full": 0.6798650951766686,
+    "tc_full": 0.49827162514371437,
+    "f1": 0.37563976551394657,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f2 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d3f1 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -718.02371,
+  "val_ordsum": -713.05281,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8086820396937647,
+    "tc": 0.6701072206427713,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3780403277870414,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6496013933795755,
+    "tc": 0.45981997206660224,
+    "sp_full": 0.5612990862869569,
+    "tc_full": 0.3964235731772596,
+    "f1": 0.28345478243839184,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d3f1 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": -717.423883,
+  "val_ordsum": -712.639846,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8136011633875289,
+    "tc": 0.6794280015935985,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3791871150814089,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6623662312431124,
+    "tc": 0.48139304935656163,
+    "sp_full": 0.5681713578324431,
+    "tc_full": 0.4030709315962751,
+    "f1": 0.28681249358156186,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d3f1 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": -717.834518,
+  "val_ordsum": -712.897916,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8107877296648941,
+    "tc": 0.6719274535831082,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3787213893583173,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d4f1 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -716.63683,
+  "val_ordsum": -711.768113,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.807242828242091,
+    "tc": 0.6672146324935937,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.37371871476776297,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6483292293947462,
+    "tc": 0.46669844957068646,
+    "sp_full": 0.5633506756599105,
+    "tc_full": 0.39756782930747425,
+    "f1": 0.278266681766805,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.9076399891167891,
+    "tc": 0.8341353463707435,
+    "sp_full": 0.8702569964790898,
+    "tc_full": 0.7799829557674416,
+    "f1": 0.6739172489189106,
+    "n": 336
+   }
+  }
+ },
+ {
+  "model": "MixDom d4f1 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": -715.431307,
+  "val_ordsum": -710.695703,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8146319958782003,
+    "tc": 0.6784531527020955,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.37869185154386065,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6611653400687929,
+    "tc": 0.47216320835917003,
+    "sp_full": 0.566184016986769,
+    "tc_full": 0.3987284374034126,
+    "f1": 0.28304018613749077,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d4f1 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": -716.155521,
+  "val_ordsum": -711.236321,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8160751262571241,
+    "tc": 0.6805640272045639,
+    "sp_full": 0.6783965148015313,
+    "tc_full": 0.498633353357153,
+    "f1": 0.3754821125697311,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d5f1 cleaned, EM 1620",
+  "group": "clean",
+  "val_pathcond": -716.517522,
+  "val_ordsum": -711.402779,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8103210993339814,
+    "tc": 0.6706826102876494,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3802003404112838,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6497959713147756,
+    "tc": 0.4661417994228515,
+    "sp_full": 0.5608748163556919,
+    "tc_full": 0.3964391684383751,
+    "f1": 0.28335434078395083,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d5f1 cleaned, +Adam",
+  "group": "clean",
+  "val_pathcond": -714.750558,
+  "val_ordsum": -709.580779,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8154468551413102,
+    "tc": 0.6731776443785039,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.37865421344204864,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6516662915092966,
+    "tc": 0.46749239050740055,
+    "sp_full": 0.5602905375608971,
+    "tc_full": 0.39296572212079095,
+    "f1": 0.2874347715413007,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d5f1 cleaned, +L-BFGS",
+  "group": "clean",
+  "val_pathcond": -715.549646,
+  "val_ordsum": -710.493102,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8063319530383025,
+    "tc": 0.6650446663835375,
+    "sp_full": 0.6735708418352755,
+    "tc_full": 0.49444385643309835,
+    "f1": 0.3779580112867759,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d3f1 Table 4 (full corpus, 540)",
+  "group": "full",
+  "val_pathcond": -718.500171,
+  "val_ordsum": -713.568423,
+  "test_pathcond": -726.360655,
+  "test_ordsum": -720.940378,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.818748858253166,
+    "tc": 0.6858160402180827,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3750861275295974,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6565062947437865,
+    "tc": 0.4681801057815301,
+    "sp_full": 0.5650146036493195,
+    "tc_full": 0.3994458198362205,
+    "f1": 0.28295745045366855,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.9065325840053701,
+    "tc": 0.8344852147211606,
+    "sp_full": 0.8700501160266544,
+    "tc_full": 0.7809909728199788,
+    "f1": 0.6735867269835204,
+    "n": 336
+   }
+  }
+ },
+ {
+  "model": "MixDom d3f1 full corpus, EM 1620",
+  "group": "full",
+  "val_pathcond": -718.20163,
+  "val_ordsum": -713.272607,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8110609330941422,
+    "tc": 0.6754745432740233,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3732079979879276,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6586594010635666,
+    "tc": 0.47027464657617485,
+    "sp_full": 0.565189830696754,
+    "tc_full": 0.399770537038779,
+    "f1": 0.2811757212322702,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d3f1 full corpus, +Adam",
+  "group": "full",
+  "val_pathcond": -717.288904,
+  "val_ordsum": -712.721712,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8127607986536053,
+    "tc": 0.6736676123905805,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3780086631343181,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6559004942055601,
+    "tc": 0.46739175964133506,
+    "sp_full": 0.5634015128383558,
+    "tc_full": 0.3960526774605198,
+    "f1": 0.2817927352264366,
+    "n": 303
+   },
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d3f1 full corpus, +L-BFGS",
+  "group": "full",
+  "val_pathcond": -717.633755,
+  "val_ordsum": -712.682547,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8109939914431095,
+    "tc": 0.6704047825147159,
+    "sp_full": null,
+    "tc_full": null,
+    "f1": 0.3767494093800514,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 full corpus, EM 1620",
+  "group": "full",
+  "val_pathcond": -719.898516,
+  "val_ordsum": -715.391124,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.8149891803940686,
+    "tc": 0.6819044583607337,
+    "sp_full": 0.6770660097574871,
+    "tc_full": 0.4974651210317577,
+    "f1": 0.3752158368175329,
+    "n": 120
+   },
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 full corpus, +Adam",
+  "group": "full",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 full corpus, +L-BFGS",
+  "group": "full",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 tied mixture (control), EM 1620",
+  "group": "control",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MixDom d2f1 tied indel (control), EM 1620",
+  "group": "control",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": null,
+   "sabrem": null,
+   "oxm": null
+  }
+ },
+ {
+  "model": "MAFFT",
+  "group": "ext",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.7972397497989208,
+    "tc": 0.6527678345005173,
+    "sp_full": null,
+    "tc_full": null,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6499456661278462,
+    "tc": 0.46913718359391726,
+    "sp_full": 0.5541578325848472,
+    "tc_full": 0.38735402700856286,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.8909829150048822,
+    "tc": 0.8117782520994827,
+    "sp_full": 0.8550814448537194,
+    "tc_full": 0.7638813749077987,
+    "n": 336
+   }
+  }
+ },
+ {
+  "model": "MUSCLE",
+  "group": "ext",
+  "val_pathcond": null,
+  "val_ordsum": null,
+  "test_pathcond": null,
+  "test_ordsum": null,
+  "bench": {
+   "bali3pdbm": {
+    "sp": 0.840993129827386,
+    "tc": 0.7150742831406478,
+    "sp_full": null,
+    "tc_full": null,
+    "n": 120
+   },
+   "sabrem": {
+    "sp": 0.6816784791172427,
+    "tc": 0.49841275957954295,
+    "sp_full": 0.5770633769700603,
+    "tc_full": 0.40575052680126006,
+    "n": 303
+   },
+   "oxm": {
+    "sp": 0.9060948810969096,
+    "tc": 0.8328309740430443,
+    "sp_full": 0.8677292758493131,
+    "tc_full": 0.7745049124129656,
+    "n": 336
+   }
+  }
+ }
+]

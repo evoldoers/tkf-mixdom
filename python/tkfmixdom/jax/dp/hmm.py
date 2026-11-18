@@ -851,6 +851,45 @@ def pair_hmm_emissions_per_domain(state_types, x_seq, y_seq,
     return emit
 
 
+def pair_hmm_emissions_per_fragtype(state_types, x_seq, y_seq, sub_matrices, pis):
+    """Emission log-probabilities for a MixFrag pair HMM with one substitution model per fragtype.
+
+    State order is that of ``make_mixfrag_pair_hmm``: S, M_1..M_F, I_1..I_F, D_1..D_F, E (F = sub_matrices.shape[0]).
+    M_f emits (x_i, y_j) with probability pi_f[x_i] * sub_f[x_i, y_j]; I_f emits y_j with pi_f[y_j]; D_f emits x_i
+    with pi_f[x_i]; S and E are silent. Residue index A (wildcard) emits with probability 1, as in
+    ``pair_hmm_emissions_per_domain``.
+
+    Args:
+        state_types: (3F+2,) state type codes
+        x_seq, y_seq: (Lx,), (Ly,) integer sequences
+        sub_matrices: (F, A, A) per-fragtype substitution probability matrices P_f(t)
+        pis: (F, A) per-fragtype equilibrium distributions
+    Returns:
+        emit: (Lx+1, Ly+1, 3F+2) log emission for each state at each grid position.
+    """
+    ns = state_types.shape[0]
+    F = sub_matrices.shape[0]
+    log_subs = jnp.log(jnp.maximum(sub_matrices, 1e-30))
+    log_pis = jnp.log(jnp.maximum(pis, 1e-30))
+    log_subs = jnp.pad(log_subs, ((0, 0), (0, 1), (0, 1)), constant_values=0.0)   # (F, A+1, A+1)
+    log_pis = jnp.pad(log_pis, ((0, 0), (0, 1)), constant_values=0.0)             # (F, A+1)
+    x_pad = jnp.concatenate([jnp.array([0]), x_seq])
+    y_pad = jnp.concatenate([jnp.array([0]), y_seq])
+    # fragtype of each state: S -> 0, M_f/I_f/D_f -> f, E -> 0
+    frag_idx = jnp.zeros(ns, dtype=jnp.int32)
+    # Explicit int32 cast: under x64 the arange is int64 and the scatter into
+    # the int32 frag_idx raised a FutureWarning (incompatible scatter types).
+    frag_idx = frag_idx.at[1:ns - 1].set((jnp.arange(ns - 2) % F).astype(jnp.int32))
+    state_log_pi = log_pis[frag_idx]      # (ns, A+1)
+    state_log_sub = log_subs[frag_idx]    # (ns, A+1, A+1)
+    match_emit = (state_log_pi[:, x_pad][:, :, None] + state_log_sub[:, x_pad][:, :, y_pad]).transpose(1, 2, 0)
+    ins_emit = state_log_pi[:, y_pad].T   # (Ly+1, ns)
+    del_emit = state_log_pi[:, x_pad].T   # (Lx+1, ns)
+    is_M = (state_types == M); is_I = (state_types == I); is_D = (state_types == D)
+    emit = (is_M[None, None, :] * match_emit + is_I[None, None, :] * ins_emit[None, :, :] + is_D[None, None, :] * del_emit[:, None, :])
+    return jnp.where((is_M | is_I | is_D)[None, None, :], emit, 0.0)
+
+
 def pair_hmm_emissions_constrained_per_domain(state_types, state_seq,
                                                 anc_chars, desc_chars,
                                                 sub_matrices, pis,
@@ -1117,6 +1156,48 @@ def mask_emissions_match_aligned(emit, state_types, match_positions_i, match_pos
     return emit + penalty
 
 
+def mask_emissions_match_pinned(emit, state_types, match_positions_i, match_positions_j):
+    """Mask a 2D emission table so every path is forced THROUGH each training
+    match: the path must enter cell (i+1, j+1) by the diagonal (M) step for
+    every match (i, j), and M states may fire nowhere else.
+
+    ``mask_emissions_match_aligned`` only restricts where M may fire; a path
+    may still skip a match cell with an insert + delete.  Here, in addition,
+    every M/I/D emission is set to NEG_INF at any cell (i', j') with
+    ``(i' < i+1) != (j' < j+1)`` for some match (i, j) — the cells a
+    monotone path would have to visit to bypass the diagonal step
+    (i, j) -> (i+1, j+1).  Matches must be monotone (as alignment columns
+    are); padding slots holding -1 constrain nothing.
+
+    Args:
+        emit: (Lx+1, Ly+1, ns) log emission table (already computed)
+        state_types: (ns,) state type array (S=0, M=1, I=2, D=3, E=4)
+        match_positions_i: (n_matches,) int array of x positions (0-indexed; -1 = pad)
+        match_positions_j: (n_matches,) int array of y positions (0-indexed; -1 = pad)
+
+    Returns:
+        masked_emit: (Lx+1, Ly+1, ns)
+    """
+    Lx1, Ly1, ns = emit.shape
+    emit = mask_emissions_match_aligned(emit, state_types,
+                                        match_positions_i, match_positions_j)
+    mi1 = jnp.asarray(match_positions_i, dtype=jnp.int32) + 1  # (n,)
+    mj1 = jnp.asarray(match_positions_j, dtype=jnp.int32) + 1
+    rows = jnp.arange(Lx1, dtype=jnp.int32)[:, None]            # (Lx1, 1)
+    passed = mi1[None, :] <= rows                               # (Lx1, n)
+    # Row i' may only use columns j' with lo(i') <= j' < hi(i'):
+    #   lo = max over matches already passed (mi1 <= i') of mj1  (pad -> 0)
+    #   hi = min over matches not yet passed (mi1 > i') of mj1   (none -> Ly1)
+    lo = jnp.max(jnp.where(passed, mj1[None, :], 0), axis=1)    # (Lx1,)
+    hi = jnp.min(jnp.where(passed, Ly1, mj1[None, :]), axis=1)  # (Lx1,)
+    cols = jnp.arange(Ly1, dtype=jnp.int32)[None, :]            # (1, Ly1)
+    allowed = (cols >= lo[:, None]) & (cols < hi[:, None])      # (Lx1, Ly1)
+    emitting = (state_types == M) | (state_types == I) | (state_types == D)
+    penalty = jnp.where(emitting[None, None, :] & ~allowed[:, :, None],
+                        NEG_INF, 0.0)
+    return emit + penalty
+
+
 def _forward_2d_core(log_trans, state_types, emit, Lx, Ly):
     """Core forward algorithm for a Pair HMM.
 
@@ -1309,31 +1390,14 @@ def _forward_2d_core_diag(log_trans, state_types, emit, Lx, Ly,
         jnp.arange(1, n_diags + 1))
     # all_diags: (n_diags, D_max, ns) — diags 1..Lx+Ly
 
-    # Scatter diagonals into full (Lx+1, Ly+1, ns) grid via fori_loop.
-    # One diagonal per iteration keeps each scatter small (≤D_max entries).
-    F = jnp.full((Lx + 1, Ly + 1, ns), NEG_INF)
-    F = F.at[0, 0, S].set(0.0)
-
-    # Scatter via flat indexing with fori_loop: one diagonal per step.
-    # Use (n_flat+1) buffer with dummy overflow slot to avoid collisions.
-    n_flat = (Lx + 1) * (Ly + 1)
-    F_flat = jnp.concatenate([F.reshape(n_flat, ns),
-                               jnp.full((1, ns), NEG_INF)], axis=0)
-
-    def _scatter_one_diag(idx, F_flat):
-        d = idx + 1
-        diag_data = all_diags[idx]
-        i_min_d = jnp.maximum(0, d - Ly)
-        ks = jnp.arange(D_max)
-        i_vals = i_min_d + ks
-        j_vals = d - i_vals
-        valid = (i_vals <= Lx) & (j_vals >= 0) & (j_vals <= Ly)
-        lin = i_vals * (Ly + 1) + j_vals
-        lin_safe = jnp.where(valid, lin, n_flat)  # invalid → dummy
-        return F_flat.at[lin_safe].set(diag_data)
-
-    F_flat = jax.lax.fori_loop(0, n_diags, _scatter_one_diag, F_flat)
-    F = F_flat[:n_flat].reshape(Lx + 1, Ly + 1, ns)
+    # Assemble the full (Lx+1, Ly+1, ns) chart with ONE gather: cell (i, j) lies on diagonal d = i + j at
+    # position k = i - max(0, d - Ly) of all_diags[d - 1]. (A fori_loop of one scatter per diagonal, as before,
+    # launched Lx+Ly small kernels per pass and cost several forward passes on a GPU.)
+    ii, jj = jnp.meshgrid(jnp.arange(Lx + 1), jnp.arange(Ly + 1), indexing='ij')
+    dd = ii + jj
+    kk = ii - jnp.maximum(0, dd - Ly)
+    F = all_diags[jnp.clip(dd - 1, 0, n_diags - 1), kk]          # (Lx+1, Ly+1, ns)
+    F = F.at[0, 0].set(diag0[0])                                   # diagonal 0: only F[0, 0, S] = 0
 
     log_prob = jax.nn.logsumexp(F[Lx, Ly, :] + log_trans[:, e_idx])
     return log_prob, F
@@ -1456,29 +1520,13 @@ def _backward_2d_core_diag(log_trans, state_types, emit, Lx, Ly,
         jnp.arange(n_diags)[::-1])
     # all_diags: (n_diags, D_max, ns) for diags Lx+Ly-1 down to 0
 
-    # Scatter into full grid via fori_loop (one diagonal per step).
-    B = jnp.full((Lx + 1, Ly + 1, ns), NEG_INF)
-    B = B.at[term_Lx, term_Ly].set(log_trans[:, e_idx])
-
-    # all_diags[idx] corresponds to diagonal d = (Lx+Ly-1) - idx
-    n_flat = (Lx + 1) * (Ly + 1)
-    B_flat = jnp.concatenate([B.reshape(n_flat, ns),
-                               jnp.full((1, ns), NEG_INF)], axis=0)
-
-    def _scatter_one_diag(idx, B_flat):
-        d = (Lx + Ly - 1) - idx
-        diag_data = all_diags[idx]
-        i_min_d = jnp.maximum(0, d - Ly)
-        ks = jnp.arange(D_max)
-        i_vals = i_min_d + ks
-        j_vals = d - i_vals
-        valid = (i_vals <= Lx) & (j_vals >= 0) & (j_vals <= Ly)
-        lin = i_vals * (Ly + 1) + j_vals
-        lin_safe = jnp.where(valid, lin, n_flat)
-        return B_flat.at[lin_safe].set(diag_data)
-
-    B_flat = jax.lax.fori_loop(0, n_diags, _scatter_one_diag, B_flat)
-    B = B_flat[:n_flat].reshape(Lx + 1, Ly + 1, ns)
+    # Assemble the full chart with ONE gather (see _forward_2d_core_diag): all_diags[idx] is diagonal
+    # d = (Lx+Ly-1) - idx, cell (i, j) at position k = i - max(0, d - Ly); diagonal Lx+Ly is diag_top.
+    ii, jj = jnp.meshgrid(jnp.arange(Lx + 1), jnp.arange(Ly + 1), indexing='ij')
+    dd = ii + jj
+    kk = ii - jnp.maximum(0, dd - Ly)
+    idx = jnp.clip((Lx + Ly - 1) - dd, 0, n_diags - 1)
+    B = jnp.where((dd == Lx + Ly)[:, :, None], diag_top[kk], all_diags[idx, kk])
     B = B.at[term_Lx, term_Ly].set(log_trans[:, e_idx])
 
     return B

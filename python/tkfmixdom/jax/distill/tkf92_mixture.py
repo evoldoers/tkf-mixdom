@@ -398,7 +398,7 @@ def inner_em(match_counts, singlet_counts, transition_counts, tau_centers,
              theta_init, *, n_iter_max=30, rel_tol=1e-4,
              pi_lg=None, S_lg=None, pi_pseudo=1.0, S_pseudo=0.0,
              prior_alpha_lam=2.0, prior_alpha_mu=2.0, prior_beta=10.0,
-             ext_prior_alpha=2.0, ext_prior_beta=3.0,
+             ext_prior_alpha=2.0, ext_prior_beta=3.0, tie_subst=False, tie_indel=False,
              log_fn=None):
     """Inner TKF92 BW on aggregate τ-binned counts.
 
@@ -446,7 +446,11 @@ def inner_em(match_counts, singlet_counts, transition_counts, tau_centers,
         # ---- M-step (λ, μ) via BDI quadratic ----
         EB, ED, ES, L, M, T_total = _aggregate_bdi_stats(
             n_91, lam, mu, tau_centers)
-        if EB + ED + L + M < 1e-9:
+        if tie_indel:
+            # indel process tied across components (and held at its initial value): the component is a
+            # substitution-matrix class only, the mirror of tie_subst
+            lam_new, mu_new, r_new = lam, mu, r
+        elif EB + ED + L + M < 1e-9:
             lam_new, mu_new = lam, mu
         else:
             lam_new, mu_new = m_step_indel_quadratic(
@@ -456,15 +460,20 @@ def inner_em(match_counts, singlet_counts, transition_counts, tau_centers,
                 prior_beta=prior_beta)
 
         # ---- M-step (S, π) via HR strategy #2 (m_step_subst_option1) ----
-        Q = build_rate_matrix(S, pi)
-        W, U, V = _aggregate_hr_stats(match_counts, singlet_counts, Q, pi,
-                                      tau_centers)
-        S_new, pi_new, _ = m_step_subst_option1(
-            np.asarray(W), np.asarray(U), np.asarray(V),
-            S_prior=np.asarray(S_lg) if S_lg is not None else None,
-            pi_prior=np.asarray(pi_lg) if pi_lg is not None else None,
-            pi_pseudo=pi_pseudo, S_pseudo=S_pseudo,
-            n_iter=50, tol=1e-10)
+        if tie_subst:
+            # substitution model tied across components (and held at its initial value): the component
+            # is an indel-parameter class only; emissions are supplied by a shared site mixture at scoring time
+            S_new, pi_new = S, pi
+        else:
+            Q = build_rate_matrix(S, pi)
+            W, U, V = _aggregate_hr_stats(match_counts, singlet_counts, Q, pi,
+                                          tau_centers)
+            S_new, pi_new, _ = m_step_subst_option1(
+                np.asarray(W), np.asarray(U), np.asarray(V),
+                S_prior=np.asarray(S_lg) if S_lg is not None else None,
+                pi_prior=np.asarray(pi_lg) if pi_lg is not None else None,
+                pi_pseudo=pi_pseudo, S_pseudo=S_pseudo,
+                n_iter=50, tol=1e-10)
 
         lam, mu, r = float(lam_new), float(mu_new), float(r_new)
         S = jnp.asarray(S_new)
@@ -487,7 +496,7 @@ def inner_em(match_counts, singlet_counts, transition_counts, tau_centers,
 # Outer EM driver
 # ============================================================
 def init_components(K, *, seed=0, perturb=0.05, base_lam=0.02, base_mu=0.025,
-                    base_r=0.5):
+                    base_r=0.5, tie_subst=False, tie_indel=False):
     """Initialise K TKF92 components: uniform with small symmetry-breaking.
 
     All components share the LG (S, π) baseline. Each component's TKF
@@ -505,15 +514,16 @@ def init_components(K, *, seed=0, perturb=0.05, base_lam=0.02, base_mu=0.025,
     for k in range(K):
         # Small per-component perturbation of the LG π (Dirichlet noise)
         # so the components have distinct emissions at iter 0.
-        pi_k = pi_lg_np * (1.0 + perturb * rng.randn(AA))
+        pi_k = pi_lg_np * (1.0 + (0.0 if tie_subst else perturb) * rng.randn(AA))
         pi_k = np.maximum(pi_k, 1e-6)
         pi_k = pi_k / pi_k.sum()
         # Perturb the rates (multiplicative)
-        lam_k = base_lam * (1.0 + perturb * rng.randn())
-        mu_k = base_mu * (1.0 + perturb * rng.randn())
+        ip = 0.0 if tie_indel else perturb   # tie_indel: every component starts (and stays) at the base rates
+        lam_k = base_lam * (1.0 + ip * rng.randn())
+        mu_k = base_mu * (1.0 + ip * rng.randn())
         # Ensure μ > λ
         mu_k = max(mu_k, lam_k + 1e-4)
-        r_k = base_r + perturb * rng.randn()
+        r_k = base_r + ip * rng.randn()
         r_k = max(min(r_k, 0.95), 0.05)
         thetas.append((float(lam_k), float(mu_k), float(r_k),
                        jnp.asarray(S_lg.copy()), jnp.asarray(pi_k)))
@@ -538,7 +548,7 @@ def fit_mixture(stack: CherryStack, K: int, *,
                 prior_alpha_lam: float = 2.0,
                 prior_alpha_mu: float = 2.0,
                 prior_beta: float = 10.0,
-                log_fn=print):
+                log_fn=print, tie_subst=False, tie_indel=False):
     """Fit K-component mixture-of-TKF92 to a CherryStack.
 
     Returns:
@@ -554,7 +564,7 @@ def fit_mixture(stack: CherryStack, K: int, *,
 
     thetas, log_mix = init_components(
         K, seed=seed, perturb=perturb,
-        base_lam=base_lam, base_mu=base_mu, base_r=base_r)
+        base_lam=base_lam, base_mu=base_mu, base_r=base_r, tie_subst=tie_subst, tie_indel=tie_indel)
 
     history = []
     prev_total_ll = -float("inf")
@@ -602,7 +612,7 @@ def fit_mixture(stack: CherryStack, K: int, *,
                 pi_lg=pi_lg_np, S_lg=S_lg, pi_pseudo=pi_pseudo, S_pseudo=S_pseudo,
                 prior_alpha_lam=prior_alpha_lam, prior_alpha_mu=prior_alpha_mu,
                 prior_beta=prior_beta,
-                ext_prior_alpha=ext_prior_alpha, ext_prior_beta=ext_prior_beta,
+                ext_prior_alpha=ext_prior_alpha, ext_prior_beta=ext_prior_beta, tie_subst=tie_subst, tie_indel=tie_indel,
                 log_fn=None)
             new_thetas.append(theta_k)
         thetas = new_thetas

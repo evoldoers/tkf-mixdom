@@ -1,0 +1,430 @@
+---
+title: "Holmes (2005), supplementary equations (8)–(17): closed-form solutions, relation to the gravestone Volterra equation, and misprints"
+---
+
+This note merges three independent attacks on the problem: route A (generating function), route B (score identities) and route C (numerics). Every identity used below is checked symbolically by `verify_all.py`; its output is in `verify_all_output.txt` (172 checks, all reduce to exactly `0` or `True`). The numerical evidence for Q3 is in `numeric_check.py` and `numeric_check_output.txt`; those numbers are checks, not part of any proof.
+
+Sources:
+
+- [H-S] the supplement of Holmes (2005), *Bioinformatics* 21:2294, pp. 9–14, read from the page images.
+- [H-M] the main text, PMC version, §3.3.
+- [DART] `src/tkf/tkfcoeff.cc` in github.com/ihh/dart, Holmes's implementation. The lines used here are unchanged since the earliest CVS revision (2003-11-10; see `dart_tkfcoeff_note.md`). What it computes is summarised in §5.3.
+- [P] paper 1 (the MBE revision); `eq:` names are its LaTeX equation labels.
+
+# 0. Answers
+
+**Q1 (closed forms).** For each zone type $z\in\{\circ,\bullet,\circ\bullet,\bullet\bullet\}$, the closed forms $I_z$ (insertions) and $Z_z$ (exposure) are defined from the TKF91 pair-HMM in two equivalent ways:
+
+- by the score identities eq:score-bds plus the conservation law eq:conservation, applied to a factorisation of the path weight into zone weights (Definition 2);
+- as logarithmic derivatives, in the gravestone variable $w$ or in an exposure tilt $\theta$, of three closed-form functions $B,W,R$ obtained from eq:pgf-closed and eq:ID-closed (§6, Proposition 6).
+
+Three theorems settle Q1.
+
+- **Theorem 1.** For every alignment path, $\sum_zN_zI_z=\mathbb E[B]$, $\sum_zN_z(I_z-c_z)=\mathbb E[D]$ and $\sum_zN_zZ_z=\mathbb E[S]+T$. No other per-zone coefficients have this property.
+- **Theorem 2.** The closed forms satisfy (8), (9)–(16) as printed, and (17) once the two "$t+$" terms are deleted. This holds for all $\lambda,\mu>0$ including $\lambda=\mu$.
+- **Theorem 3.** Each of these equations has exactly one bounded solution. So the exact solution of (8)–(16), (17′) is the closed forms, and an E-step built on it is exact. Holmes's first-order scheme (the [DART] port) is observed numerically to converge to the closed forms, at first order.
+
+**Q2 (relation to eq:volterra).** The hypothesis holds, with two refinements.
+
+- **(9) and (14)** are first variations of the exposure-tilted eq:volterra at $z=0$, in $w$ and $\theta$ respectively, divided by the fate probability. They are therefore linear Volterra equations of the second kind.
+- **(11) and (16)** are the $w$- and $\theta$-variations of the $z^1$ coefficient of the death term, after division by the factor $W$.
+- **(10), (15), (12) and (17′)** are not integral equations. They are variations of $\mathcal I_D=\exp(\lambda\int(f-1))$ and of its geometric ratio, so they reduce to quadratures.
+- **Propagation event versus $D\to L\,D$.** The production $D\to L\cdot D$ peels off the most recent birth of any kind. Holmes's propagation event is the most recent birth whose family has a survivor. Summing $D\to L\cdot D$ over the extinct children born after it gives $\mathcal I_D(T-t,T-t;0)=1-\beta(T-t)$, the numerator of $c$. The same form over the earlier window $[0,t]$ is $v(t\mid T)/e^{-\mu t}$ in (8). The two decompositions coincide after this regrouping.
+- **(9) and (14) are not last-event decompositions.** They come from differentiating the exponential $\mathcal I_D$ (a first-moment formula), followed by an exchange of the order of integration between the grammar's death time $\ell$ and the birth time $t$.
+
+**Q3 (misprints).** The supplement contains three errors. All other displayed equations are correct: (8)–(16), (13), and the sums $\hat S,\hat I,\hat D$ of §5.4.
+
+1. **Eq. (17).** Both "$t+$" terms must be deleted. As printed, the right-hand side equals the correct $Z_{\bullet\bullet}$ plus $\mathbb E[t_{\mathcal P}\mid\bullet\bullet]=\beta(T)^{-1}\int_0^T\beta=(\lambda T+\log(1-\beta(T)))/(\mu\beta(T))>0$. (16), which has no $t$, is the consistent one. Holmes's code [DART] computes `Z11` without the $t$, and his own Fig. 9 (bottom) allocates exposure as (16) and (17′) do (§5.1, evidence 5).
+2. **§5.4, last line.** It should read $\hat Z=\sum_zN_z\hat Z_z-T$. [H-M] §3.3 defines $\hat Z$ as the time accrued by *mortal* links, but the zone sum also contains the immortal link's $T$, through (15) applied to the S-zone. [DART] subtracts $T$ ("subtract site-time contribution of immortal link") and sets $\lambda=I/(Z+T)$, $\mu=D/Z$, which is eq:mstep.
+3. **Fig. 9 caption, bottom example.** "Ancestor survives" should read "Ancestor dies". The drawing shows the ancestor deleted, and the first zone is $\circ\bullet$.
+($q_0$, used before (11), is not an error: the main article's Eq. (2) defines $q_n(t)$, and $q_0=(1-\alpha)(1-\gamma)=\mu\beta/\lambda$, the extinction probability. The same factor appears in (13) and in Fig. 8.)
+
+# 1. Setting and assumptions
+
+TKF91 has insertion rate $\lambda$ and deletion rate $\mu$, with $\lambda,\mu>0$.
+
+- **Branch length and links.** $T$ is the branch length (the paper's $t$). Each link alive at time $\tau$ inserts a child immediately to its right at rate $\lambda$. Mortal links die at rate $\mu$; the immortal link never dies.
+- **Factors.** $\alpha(s)=e^{-\mu s}$, $\eta(s)=e^{-\lambda s}$, $\delta=\mu\eta-\lambda\alpha$, $\beta=\lambda(\eta-\alpha)/\delta$, $\gamma=1-\mu\beta/(\lambda(1-\alpha))$, as in eq:abg. These are Holmes's $\alpha,\beta,\gamma$. Unless an argument is shown, $\alpha=\alpha(T)$ and so on.
+- **Holmes's rates** (A1 below supplies $q_0$):
+$$\lambda_v=\lambda\alpha,\qquad\lambda_w=\lambda(1-\alpha)\gamma,\qquad\lambda_x=\lambda(1-\alpha)(1-\gamma)=\lambda q_0 .$$
+- **Abbreviations.** $k=\lambda-\mu$ and $\epsilon=\lambda(1-\alpha)-\mu(1-\eta)$. Inside integrals, $s=T-t$.
+- **Notation from [P].** $\mathcal I_D(t,T;z,w)$ keeps the paper's argument order: remaining time, then window length. $T$ is also the branch length, so $\mathcal I_D(T,t;0)$ is the window $[0,t]$ of a link with $T$ remaining. Unlike eq:pgf-closed, the note does not require $z_+$ to be the larger root; the closed forms are invariant under $z_+\leftrightarrow z_-$ with $\Delta\to-\Delta$ (§6.1).
+
+**The equations as printed** ([H-S] pp. 9–11, transcribed from the page images; hats as printed). Holmes defines $\lambda_v(t)=\lambda\alpha(t)$, $\lambda_w(t)=\lambda(1-\alpha(t))\gamma(t)$, $\lambda_x(t)=\lambda(1-\alpha(t))(1-\gamma(t))$, and:
+\begin{align*}
+\log v(t\mid T)&=-\int_0^t\big(\mu+\lambda_v(T-t')+\lambda_w(T-t')\big)\,dt' \tag*{(8)}\\
+\hat I_\circ(T)&=\int_{t=0}^T a(t\mid T)\,\lambda_x(T-t)\big(1+\hat I_\circ(T-t)\big)\,dt \tag*{(9)}\\
+\hat I_\bullet(T)&=\int_{t=0}^T \lambda_x(T-t)\big(1+\hat I_\circ(T-t)\big)\,dt \tag*{(10)}\\
+\hat I_{\circ\bullet}(T)&=\int_{t=0}^T b(t\mid T)\Big(\lambda_v(T-t)\big(1+\hat I_\circ(T-t)\big)\\
+&\qquad\qquad+\lambda_w(T-t)\big(1+\hat I_\circ(T-t)+\hat I_{\circ\bullet}(T-t)\big)\Big)\,dt \tag*{(11)}\\
+\hat I_{\bullet\bullet}(T)&=\int_{t=0}^T c(t\mid T)\Big(\lambda_v(T-t)\big(1+\hat I_\bullet(T-t)\big)\\
+&\qquad\qquad+\lambda_w(T-t)\big(1+\hat I_\bullet(T-t)+\hat I_{\circ\bullet}(T-t)\big)\Big)\,dt \tag*{(12)}\\
+a(t\mid T)&=\frac{v(t\mid T)\,(1-\alpha(T-t))(1-\gamma(T-t))}{(1-\alpha(T))(1-\gamma(T))},\qquad
+b(t\mid T)=\frac{\alpha(t)\,(1-\alpha(T-t))(1-\gamma(T-t))}{(1-\alpha(T))\gamma(T)},\\
+c(t\mid T)&=\frac{1-\beta(T-t)}{\beta(T)} \tag*{(13)}\\
+\hat Z_\circ(T)&=\int_{t=0}^T a(t\mid T)\big(1+\lambda_x(T-t)\hat Z_\circ(T-t)\big)\,dt \tag*{(14)}\\
+\hat Z_\bullet(T)&=\int_{t=0}^T \big(1+\lambda_x(T-t)\hat Z_\circ(T-t)\big)\,dt \tag*{(15)}\\
+\hat Z_{\circ\bullet}(T)&=\int_{t=0}^T b(t\mid T)\Big(\lambda_v(T-t)\hat Z_\circ(T-t)\\
+&\qquad\qquad+\lambda_w(T-t)\big(\hat Z_\circ(T-t)+\hat Z_{\circ\bullet}(T-t)\big)\Big)\,dt \tag*{(16)}\\
+\hat Z_{\bullet\bullet}(T)&=\int_{t=0}^T c(t\mid T)\Big(\lambda_v(T-t)\big(t+\hat Z_\bullet(T-t)\big)\\
+&\qquad\qquad+\lambda_w(T-t)\big(t+\hat Z_\bullet(T-t)+\hat Z_{\circ\bullet}(T-t)\big)\Big)\,dt \tag*{(17)}
+\end{align*}
+(17′) denotes (17) with both "$t+$" deleted. The note's closed forms $I_z,Z_z$ carry no hats.
+
+**A1 ($q_0$).** $q_0(s)=(1-\alpha(s))(1-\gamma(s))$ ([H-M] Eq. (2), $q_n$ at $n=0$), the probability that a link with $s$ time remaining dies and leaves no surviving descendant. This is the factor in (13) and in Fig. 8(i),(iii). We write $q$ for $q_0$.
+
+**A2 (zones).** Zone types are those of Holmes's transition lists:
+
+- $\circ$: DM, DD, DE;
+- $\bullet$: SM, SD, SE, MM, MD, ME, IM, ID, IE;
+- $\circ\bullet$: DI;
+- $\bullet\bullet$: SI, MI, II.
+
+So a zone runs from its marker to the next *observed* link, which may be a deleted ancestral residue (route C, note 5).
+
+**A3 (exposure).** $S$ is the exposure of mortal links (the paper's $S$). "$Z$" is used only for Holmes's quantities.
+
+**Lemma 0** (verify_all §2–3).
+
+(a) $\lambda_x=\mu\beta$, i.e. $q=\mu\beta/\lambda$.
+
+(b) $\lambda_v+\lambda_w+\lambda_x=\lambda$.
+
+(c) $\beta'=(1-\beta)(\lambda-\mu\beta)$, and hence $(1-\beta)(\lambda_v+\lambda_w)=\beta'$.
+
+(d) $q'=\mu(1-\beta)(\lambda-\mu\beta)/\lambda\ge0$, because $0\le\beta<\min(1,\lambda/\mu)$.
+
+(e) As $T\to0$, $(1-\alpha)\gamma\sim\lambda\mu T^2/2$ and $q\sim\mu T$.
+
+# 2. What must equal what (Q1, first half)
+
+**Lemma 1 (zone bookkeeping).** Let $N_z$ be the zone counts of a path $\mathrm S\to\dots\to\mathrm E$. Then
+$$\#I=N_{\circ\bullet}+N_{\bullet\bullet},\quad \#D=N_\circ+N_{\circ\bullet},\quad \#M=N_\bullet-N_{\circ\bullet}-1,\quad i=N_\circ+N_\bullet-1,\quad j-i=N_{\bullet\bullet}-N_\circ .$$
+The weight of the path in eq:cond_tkf91 is
+$$P(\pi)=\alpha^{-1}\prod_zP_z^{N_z},\qquad P_\circ=(1-\alpha)(1-\gamma),\ \ P_\bullet=\alpha(1-\beta),\ \ P_{\circ\bullet}=\frac{(1-\alpha)\gamma}{\alpha},\ \ P_{\bullet\bullet}=\beta .$$
+
+*Proof.*
+
+- Every transition out of D is either DI ($\circ\bullet$) or one of DM, DD, DE ($\circ$). Every transition into I is $\circ\bullet$ or $\bullet\bullet$.
+- Transitions out of S, M or I number $N_\bullet+N_{\bullet\bullet}=1+\#M+\#I$.
+- Each weight in eq:cond_tkf91 is a source-row factor ($\beta$ or $1-\beta$ from S, M, I; $\gamma$ or $1-\gamma$ from D) times a destination factor ($\alpha$ for M, $1-\alpha$ for D, $1$ for I or E). Collect powers.
+
+Both statements are checked exhaustively on all 3280 paths of length $\le7$ (verify_all §1). ∎
+
+The factor $\alpha^{-1}=e^{\mu T}$ and the $\alpha^{-1}$ inside $P_{\circ\bullet}$ are the bookkeeping behind Holmes's "WLOG the marker is ancestral". Every $\bullet$ zone carries one $\alpha$, as if its marker were a surviving ancestral link. The path has only $\#M=N_\bullet-N_{\circ\bullet}-1$ such factors. The deficit is one per $\circ\bullet$ zone and one for the immortal link.
+
+**Definition 2 (our closed forms).** Put
+$$\ell_z=\log P_z,\quad L_z=\lambda\partial_\lambda\ell_z,\quad M_z=\mu\partial_\mu\ell_z\ (T\text{ fixed}),\quad c_\circ=-1,\ c_\bullet=c_{\circ\bullet}=0,\ c_{\bullet\bullet}=+1,$$
+$$\boxed{\;Z_z=\frac{c_z+M_z-L_z}{\lambda-\mu},\qquad I_z=L_z+\lambda Z_z,\qquad D_z=I_z-c_z=M_z+\mu Z_z\;}$$
+These are eq:score-bds and eq:conservation applied zone by zone: the per-zone analogue of eq:ES without its immortal-link term $-\lambda t$. By Theorem 1 the zone sum $\sum_zN_zZ_z$ equals eq:ES plus $T$.
+
+**Theorem 1 (exact totals).** For every path $\pi$,
+$$\sum_zN_zI_z=\mathbb E[B\mid\pi],\qquad\sum_zN_zD_z=\mathbb E[D\mid\pi],\qquad\sum_zN_zZ_z=\mathbb E[S\mid\pi]+T,$$
+and so also for Baum–Welch expected counts, by linearity.
+
+*Proof.*
+
+- The score identity holds for any event, in particular for $\pi$. With Lemma 1, $\lambda\partial_\lambda\log P(\pi)=\sum N_zL_z$, because $\lambda\partial_\lambda\log\alpha^{-1}=0$. Also $\mu\partial_\mu\log P(\pi)=\sum N_zM_z+\mu T$.
+- eq:score-bds gives $\sum N_zL_z=\mathbb E[B]-\lambda(\mathbb E[S]+T)$ and $\sum N_zM_z+\mu T=\mathbb E[D]-\mu\mathbb E[S]$. Lemma 1 and eq:conservation give $\mathbb E[B]-\mathbb E[D]=N_{\bullet\bullet}-N_\circ=\sum N_zc_z$.
+- Solving these three linear equations gives the claim. ∎
+
+(verify_all §2, "Theorem 1".)
+
+**Equal rates.** Definition 2 divides by $\lambda-\mu$. For $\lambda=\mu$, $I_z$ and $Z_z$ are defined as the $k\to0$ limits, which have no pole (verify_all §4; values in §3). Theorem 1 then holds at $\lambda=\mu$ by continuity: each $\mathbb E[\cdot\mid\pi]$ is a ratio of functions analytic in $\lambda$ whose denominator $P(\pi)$ is positive.
+
+**Uniqueness of the coefficients.** The vectors $(1,N_\circ,N_\bullet,N_{\circ\bullet},N_{\bullet\bullet})$ for the paths $\varnothing$, M, D, I, DI are linearly independent; their determinant is nonzero, and the rank over all paths of length $\le7$ is 5. Hence an affine function $K+\sum_zN_zk_z$ of the zone counts determines $K$ and every $k_z$. Holmes's sums $\hat I=\sum N_z\hat I_z$ and $\hat Z=\sum N_z\hat Z_z$ have $K=0$, which gives two consequences:
+
+* $\hat I=\mathbb E[B]$ for all data **iff** $\hat I_z=I_z$ for all $z$; then $\hat D=\hat I+N_\circ-N_{\bullet\bullet}=\mathbb E[D]$.
+* $\sum N_z\hat Z_z=\mathbb E[S]+T$ for all data **iff** $\hat Z_z=Z_z$. No constant-free sum can equal $\mathbb E[S]$, whose representation has constant $K=-T$. Since [H-M] defines $\hat Z$ as mortal-link time, §5.4 needs the "$-T$" (misprint 2).
+
+So the per-zone targets are pinned down. The constant $\alpha^{-1}=e^{\mu T}$ in Lemma 1 removes the death hazard that the immortal link's $\bullet$ zone would otherwise carry. The zone sum therefore counts the immortal link's exposure $T$. That exposure pairs with the paper's $-\lambda t$ (the $\lambda$-exposure is $S+t$) but not with the $\mu$ side (the $\mu$-exposure is $S$). Hence $\sum_zN_zZ_z=\mathbb E[S]+T$, and eq:mstep divides $B$ by $S+T$ and $D$ by $S$.
+
+**Family form (route A, same numbers).** Group the zones by the ancestral link (or the immortal link) and its run of $n$ surviving descendants:
+
+| family | zones |
+|---|---|
+| survives, $n$ | $n\times\bullet\bullet$, then one $\bullet$ |
+| dies, $n=0$ | one $\circ$ |
+| dies, $n\ge1$ | one $\circ\bullet$, then $(n-1)\times\bullet\bullet$, then one $\bullet$ |
+
+The family probabilities are $\alpha(1-\beta)\beta^n$, $q$ and $(1-\alpha)\gamma(1-\beta)\beta^{n-1}$. Applying the score identities to these events gives the following (verify_all §5, "family", for $n\le2$):
+
+- $X_\bullet=\mathbb E[X_{\rm fam}\mid\text{surv},0]$
+- $X_\circ=\mathbb E[X_{\rm fam}\mid\text{die},0]$
+- $X_{\bullet\bullet}=\mathbb E[X_{\rm fam}\mid\text{surv},n{+}1]-\mathbb E[X_{\rm fam}\mid\text{surv},n]$; the "die" families give the same increment.
+- $X_{\circ\bullet}=\mathbb E[X_{\rm fam}\mid\text{die},1]-X_\bullet$
+
+Here $X\in\{B,S\}$ and $S_{\rm fam}$ includes the founder's own exposure. The immortal family behaves like a surviving mortal family with exposure $T$ for the founder, which is again the "$+T$".
+
+# 3. The closed forms
+
+Factored forms (verify_all §2; each is checked equal to Definition 2, and route A's and route C's forms are checked equal to these):
+$$
+\begin{aligned}
+I_\circ&=\frac{\lambda\mu\,[\eta^2-\alpha^2+2kT\eta\alpha]}{k(\alpha-\eta)\delta}, &
+Z_\circ&=\frac{\mu\eta^2-\lambda\alpha^2+k\eta\alpha+k(\lambda+\mu)T\eta\alpha}{k(\alpha-\eta)\delta},\\
+I_\bullet&=\frac{\lambda\mu\,[(\lambda+\mu)(\alpha-\eta)-kT(\lambda\alpha+\mu\eta)]}{k^2\delta}, &
+Z_\bullet&=\frac{2\lambda\mu(\alpha-\eta)-kT(\lambda^2\alpha+\mu^2\eta)}{k^2\delta},\\
+I_{\circ\bullet}&=\frac{k}{\epsilon}\,I_\bullet, &
+Z_{\circ\bullet}&=\frac{\lambda\mu\,[2(\alpha-\eta)-kT(\alpha+\eta)]}{k\,\delta\,\epsilon},\\
+I_{\bullet\bullet}&=1+I_\circ, & Z_{\bullet\bullet}&=Z_\circ .
+\end{aligned}
+$$
+The last line follows from $P_\circ=(1-\alpha)(1-\gamma)=(\mu/\lambda)\beta=(\mu/\lambda)P_{\bullet\bullet}$ (Lemma 0a). The constant factor $\mu/\lambda$ has $\lambda\partial_\lambda\log(\mu/\lambda)=-1$ and $\mu\partial_\mu\log(\mu/\lambda)=+1$, so $L_\circ=L_{\bullet\bullet}-1$ and $M_\circ=M_{\bullet\bullet}+1$. In Definition 2 this raises $M_z-L_z$ by exactly $2=c_{\bullet\bullet}-c_\circ$, so $Z_\circ=Z_{\bullet\bullet}$, and then $I_\circ=L_\circ+\lambda Z_\circ=I_{\bullet\bullet}-1$. (§6.2 states the same fact for the generating functions.)
+
+**Equal rates** ($\sigma=\mu T$; the $\lambda\to\mu$ limits have no pole in $k$, verify_all §4):
+
+| quantity | value at $\lambda=\mu$ |
+|---|---|
+| $I_\circ$ | $\dfrac{\sigma^2}{3(1+\sigma)}$ |
+| $Z_\circ=Z_{\bullet\bullet}$ | $\dfrac{T(2\sigma+3)}{6(1+\sigma)}$ |
+| $I_\bullet$ | $\dfrac{\sigma^2(\sigma+3)}{6(1+\sigma)}$ |
+| $Z_\bullet$ | $\dfrac{T(\sigma^2+6\sigma+6)}{6(1+\sigma)}$ |
+| $I_{\circ\bullet}$ | $\dfrac{\sigma^2(\sigma+3)}{6(1+\sigma)(1-(1+\sigma)\alpha)}$ |
+| $Z_{\circ\bullet}$ | $\dfrac{\sigma^2T}{6(1+\sigma)(1-(1+\sigma)\alpha)}$ |
+| $I_{\bullet\bullet}$ | $1+I_\circ$ |
+
+**Floating point near $\lambda=\mu$.** The factored forms divide by powers of $k$ and cancel catastrophically in float64. At $T=1$ the relative error is about $10^{-6}$ at $|\lambda-\mu|=10^{-3}$ and about $10^{-3}$ at $|\lambda-\mu|=10^{-4}$. When $|\lambda-\mu|T\lesssim10^{-3}$, use a series in $k$ (the equal-rate table is its leading term) or forms rewritten with `expm1`.
+
+**Posterior objects.** Lemma 0(c) gives
+$$v(t\mid T)=\frac{\alpha(t)\,(1-\beta(T))}{1-\beta(s)}=e^{-\mu t}\,\mathcal I_D(T,t;0,1),$$
+the second form being eq:ID-closed at $z=0$, $w=1$. With $F$ and $G$ denoting separable factors,
+$$a(t\mid T)=\frac{v(t\mid T)q(s)}{q(T)}=F_a(T)G_a(s),\qquad b(t\mid T)=\frac{\alpha(t)q(s)}{(1-\alpha)\gamma}=F_b(T)G_b(s),\qquad c(t\mid T)=\frac{1-\beta(s)}{\beta(T)}=F_c(T)G_c(s),$$
+$$F_a=\frac{\alpha(1-\beta)}{q},\ G_a=\frac1{F_a};\qquad F_b=\frac{\alpha}{(1-\alpha)\gamma},\ G_b=\frac{q}{\alpha};\qquad F_c=\frac1\beta,\ G_c=1-\beta .$$
+
+**Remark (symmetry).** All eight $I_z,Z_z$ are invariant under $\lambda\leftrightarrow\mu$ (verify_all §6). This is not used in any proof.
+
+# 4. The closed forms solve Holmes's equations (Q1, second half)
+
+**Lemma 4 (separable Volterra equations).** Let $X$ be continuous on $(0,T_{\max}]$, $F>0$ and $G R$ integrable near 0. Then $X(T)=\int_0^TF(T)G(T-t)R(T-t)\,dt$ for all $T$ **iff**
+$$\frac{d}{dT}\frac{X}{F}=G(T)R(T)\quad\text{and}\quad\lim_{T\to0^+}\frac XF=0 .$$
+The proof is immediate after substituting $s=T-t$.
+
+**Theorem 2.** With $v,a,b,c$ as in §3 and $I_z,Z_z$ from Definition 2:
+
+| eq. | status |
+|---|---|
+| (8) | holds: $\partial_t\log v=-\mu-\beta'(s)/(1-\beta(s))=-(\mu+\lambda_v+\lambda_w)(s)$ by Lemma 0(b,c), and $v(0\mid T)=1$ |
+| (13) | correct as printed (with A1). $a$ is the posterior survival function of the marker given $\circ$: by (S) below, $\int_t^T\mu v(\ell\mid T)d\ell=v(t\mid T)q(s)$. Also $\int_0^Tb(\lambda_v+\lambda_w)=\int_0^Tc(\lambda_v+\lambda_w)=1$ |
+| (9), (10), (11), (12) | hold as printed |
+| (14), (15), (16) | hold as printed |
+| (17′) | (17) with both "$t+$" deleted holds |
+
+*Proof.* Each equation of the transcription in §1 is of the form in Lemma 4, with the following data.
+
+| eq. | $X$ | $F$ | $G$ | $R(s)$ |
+|---|---|---|---|---|
+| (9) | $I_\circ$ | $F_a$ | $G_a$ | $\lambda_x(1+I_\circ)$ |
+| (10) | $I_\bullet$ | 1 | 1 | $\lambda_x(1+I_\circ)$ |
+| (11) | $I_{\circ\bullet}$ | $F_b$ | $G_b$ | $\lambda_v(1+I_\circ)+\lambda_w(1+I_\circ+I_{\circ\bullet})$ |
+| (12) | $I_{\bullet\bullet}$ | $F_c$ | $G_c$ | $\lambda_v(1+I_\bullet)+\lambda_w(1+I_\bullet+I_{\circ\bullet})$ |
+| (14) | $Z_\circ$ | $F_a$ | $G_a$ | $1+\lambda_xZ_\circ$ |
+| (15) | $Z_\bullet$ | 1 | 1 | $1+\lambda_xZ_\circ$ |
+| (16) | $Z_{\circ\bullet}$ | $F_b$ | $G_b$ | $\lambda_vZ_\circ+\lambda_w(Z_\circ+Z_{\circ\bullet})$ |
+| (17′) | $Z_{\bullet\bullet}$ | $F_c$ | $G_c$ | $\lambda_vZ_\bullet+\lambda_w(Z_\bullet+Z_{\circ\bullet})$ |
+
+- **Derivative condition.** Write every function of $T$ as a rational function of $(\lambda,\mu,T,\eta,\alpha)$, and apply $d/dT=\partial_T-\lambda\eta\partial_\eta-\mu\alpha\partial_\alpha$. The difference $\frac{d}{dT}(X/F)-GR$ cancels to the zero rational function. That makes it an identity after substituting $\eta=e^{-\lambda T}$, $\alpha=e^{-\mu T}$.
+- **Initial condition.** $\lim_{T\to0^+}X/F=0$, by series expansion.
+- **The kernel statements in (13)** are $d/dT$ identities of the same kind:
+  * $\frac{d}{dT}[1/F_b]=G_b(\lambda_v+\lambda_w)$ and $\frac{d}{dT}[1/F_c]=G_c(\lambda_v+\lambda_w)$, with $1/F_b,1/F_c\to0$;
+  * (S): $\partial_t[v(t\mid T)q(s)]=-\mu v(t\mid T)$, with $q(0)=0$. This is the evidence that $a$ is the posterior survival function of the marker given $\circ$.
+- **Equal rates.** For $\lambda=\mu$ the same identities are verified directly, with $\beta=\mu T/(1+\mu T)$ and the equal-rate forms of §3; they are also the $k\to0$ limits.
+
+(verify_all §3–4.) ∎
+
+**Remark (small $T$; denominators).** As $T\to0$, $I_\circ,I_\bullet,Z_\circ,Z_\bullet,Z_{\circ\bullet},Z_{\bullet\bullet}\to0$ and $I_{\circ\bullet},I_{\bullet\bullet}\to1$ (a $\circ\bullet$ or $\bullet\bullet$ zone contains at least one insertion). So every $GR$ in the table is bounded near 0. For $T>0$ and $\lambda\ne\mu$ no denominator in §3 vanishes:
+
+- $k\ne0$ and $\alpha\ne\eta$;
+- $\delta=\mu e^{-\lambda T}-\lambda e^{-\mu T}\ne0$, because $e^{(\mu-\lambda)T}=\lambda/\mu$ has no solution with $T>0$ (if $\lambda>\mu$ the left side is below 1 and the right side above 1, and conversely);
+- $\epsilon=\lambda\mu\,(g(\mu)-g(\lambda))\ne0$, where $g(x)=(1-e^{-xT})/x=\int_0^Te^{-xs}ds$ is strictly decreasing; hence also $(1-\alpha)\gamma=-\alpha\epsilon/\delta\ne0$.
+
+(verify_all §3: the eight limits and the identity for $(1-\alpha)\gamma$.)
+
+**Theorem 3 (uniqueness).** Fix $T_{\max}>0$ and $v,a,b,c$. Once the lower-numbered quantities on its right-hand side are fixed, each of (9), (14), (11), (16) has at most one solution $X$ on $(0,T_{\max}]$ for which $X/F$ is integrable near 0, with $F=F_a$ for (9), (14) and $F=F_b$ for (11), (16). Every bounded solution qualifies, since $1/F_a=q/(\alpha(1-\beta))\sim\mu T$ and $1/F_b=(1-\alpha)\gamma/\alpha\sim\lambda\mu T^2/2$ (Lemma 0e). (10), (12), (15) and (17′) are explicit quadratures. Hence the system (8)–(16), (17′) has exactly one solution in this class, the closed forms.
+
+*Proof.* Let $d$ be the difference of two solutions and $u=d/F$. Substitute $s=T-t$ in the homogeneous equation for $d$.
+
+- **(9) and (14).** $u(T)=\int_0^T\lambda_x(s)\,u(s)\,ds$, because $G_aF_a=1$.
+- **(11) and (16).** Only the $\lambda_w$ term contains the unknown, and $G_bF_b\lambda_w=\lambda q$ (verify_all §3). So $u(T)=\int_0^T\lambda q(s)\,u(s)\,ds$.
+- In both cases $u(T)=\int_0^Tk(s)u(s)\,ds$ with $k$ continuous and $0\le k\le\lambda$. Put $U(T)=\int_0^T|u|$, finite by hypothesis. Then $U(0)=0$ and $U'=|u|\le\lambda U$, so $e^{-\lambda T}U$ is nonincreasing and nonnegative, hence zero. So $u\equiv0$ and $d\equiv0$. (Equivalently: $u(0^+)=0$ and $u'=ku$.) ∎
+
+**Consequence.** The exact solution of (8)–(16), (17′) is the closed forms, so by Theorem 1 an E-step built on it is exact: $\hat I=\mathbb E[B]$, $\hat D=\mathbb E[D]$, and $\sum N_z\hat Z_z-T=\mathbb E[S]$. Uniqueness says nothing about a discretisation. Holmes's own first-order scheme, ported from [DART] in `numeric_check.py`, is observed to converge to the closed forms. At $(\lambda,\mu,T)=(1,0.5,1)$ and $(2,0.3,1)$, every coefficient converges at first order: the error halves as $N$ doubles, and is at most $5\times10^{-4}$ at $N=2000$. `Z11` tends to $0.4224$ and $0.3571$ respectively. The printed-(17) values are $1.018$ and $1.013$.
+
+# 5. Q3: misprints, and why (16) rather than (17)
+
+## 5.1 Eq. (17)
+
+By Lemma 0(c), $c(t\mid T)(\lambda_v+\lambda_w)(s)=\beta'(s)/\beta(T)$. This is the posterior density of the propagation time given a $\bullet\bullet$ zone. Therefore
+$$\int_0^Tc(t\mid T)(\lambda_v+\lambda_w)(T-t)\;t\,dt=\frac1{\beta(T)}\int_0^T\beta'(s)(T-s)\,ds=\frac{1}{\beta(T)}\int_0^T\beta(s)\,ds=\frac{\lambda T+\log(1-\beta(T))}{\mu\,\beta(T)}=\mathbb E[t_{\mathcal P}\mid\bullet\bullet].$$
+The second step integrates by parts using $\beta(0)=0$. For the last, verify_all checks $\frac{d}{dT}[(\lambda T+\log(1-\beta))/\mu]=\beta$ and that the expression vanishes at $T=0$. At $\lambda=\mu$, $\int_0^T\beta=T-\mu^{-1}\log(1+\mu T)$, so $\mathbb E[t_{\mathcal P}\mid\bullet\bullet]=(1+\mu T)\big(T-\mu^{-1}\log(1+\mu T)\big)/(\mu T)$ (0.6137 at $\lambda=\mu=T=1$).
+
+So the printed (17) has solution $Z_{\bullet\bullet}+\mathbb E[t_{\mathcal P}\mid\bullet\bullet]$. This differs from $Z_{\bullet\bullet}$ for every $T>0$. By §2 the resulting $\hat Z$ is wrong by $N_{\bullet\bullet}\,\mathbb E[t_{\mathcal P}\mid\bullet\bullet]$ for every alignment with $N_{\bullet\bullet}\ge1$. The correction is
+$$\hat Z_{\bullet\bullet}(T)=\int_0^Tc(t\mid T)\Big(\lambda_v(T-t)\hat Z_\bullet(T-t)+\lambda_w(T-t)\big(\hat Z_\bullet(T-t)+\hat Z_{\circ\bullet}(T-t)\big)\Big)dt ,$$
+whose solution is $Z_\circ$ identically.
+
+**Evidence** (`numeric_check_output.txt`; checks only):
+
+1. **Quadrature.** The printed right-hand side was evaluated at 60 digits at 8 parameter points. It exceeds $Z_{\bullet\bullet}$ by exactly $\int\beta/\beta$; the residuals are $\le4\times10^{-18}$, and the excesses range from 0.051 to 2.12.
+2. **Exact E-step** (`tkf91_stats_from_counts`, float64, 200 random paths at each of 4 parameter sets). Corrected (17′) with "$-T$" reproduces $\mathbb E[S]$ to $2\times10^{-11}$, and $\mathbb E[B],\mathbb E[D]$ to $10^{-12}$. Printed (17) overshoots by $N_{\bullet\bullet}\times\int\beta/\beta$, to $2\times10^{-11}$.
+3. **[DART].** It has `Z11 += c*(lambdaD*Z1 + lambdaI*(Z1+Z01))`, with no $t$. Its port converges to $Z_{\bullet\bullet}$ (§4).
+4. **Route C Monte Carlo** (whole histories, $1.5\times10^6$ fragments per cell). Ancestral-marker $\bullet\bullet$ zones under the exposure allocation of §5.2 give $0.4223\pm0.0004$ against $Z_{\bullet\bullet}=0.4224$, at $(\lambda,\mu,T)=(1,0.5,1)$. Printed (17) gives 1.018.
+5. **Holmes's Fig. 9** (bottom, sequence-length panel; supplement p. 14). The ancestor's column is grey (the final $\bullet$ zone) from time 0 to the direct propagation event, cross-hatched (the $\bullet\bullet$ zone) from there to the indirect propagation event, and hatched (the $\circ\bullet$ zone) from there until the ancestor dies. So each zone receives the ancestor's exposure only after that zone's own propagation event; the exposure before it is in the final $\bullet$ zone. This is the lineage allocation of §5.2, and it agrees with (16) and (17′). Printed (17) would also charge the $\bullet\bullet$ zone with the grey part.
+
+## 5.2 Which accounting is consistent (Ian's question)
+
+Theorems 1–3 already decide the question without any pathwise accounting. There is exactly one set of per-zone coefficients for which Holmes's constant-free sums are exact. It solves (16) as printed and (17′), not (17).
+
+The pathwise reading is as follows.
+
+- **Where the marker's exposure goes.** In the generating-function representation (§6), $P(\text{surv},n)\propto e^{-\mu T}W B^n$ and $P(\text{die},n\ge1)\propto W R B^{n-1}$. The factor $W=e^{-\theta T}\mathcal I_D(T,T;0)$ carries the tilt for a full $T$ of carrier exposure, and it sits in the family's final $\bullet$ zone. This is (15)'s "$\int_0^T1\,dt$".
+  * The marker's exposure before its propagation event is part of that $T$.
+  * The $\circ\bullet$ factor $R$ and the $\bullet\bullet$ factor $B$ carry only the marker's exposure after $t_{\mathcal P}$, plus the exposure of extinct insertions.
+  * (16) follows this accounting; (17) adds the pre-propagation exposure a second time.
+- **Window-union lemma** (route B, proved in prose). Let $X=A_0\to\dots\to A_m=Y$ be the lineage from the marker to the survivor $Y$ nearest the marker on its right. The birth windows $(\tau_k,\tau_{k+1})$ of the lineage links, together with $(\tau_m,T)$ for $Y$, partition $[0,T]$. So everything right of $Y$ has the law of the children of a surviving ancestral link over $[0,T]$, and the carrier exposure is exactly $T$. This proves "WLOG the marker is ancestral" in distribution, under the *lineage* allocation: link $L$'s exposure at time $\tau$ is charged to the zone in which a child inserted by $L$ at $\tau$ would sit. Holmes's Fig. 9 (bottom) draws this allocation (§5.1, evidence 5), and route C's Monte Carlo confirms it. Under this rule, inserted- and immortal-marker zones match ancestral ones: $\max|z|=2.7$ over 144 cells, and 1 of 1710 per-context tests exceeds $|z|=4$.
+- **The alternative, "naive", allocation** charges a link's whole lifetime to its own zone.
+  * Under it, the ancestral-marker values would be (16) with a "$t+$" and (17) as printed, with that modified $Z_{\circ\bullet}$ inside.
+  * But inserted-marker zones then carry much less exposure: for $\bullet$ at $(1,0.5,1)$, about 0.44–0.47 against 1.047 (0.465 when the family founder is a mortal ancestral link, 0.440 when it is the immortal link). So WLOG fails, and no single set of per-zone values makes the sums exact.
+  * The printed pair, (16) without $t$ and (17) with $t$, fits neither rule. Printed (17) is about 50 s.e. from the naive-rule Monte Carlo value: 1.0181 against $1.0289\pm0.0002$.
+
+## 5.3 The other items
+
+* **§5.4 "$-T$".** See Theorem 1 and the uniqueness paragraph of §2. Numerically, the zone sum minus $\mathbb E[S]$ is $T$ to $2\times10^{-11}$ on every path (`numeric_check_output.txt`, part 2).
+* **Fig. 9 caption.** In the lower drawing the ancestor's line ends in a cross, then a dotted segment, then an open circle at $T$, and the caption itself lists a $\circ\bullet$ zone first. So the ancestor dies, and "Ancestor survives" is wrong.
+* **$q_0$.** See A1. The text before (11) also says $\alpha(t)q_0(T-t)$ is "not deleted during $[0,t]$ and becomes extinct over $[t,T]$", which fixes it.
+* **[DART] implements the corrected system.** In `TKF_coeff::initialise`, line 131 updates `Z01` by (16), and line 132 updates `Z11` by $c\,(\lambda_vZ_\bullet+\lambda_w(Z_\bullet+Z_{\circ\bullet}))$, i.e. (17′) with no "$t+$" (`lambdaD`, `lambdaI`, `lambdaE` are $\lambda_v,\lambda_w,\lambda_x$). In `accumulate_counts`, line 178 is `deltaZ -= T` ("subtract site-time contribution of immortal link"), the "$-T$" of misprint 2. `set_params` (line 205) sets $\lambda=I/(Z+T)$, $\mu=D/Z$.
+* **Checked and correct:**
+  * (8) and (13);
+  * (9)–(16);
+  * $\hat S=N_\circ+N_\bullet-1$, which is the ancestral length $i$ (Lemma 1);
+  * $\hat D=\hat I+N_\circ-N_{\bullet\bullet}$;
+  * the zone-type lists of §5.4.
+
+# 6. Relation to eq:volterra (Q2)
+
+## 6.1 Tilted grammar
+
+Weight each parse tree by $e^{-\theta S_{\rm fam}}$, where $S_{\rm fam}$ includes the founding link's exposure. Only the $L$ productions change:
+$$L(t)\to A\,D(t,t):\ e^{-(\mu+\theta)t},\qquad L(t)\to G_\ell D(t,\ell):\ \mu e^{-(\mu+\theta)\ell}d\ell .$$
+Write $F_t=F^{\theta}_t(z,w)=\mathbb E[z^{N_a}w^{N_g}e^{-\theta S_{\rm fam}}]$. The derivation of app:pgf goes through unchanged:
+$$\mathcal I^\theta_D(t,T)=\exp\Big(\lambda\!\int_{t-T}^t(F_s-1)ds\Big),\qquad
+F_t=z\,e^{-(\mu+\theta)t}\mathcal I^\theta_D(t,t)+w\!\int_0^t\!\mu e^{-(\mu+\theta)\ell}\,\mathcal I^\theta_D(t,\ell)\,d\ell,\tag{\ensuremath{\mathrm V_\theta}}$$
+$$\partial_tF_t=\lambda F_t^2-(\lambda+\mu+\theta)F_t+\mu w,\qquad F_0=z.\tag{\ensuremath{\mathrm R_\theta}}$$
+
+This is eq:volterra and eq:riccati with $(\mu,w)\mapsto(\mu+\theta,\mu w/(\mu+\theta))$. So eq:pgf-closed and eq:ID-closed hold with $z_\pm$ the roots of $\lambda x^2-(\lambda+\mu+\theta)x+\mu w$, and $\Delta=\lambda(z_+-z_-)$.
+
+eq:pgf-closed takes $z_+$ to be the larger root; we do not. All closed forms are invariant under $z_+\leftrightarrow z_-$ with $\Delta\to-\Delta$ (then $\rho_s\to1/\rho_s$). At $(\theta,w)=(0,1)$ take $z_+=\mu/\lambda$, $z_-=1$; this is valid for either sign of $\mu-\lambda$. verify_all §5 parametrises by the roots, so no square root appears.
+
+## 6.2 Lemmas
+
+Let $E=e^{\Delta T}$. All statements hold at general $(\theta,w)$; verify_all §5 checks each of (a)–(g) there.
+
+(a) $F_T(0)=\frac{\mu w}{\lambda}B$, where $B:=\frac{E-1}{z_+E-z_-}$. Both sides satisfy $y'=\mu w-(\lambda+\mu+\theta)y+\lambda y^2$ with $y(0)=0$.
+
+(b) $\mathcal I_D(T,T;z)=\mathcal I_D(T,T;0)/(1-Bz)$. Hence $[z^n]\,e^{-\theta T}\mathcal I_D(T,T;z)=W B^n$, with $W:=e^{-\theta T}\mathcal I_D(T,T;0)=e^{(\lambda z_+-\lambda-\theta)T}(z_+-z_-)/(z_+E-z_-)$.
+
+(c) $F^{(1)}:=[z^1]F_T=(1-z_+B)(1-z_-B)$, and $\partial_TB=\lambda F^{(1)}$ with $B(0)=0$.
+
+(d) **Additivity.** $\mathcal I_D(T,t;0)\,e^{-\theta t}\,W(T-t)=W(T)$. *Proof:* $\mathcal I_D(T,t;0)=\exp(\lambda\int_{T-t}^T(F_s(0)-1)ds)$ and $W(T-t)=e^{-\theta(T-t)}\exp(\lambda\int_0^{T-t}(F_s(0)-1)ds)$; the product with $e^{-\theta t}$ joins the two ranges into $[0,T]$.
+
+(e) **Survive and die parts.** $[z^1]$ of the $A$-term is $e^{-\mu T}W$. Put $R:=[z^1]G_T/W$, where $G_T$ is the $G_\ell$-term. Then $F^{(1)}=W(e^{-\mu T}+R)$, and
+$$R=\frac{(z_+-z_-)\,e^{(\lambda+\theta-\lambda z_-)T}}{z_+E-z_-}-e^{-\mu T}.$$
+
+(f) **Values at $(0,1)$.** $B=\beta$, $W=1-\beta$, $R=(1-\alpha)\gamma$ and $F_T(0)=q$.
+
+(g) **Semigroup (S).** $w\int_t^T\mu e^{-(\mu+\theta)\ell}\mathcal I_D(T,\ell;0)d\ell=e^{-(\mu+\theta)t}\mathcal I_D(T,t;0)F_{T-t}(0)$. At $(0,1)$ this reads $\int_t^T\mu v(\ell\mid T)d\ell=v(t\mid T)q(s)$. *Proof:* both sides vanish at $t=T$, since $F_0(0)=0$. On the right, $\partial_t\log\mathcal I_D(T,t;0)=\lambda(F_{T-t}(0)-1)$, and (R$_\theta$) gives $\partial_tF_{T-t}(0)=-(\lambda F^2-(\lambda+\mu+\theta)F+\mu w)$ at $F=F_{T-t}(0)$. The terms in $F$ and $F^2$ cancel, leaving $-\mu w\,e^{-(\mu+\theta)t}\mathcal I_D(T,t;0)$, which is the $t$-derivative of the left side.
+
+**Proposition 6.** At $(\theta,w)=(0,1)$:
+$$\begin{aligned}
+I_\circ&=\partial_w\log B, & Z_\circ&=-\partial_\theta\log B, &
+I_\bullet&=\partial_w\log W, & Z_\bullet&=-\partial_\theta\log W,\\
+I_{\circ\bullet}&=\partial_w\log R, & Z_{\circ\bullet}&=-\partial_\theta\log R, &
+I_{\bullet\bullet}&=1+\partial_w\log B, & Z_{\bullet\bullet}&=-\partial_\theta\log B .
+\end{aligned}$$
+
+These are verified symbolically against Definition 2, using the implicit derivatives of $z_\pm$ (verify_all §5, "GF route == score route"). Those derivatives are singular at $\lambda=\mu$, $(\theta,w)=(0,1)$, where the roots coincide, so the verification covers $\lambda\ne\mu$. Proposition 6 extends to $\lambda=\mu$ by continuity: $B$, $W$ and $R$ are symmetric in $z_\pm$, hence analytic in $\Delta^2$, and Definition 2 extends by its $k\to0$ limits (§2). The probabilistic reading:
+
+- $P(\text{die},0)=F_T(0)=(\mu w/\lambda)B$, $P(\text{surv},n)=e^{-\mu T}WB^n$ and $P(\text{die},n)=WRB^{n-1}$.
+- The family table of §2 then gives the formulas, since $\partial_w\log(\mu w/\lambda)=1$ and $\partial_\theta\log(\mu w/\lambda)=0$.
+- This also explains $I_{\bullet\bullet}=I_\circ+1$ and $Z_{\bullet\bullet}=Z_\circ$ (§3): the extinction PGF and the geometric ratio of the survivor count differ by the $\theta$-free factor $\mu w/\lambda$, whose $\partial_w\log$ is 1.
+
+## 6.3 Holmes's equations as variations of (V$_\theta$)
+
+**(9) and (14): linearisation at $z=0$.**
+
+- At $z=0$, (V$_\theta$) is $F_T(0)=w\int_0^T\mu e^{-(\mu+\theta)\ell}\exp\big(\lambda\int_{T-\ell}^T(F_s(0)-1)ds\big)d\ell$.
+- Apply $\partial_w$ at $(0,1)$ and use $\mu e^{-\mu\ell}\mathcal I_D(T,\ell;0,1)=\mu v(\ell\mid T)$:
+$$\partial_wF_T(0)=q(T)+\int_0^T\mu v(\ell\mid T)\,\lambda\!\int_{T-\ell}^T\partial_wF_{s}(0)\,ds\,d\ell .$$
+- Exchange the order of integration on $\{0<t<\ell<T\}$, with $s=T-t$. Apply (S), substitute $\partial_wF_s(0)=q(s)(1+I_\circ(s))$ (Proposition 6), and divide by $q(T)$. This gives exactly (9), with $a=vq(s)/q(T)$ and $\lambda_x=\lambda q$.
+- $-\partial_\theta$ gives (14) in the same way. The factor $e^{-\theta\ell}$ contributes $\ell=\int_0^\ell dt$, which becomes the "1" in (14).
+
+The variation of a nonlinear Volterra equation $F=\mathcal N[F]$ is the linear equation $\delta F=\partial\mathcal N+D\mathcal N[F]\,\delta F$, a Volterra equation of the second kind. Its kernel is $D\mathcal N[F(\cdot,0)]\,h\,(T)=\int_0^T\lambda v(t\mid T)q(s)h(s)\,dt$. Written for $h=q\,u$, this is $q(T)\int_0^Ta(t\mid T)\lambda_x(s)u(s)\,dt$, which is Holmes's kernel.
+
+**(11) and (16): the $z^1$ coefficient.**
+
+- $[z^1]$ of the $G_\ell$ term, after Fubini and (S), gives
+$$[z^1]G_T=\int_0^T\lambda F^{(1)}_{s}\;e^{-(\mu+\theta)t}\mathcal I_D(T,t;0)\,F_{s}(0)\,dt .$$
+The factors read:
+  * $t$ is the time of the most recent birth by the marker whose family contains a survivor (in the $z^1$ coefficient, the only survivor, which is the survivor nearest the marker on its right). This is Holmes's propagation event, "the last (directly or indirectly) surviving insertion from the ancestral link";
+  * $\mathcal I_D(T,t;0)$: earlier births, all extinct;
+  * $F_s(0)$: the marker after $t$, dead with no survivor.
+- Divide by $W(T)$ using (d), and use (e):
+$$R(T)=\int_0^T\lambda\,e^{-\mu t}\,\big[e^{-\mu s}+R(s)\big]\,F_s(0)\,dt .\tag{\ensuremath{\star}}$$
+verify_all checks ($\star$) at general $(\theta,w)$ in the differential form $\frac{d}{dT}[Re^{\mu T}]=\lambda(1+e^{\mu T}R)F_T(0)$, $R(0)=0$.
+- The factor $e^{-\mu t}$ is untilted. The marker's tilt $e^{-\theta t}$ before $t_{\mathcal P}$ has moved into $W(T)$, i.e. into the final $\bullet$ zone.
+- Apply $\partial_w$ to ($\star$), and divide by $R(T)=(1-\alpha)\gamma$ (so $\lambda\alpha(t)q(s)/R(T)=\lambda b(t\mid T)$, and $e^{-\mu s}+R(s)=1-q(s)$ at $(0,1)$). This gives (11). Applying $-\partial_\theta$ instead gives (16), with no $t$.
+
+**(10), (15), (12) and (17′): quadratures.**
+
+- $W=e^{-\theta T}\exp(\lambda\int_0^T(F_s(0)-1)ds)$, so $\partial_w\log W$ and $-\partial_\theta\log W$ are (10) and (15).
+- $B=\lambda\int_0^TW(s)(e^{-\mu s}+R(s))ds$, by (c) and (e). At $(0,1)$, $W(s)/\beta(T)=c(t\mid T)$ and $\int_0^Tc\,\lambda(1-q(s))dt=1$. Then $1+\partial_w\log B$ is (12), and $-\partial_\theta\log B$ is (17′).
+- No term in $B$ carries the marker's pre-propagation tilt. Inserting one reproduces the printed (17).
+
+## 6.4 Propagation event and $D\to L\cdot D$
+
+**The grammar's production.** eq:gw-D, $D(t,T)\to L(t-u)\cdot D(t,u)$ with density $\lambda e^{-\lambda(T-u)}$, emits the *most recent* birth in the window first; it is placed leftmost. The remaining window $(0,u)$ is left to $D(t,u)$.
+
+**Holmes's propagation event** is the most recent birth whose family has a survivor. Split each $L$ by $z$-degree. The children born after $\mathcal P$ are all extinct ($z^0$, weight $F(0)=q$). Summing the $D\to L\cdot D$ recursion over them replaces $\lambda e^{-\lambda(T-u)}$ by $\lambda e^{-\int\lambda(1-q)}=\lambda\mathcal I_D(\cdot;0)$. Over the window after $\mathcal P$ this gives $\mathcal I_D(T-t,T-t;0)=1-\beta(T-t)$, the numerator of $c(t\mid T)$. The same functional form over the earlier window $[0,t]$ is $v(t\mid T)/e^{-\mu t}=\mathcal I_D(T,t;0)$ in (8); it enters $a(t\mid T)$, not $b$.
+
+Analytically, this is the first-passage identity
+$$e^{\lambda\int_0^T\tilde F}-1=\int_0^T\lambda\tilde F_{T-t}\,e^{\lambda\int_0^t\tilde F_{T-u}du}\,dt,\qquad \tilde F=F-F(0),$$
+applied inside $\mathcal I_D$. It gives $B=\lambda\int_0^TF^{(1)}$, i.e. (c). So the two decompositions coincide once the extinct children are grouped.
+
+The split into direct and indirect propagation, $\lambda_v$ and $\lambda_w$, is the split of $F^{(1)}=W(e^{-\mu s}+R)$ into its $A$ and $G_\ell$ parts.
+
+**(9) and (14) differ.** They do not decompose on the last event. They take the first moment, over all extinct births, of the Poisson cloud generated by $\mathcal I_D$. They also exchange the grammar's order (death time $\ell$ first, in $G_\ell$) with Holmes's order (birth time $t$ first). In the factor $\int_t^T\mu v\,d\ell=v\,q(s)$, $q(s)=(1-\alpha(T-t))(1-\gamma(T-t))$ is the factor on the marker after $t$ in Holmes's Fig. 8(i).
+
+# 7. Where the three routes disagreed
+
+There were no substantive disagreements. All three routes conclude the following:
+
+- (8)–(16) and (13) are correct;
+- (17) loses its "$t+$" terms, with the same excess;
+- Holmes's zone sum equals $\mathbb E[S]+T$;
+- $q_0=(1-\alpha)(1-\gamma)$.
+
+These conclusions are settled here algebraically (§§2–5) and against [DART].
+
+The differences in detail, and how they are resolved:
+
+1. **The "$+T$".** Routes A and B concluded that "Holmes's $Z$ includes the immortal link" and left his main text unchecked. [H-M] §3.3 defines $\hat Z$ as mortal-link time, and [DART] subtracts $T$. So the supplement's §5.4 sum is short of a "$-T$" (misprint 2). Holmes's M-step is $\lambda=\hat I/(\hat Z+T)$, $\mu=\hat D/\hat Z$, which is eq:mstep.
+2. **Fig. 9 caption.** Only route B checked it. I confirmed it from the page image.
+3. **Zone weight conventions.** Route A uses $R=(1-\alpha)\gamma$ for $\circ\bullet$ with the marker tilt absorbed into $W$. Route B uses $P_{\circ\bullet}=(1-\alpha)\gamma/\alpha$ plus the constant $\alpha^{-1}$. Both give the same $I_z,Z_z$ (verify_all §5, Proposition 6), so this is bookkeeping only.
+4. **Routes A, B and C state the closed forms in different variables** ($E=e^{(\mu-\lambda)T}$; $(\eta,\alpha)$; $(x,y)$). All are checked equal to Definition 2.
+5. **Uniqueness.** Route A cited Linz; route B used Gronwall for (9) and a contraction argument for (11). Theorem 3 reduces all four homogeneous equations to $u(T)=\int_0^Tk\,u$ with $0\le k\le\lambda$, so one Gronwall step covers (11) and (16) as well, with no contraction argument.
+6. **Accounting.** Route C named the exposure allocations "naive" and "lineage"; route B's window-union lemma is the lineage rule. Neither is needed for Theorems 1–3.
+7. **Status of route C's "proved as printed".** For (8) and (13) this was numerical only. Here they are proved symbolically.
+
+# 8. Open issues
+
+* **$q_0$.** A1 is not restated in the supplement; it is Eq. (2) of [H-M] at $n=0$, and agrees with (13), Fig. 8 and the prose.
+* **The window-union lemma (§5.2) is proved in prose only.** It explains the pathwise accounting but is not needed for Theorems 1–3. Its consequences are confirmed by route C's Monte Carlo.
+* **Series dependence.** Initial conditions and the $\lambda\to\mu$ limits rely on sympy series expansions. These are symbolic computations, not floating point.
+* **Smoothness in $(\theta,w)$.** In §6.3, differentiating under the integral in $(\theta,w)$ uses smoothness of the closed forms near $(0,1)$ for finite $T$; this was not written out. §6 is in any case an explanation (Q2). Q1 and Q3 rest on §§2–4, which do not use it.
+* **The $\lambda\leftrightarrow\mu$ symmetry** of all zone coefficients is verified but not explained.
+* **[H-M] §3.3 formulas.** Its displayed M-step formulas are images in the PMC copy. Misprint 2 rests on its prose definition of $\hat Z$ ("expected total time accrued by mortal links; $T$ … by the immortal link") and on [DART].
+
+# Files
+
+* `proof.md`, `proof.tex`: this note.
+* `verify_all.py` → `verify_all_output.txt`: 172 symbolic checks, all passing; runs in about 60 s.
+* `numeric_check.py` → `numeric_check_output.txt`: three numerical checks for Q3 — quadrature of printed (17), the exact E-step (`tkf91_stats_from_counts`), and the [DART] port.

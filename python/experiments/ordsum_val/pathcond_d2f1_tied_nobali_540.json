@@ -1,0 +1,7 @@
+{
+ "checkpoint": "pfam/svibw_d2f1_tied_nobali_540.npz",
+ "precompiled": "pfam/precompiled_v3_val",
+ "n_pairs": 116640,
+ "total_ll": -84320541.47771294,
+ "ll_per_pair": -722.9127355771
+}

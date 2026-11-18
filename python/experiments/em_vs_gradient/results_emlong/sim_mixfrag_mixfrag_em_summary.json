@@ -1,0 +1,26 @@
+{
+ "corpus": "sim_mixfrag",
+ "model": "mixfrag",
+ "method": "em",
+ "ll_star": -446.4294,
+ "to_tol": {
+  "0.01": [
+   91,
+   -446.43859,
+   1238.7
+  ],
+  "0.001": [
+   371,
+   -446.43033,
+   5151.1
+  ],
+  "0.0001": null
+ },
+ "n_passes_logged": 64,
+ "last": [
+  631,
+  -446.429501,
+  8475.6
+ ],
+ "note": "EM-only 1500-pass run killed at ~630 passes; logged every 10 passes"
+}

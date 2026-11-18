@@ -32,12 +32,29 @@ def sp_tc_score(test_aln: dict[str, str], ref_aln: dict[str, str],
                 core_only: bool = True) -> tuple[float, float]:
     """Compute SP and TC scores of test alignment against reference.
 
-    SP score: fraction of correctly aligned pairs in the reference that
-              are also aligned in the test.
-    TC score: fraction of reference columns that are exactly reproduced
-              in the test.
+    THE single authoritative SP/TC scorer of this codebase.  Every other
+    SP/TC entry point (``tkfmixdom.jax.evaluate.metrics.sp_score`` /
+    ``tc_score``, ``tkfmixdom.jax.util.data.compute_sp_score`` /
+    ``compute_tc_score``) is a thin wrapper around this function; do not add
+    another implementation.
 
-    For BAliBASE: only uppercase (core) positions are scored.
+    Semantics follow qscore (Edgar, http://www.drive5.com/qscore), the scorer
+    of the MUSCLE benchmark collection, and BAliBASE's bali_score:
+
+    SP score: fraction of residue pairs aligned in scored reference columns
+              that are also aligned (same column) in the test alignment.
+    TC score: fraction of scored reference columns (>= 2 scored residues)
+              all of whose residues fall in a single test column.  Residues
+              of sequences that are gapped in that reference column are not
+              examined, so aligning residues the reference leaves unaligned
+              neither helps nor hurts either score; both are recall measures.
+
+    For BAliBASE-style references only uppercase (core) positions are scored
+    (``core_only=True``); with ``core_only=False`` every residue is scored.
+
+    Validated 2026-11-08 against qscore (-truncname -ignoretestcase) on 45
+    MUSCLE 5.3 alignments from bali3pdbm, sabrem and oxm: identical to
+    qscore's 3 printed digits (tests/benchmarks/test_qscore_agreement.py).
 
     Args:
         test_aln: dict of {name: aligned_seq_with_gaps}
@@ -108,6 +125,7 @@ def sp_tc_score(test_aln: dict[str, str], ref_aln: dict[str, str],
 
     # TC score: fraction of reference columns exactly reproduced.
     ref_len = len(next(iter(ref_aln.values())))
+    ref_col_to_pos = {n: {c: p for p, c in ref_pos_to_col[n].items()} for n in common_names}
     total_core_cols = 0
     correct_cols = 0
 
@@ -126,13 +144,7 @@ def sp_tc_score(test_aln: dict[str, str], ref_aln: dict[str, str],
             continue
         total_core_cols += 1
 
-        ref_positions: dict[str, int] = {}
-        for name in ref_col_chars:
-            pos = 0
-            for k in range(col):
-                if ref_aln[name][k] not in '.-':
-                    pos += 1
-            ref_positions[name] = pos
+        ref_positions: dict[str, int] = {name: ref_col_to_pos[name][col] for name in ref_col_chars}
 
         test_cols: set[int] = set()
         all_found = True

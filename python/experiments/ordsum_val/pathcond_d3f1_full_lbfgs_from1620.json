@@ -1,0 +1,7 @@
+{
+ "checkpoint": "pfam/lbfgs_d3f1_full_from1620.npz",
+ "precompiled": "pfam/precompiled_v3_val",
+ "n_pairs": 116640,
+ "total_ll": -83704801.20693907,
+ "ll_per_pair": -717.6337552035243
+}

@@ -409,10 +409,27 @@ return the precompiled-pair tuple format consumed by
 \texttt{train\_pfam.\_process\_pairs\_batched}, with explicit per-pair
 $t$ — the central test condition for the per-pair-$t$ regression suite.
 
+\subsubsection{Alignment-Conditioned Indel-History Sampler}
+\texttt{util/history\_traceback.py} (pure NumPy) samples a complete TKF91
+indel history for one branch, conditioned on the alignment of its ancestral
+and descendant sequences, by stochastic traceback of the time-indexed
+gravestone grammar (Algorithm~1 of the MBE paper,
+\emph{Closed-form Baum--Welch for TKF-based evolutionary models}).
+Each ancestral link and its descendants form an independent block of the
+alignment; within a block the sampler draws the link's death time (if
+deleted) and then its children from the most recent backwards, using the
+closed-form coefficients $a_m(s)=[z^m]f_s(z,1)$ and
+$d_n(t,T)=[z^n]\mathcal I_D(t,T;z,1)$, which are ratios of linear functions
+of $z$ and so have geometric coefficients. Gravestones, including ghosts,
+are sampled implicitly. The module also provides
+\texttt{expected\_stats\_from\_path}, the closed-form E-step
+$(\mathbb{E}[B],\mathbb{E}[D],\mathbb{E}[S])$ for a fixed alignment path via the score-function
+identity and the conservation law, used to validate the sampler.
+
 \subsection{Test Suite}
 \label{sec:impl-tests}
 
-The test suite (2154 tests, all passing) validates correctness
+The test suite (2177 tests) validates correctness
 at multiple levels, organised into \texttt{level1\_smoke/} (fast unit
 checks), \texttt{level2\_structural/} (model construction and DP
 properties), \texttt{level3\_thorough/} (recovery, cross-validation,
@@ -563,13 +580,14 @@ Table~\ref{tab:impl-tests} lists all test files with counts and descriptions.
 \multicolumn{3}{@{}l}{\emph{Benchmarks \& top-level (\texttt{tests/})}} \\
 \texttt{benchmarks/test\_benchmark} & 15 & BAliBase/BRaliBase benchmark-proxy infrastructure and scoring \\
 \texttt{test\_expected\_pair\_f1} & 22 & Expected pairwise F1/precision/recall identities and sparse suff stats \\
+\texttt{test\_history\_traceback} & 17 & History sampler: closed-form coefficients and Inside recursion; blocks vs.\ rejection-conditioned forward simulation; branch means vs.\ closed-form E-step \\
 \texttt{test\_varanc\_presence} & 18 & VarAnc WFST matrices, conditionals, belief propagation, ELBO \\
 \texttt{test\_mixfrag} & 13 & MixFrag transfers; row sums; $F{=}1$ reduction to TKF92 (matrix, FB, E-step, FSA posteriors) \\
 \texttt{test\_mixfrag\_cherry\_counts} & 10 & Alignment-summary count decomposition and invariants; sparse round-trip \\
 \texttt{test\_mixfrag\_cherry\_em} & 16 & DECISIVE oracle (1e-9); \texttt{run\_factor\_scan}$\equiv$power-sum; recovery; score-identity \\
 \texttt{test\_train\_mixfrag\_cherry\_em} & 3 & Multi-file aggregate+fit+val; save round-trip; split resolution \\
 \midrule
-\textbf{Total} & \textbf{2154} & \\
+\textbf{Total} & \textbf{2177} & \\
 \bottomrule
 \end{tabular}
 \end{table}

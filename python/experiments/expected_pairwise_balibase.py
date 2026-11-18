@@ -137,7 +137,7 @@ def _tkf92_pair_posteriors(int_seqs, names, pairs, ins, del_, ext, Q, pi):
 
 
 def _tkf92_mixture_pair_posteriors(int_seqs, names, pairs, anchor, mix,
-                                     pair_chunk=None):
+                                     pair_chunk=None, emit_sitemix=None):
     """Mixture-of-K-TKF92 streaming posteriors with anchor τ.
 
     Whole-family compute (pair-wise OOM fallback inside
@@ -201,7 +201,7 @@ def _tkf92_mixture_pair_posteriors(int_seqs, names, pairs, anchor, mix,
                 jnp.asarray(mix['mix_ext']),
                 jnp.asarray(mix['mix_Q']), jnp.asarray(mix['mix_pi']),
                 jnp.asarray(mix['mix_weights']),
-                pair_chunk=chunk_try)
+                pair_chunk=chunk_try, emit_sitemix=emit_sitemix)
             break
         except jax.errors.JaxRuntimeError as e:
             msg = str(e)
@@ -254,7 +254,7 @@ def _load_cherryml_as_mixture(path, anchor):
                 mix_Q=mix_Q, mix_pi=pi20)
 
 
-def _mixdom_pair_posteriors(int_seqs, names, pairs, fsa_params, n_dom, n_frag):
+def _mixdom_pair_posteriors(int_seqs, names, pairs, fsa_params, n_dom, n_frag, em_rounds=1):
     """Per-pair MixDom posteriors via the canonical pairwise_posteriors_mixdom.
 
     Per-pair try/except: a single OOMing pair is recorded in
@@ -271,7 +271,7 @@ def _mixdom_pair_posteriors(int_seqs, names, pairs, fsa_params, n_dom, n_frag):
             x = jnp.asarray(int_seqs[names[i]], dtype=jnp.int32)
             y = jnp.asarray(int_seqs[names[j]], dtype=jnp.int32)
             mp, _, _ = pairwise_posteriors_mixdom(
-                x, y, fsa_params, n_dom, n_frag)
+                x, y, fsa_params, n_dom, n_frag, n_em_rounds=em_rounds)
             pp[(i, j)] = np.asarray(mp)
         except Exception as e:
             jax.clear_caches()
@@ -468,9 +468,12 @@ def _run_external_aligner(raw_seqs, aligner):
                            or os.path.expanduser('~/bin/muscle'))
             if not os.path.exists(muscle_bin):
                 raise FileNotFoundError('muscle binary not found')
-            # Try v5 syntax first; fall back to v3.
+            # Try v5 syntax first; fall back to v3. MUSCLE_EXTRA_ARGS (env) appends
+            # options to the v5 command, e.g. "-consiters 0 -refineiters 0" for ablations.
+            import shlex
+            extra = shlex.split(os.environ.get('MUSCLE_EXTRA_ARGS', ''))
             r = subprocess.run(
-                [muscle_bin, '-align', in_path, '-output', out_path],
+                [muscle_bin, '-align', in_path, '-output', out_path] + extra,
                 capture_output=True, text=True, timeout=600)
             if r.returncode != 0:
                 r = subprocess.run(
@@ -508,16 +511,27 @@ def _aligner_pair_posteriors(int_seqs, names, pairs, raw_seqs, aligner):
 
 
 def _build_msa_with_gap_factor(int_seqs, anneal_pp, gap_factor,
-                                 n_anneal, seed):
-    """Run sequence_annealing with an explicit gap_factor; return
-    ``(msa_dict, msa_strings)``."""
+                                 n_anneal, seed, consistency_iters=0,
+                                 algo='anneal', refine_iters=0, posterior_floor=0.0, tree_before_consistency=False, linkage='upgma', guide_dist=None):
+    """Build the MSA from pair posteriors; return ``(msa_dict, msa_strings)``.
+    algo='anneal': AMAP sequence annealing with the given gap factor (the alternative decoder, row A of the paper's decoding table);
+    algo='progressive': MEA progressive alignment on a UPGMA guide tree (the paper's reference decoding; gap factor 0 by
+    construction) with ``refine_iters`` rounds of random-bipartition refinement (ProbCons /
+    MUSCLE 5 style). Both accept ``consistency_iters`` rounds of the consistency transform."""
     fam_names = list(int_seqs.keys())
     seq_lens = [len(int_seqs[n]) for n in fam_names]
-    col_assignments, _ = sequence_annealing(
-        len(fam_names), seq_lens, anneal_pp,
-        n_iterations=n_anneal,
-        gap_factor=gap_factor, edge_weight_threshold=0.0,
-        verbose=False, seed=seed)
+    if algo == 'progressive':
+        from tkfmixdom.jax.tree.fsa_anneal import progressive_mea_align
+        col_assignments, _ = progressive_mea_align(
+            len(fam_names), seq_lens, anneal_pp, consistency_iters=consistency_iters,
+            refine_iters=refine_iters, seed=seed, posterior_floor=posterior_floor,
+            tree_before_consistency=tree_before_consistency, linkage=linkage, guide_dist=guide_dist)
+    else:
+        col_assignments, _ = sequence_annealing(
+            len(fam_names), seq_lens, anneal_pp,
+            n_iterations=n_anneal,
+            gap_factor=gap_factor, edge_weight_threshold=0.0,
+            verbose=False, seed=seed, consistency_iters=consistency_iters)
     n_cols = max(max(ca) for ca in col_assignments if len(ca) > 0) + 1
     msa_dict = {}
     for si, name in enumerate(fam_names):
@@ -684,6 +698,11 @@ def process_family(family_name, in_dir, ref_dir, method_callable,
                     msa_strings, ref_aln, core_only=True)
                 result['msa_sp_g1'] = float(sp_msa)
                 result['msa_tc_g1'] = float(tc_msa)
+                # the same scores over ALL reference columns (not only core blocks)
+                sp_full, tc_full = sp_tc_score(
+                    msa_strings, ref_aln, core_only=False)
+                result['msa_sp_full_g1'] = float(sp_full)
+                result['msa_tc_full_g1'] = float(tc_full)
                 result['time_fsa'] = float(time.time() - t1)
             except Exception as e:
                 result['_fsa_failed'] = {
@@ -708,6 +727,10 @@ def process_family(family_name, in_dir, ref_dir, method_callable,
                     msa_strings_sps, ref_aln, core_only=True)
                 result['msa_sp_g0'] = float(sp_msa)
                 result['msa_tc_g0'] = float(tc_msa)
+                sp_full, tc_full = sp_tc_score(
+                    msa_strings_sps, ref_aln, core_only=False)
+                result['msa_sp_full_g0'] = float(sp_full)
+                result['msa_tc_full_g0'] = float(tc_full)
                 result['time_fsa_sps'] = float(time.time() - t1)
             except Exception as e:
                 result['_fsa_sps_failed'] = {
@@ -728,6 +751,10 @@ def process_family(family_name, in_dir, ref_dir, method_callable,
                     msa_strings, ref_aln, core_only=True)
                 result['msa_sp_g1'] = float(sp_msa)
                 result['msa_tc_g1'] = float(tc_msa)
+                sp_full, tc_full = sp_tc_score(
+                    msa_strings, ref_aln, core_only=False)
+                result['msa_sp_full_g1'] = float(sp_full)
+                result['msa_tc_full_g1'] = float(tc_full)
             except Exception as e:
                 result['_msa_score_failed'] = {
                     'error_type': type(e).__name__,
@@ -779,8 +806,18 @@ def build_method_callable(args):
             mix = load_mixture_ckpt(args.params)
         else:
             mix = _load_cherryml_as_mixture(args.params, anchor)
+        emit_sitemix = None
+        if args.sitemix:
+            # shared site-class mixture as the emission model of every component (the mixture-level class-tied
+            # control: K indel classes x C substitution classes, independent)
+            _c = np.load(args.sitemix, allow_pickle=True); A = 20
+            _S = np.asarray(_c['S'], float)[:, :A, :A]; _pi = np.asarray(_c['pi'], float)[:, :A]; _pi = _pi / _pi.sum(1, keepdims=True)
+            _w = np.asarray(_c['weights'], float); _w = _w / _w.sum()
+            _Q = _S * _pi[:, None, :]; _Q[:, np.arange(A), np.arange(A)] = 0.0; _Q[:, np.arange(A), np.arange(A)] = -_Q.sum(2)
+            emit_sitemix = (_Q, _pi, _w)
+            print(f"[{args.method}] emissions: {len(_w)}-class site mixture from {args.sitemix}, shared by all {int(mix['K'])} components", flush=True)
         cfg = {'method': args.method, 'params_file': args.params,
-               'anchor_file': args.anchor,
+               'anchor_file': args.anchor, 'sitemix_file': args.sitemix,
                'K': int(mix['K']), 'anchor': anchor.copy()}
         # Strip arrays from cfg JSON.
         cfg['anchor'].pop('Q', None)
@@ -789,7 +826,7 @@ def build_method_callable(args):
         def _go(int_seqs, names, pairs, _raw_seqs):
             pp, failed = _tkf92_mixture_pair_posteriors(
                 int_seqs, names, pairs, anchor, mix,
-                pair_chunk=args.pair_chunk)
+                pair_chunk=args.pair_chunk, emit_sitemix=emit_sitemix)
             return pp, 'soft', failed, {}
         return _go, cfg
 
@@ -801,7 +838,7 @@ def build_method_callable(args):
 
         def _go(int_seqs, names, pairs, _raw_seqs):
             pp, failed = _mixdom_pair_posteriors(
-                int_seqs, names, pairs, fsa_params, n_dom, n_frag)
+                int_seqs, names, pairs, fsa_params, n_dom, n_frag, em_rounds=args.em_rounds)
             return pp, 'soft', failed, {}
         return _go, cfg
 
@@ -865,6 +902,9 @@ def main():
     p.add_argument('--families', type=str, default=None,
                    help='Comma-separated subset (e.g. "BB11001,BB11003").')
     p.add_argument('--full-pair-cutoff', type=int, default=80)
+    p.add_argument('--sitemix', type=str, default=None,
+                   help='tkf92_mixture only: NPZ (S, pi, weights) of a site-class mixture used as the shared emission model of every component')
+    p.add_argument('--em-rounds', type=int, default=1, help='mixdom: EM rounds for each pair\'s branch length (1 = one generalized EM step from t=1, the submitted procedure; more converges to the ML branch length)')
     p.add_argument('--pair-chunk', type=int, default=None,
                    help='K-mixture: pair-batch chunk size (None = full).')
     p.add_argument('--fsa', choices=['on', 'off', 'auto'],

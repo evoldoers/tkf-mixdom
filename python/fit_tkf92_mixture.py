@@ -51,6 +51,10 @@ def main():
                    help="Number of mixture components")
     p.add_argument("--cherries-dir", type=str, default="pfam/cherries_tkf92",
                    help="Directory of per-family .npz cherry-count files")
+    p.add_argument("--tie-subst", action="store_true",
+                   help="tie the substitution model across components (held at LG08): components are indel-parameter classes only")
+    p.add_argument("--tie-indel", action="store_true",
+                   help="tie the indel process across components and hold it at --base-lam/--base-mu/--base-r (mirror of --tie-subst)")
     p.add_argument("--out", type=str, required=True,
                    help="Output .npz (MixDom1-loadable: train_pfam --checkpoint)")
     p.add_argument("--split-file", type=str, default=None,
@@ -132,7 +136,7 @@ def main():
         prior_alpha_lam=args.prior_alpha_lam,
         prior_alpha_mu=args.prior_alpha_mu,
         prior_beta=args.prior_beta,
-        log_fn=print)
+        log_fn=print, tie_subst=args.tie_subst, tie_indel=args.tie_indel)
     dt_fit = time.monotonic() - t0
     print(f"[fit ] done in {dt_fit:.1f}s, final total_ll = {history[-1]['total_ll']:.4f}")
 
@@ -146,7 +150,7 @@ def main():
 
     # ---- Save MixDom1-compatible ckpt ----
     config = {
-        "trainer": "fit_tkf92_mixture",
+        "trainer": "fit_tkf92_mixture", "tie_subst": bool(args.tie_subst), "tie_indel": bool(args.tie_indel),
         "K": int(args.K),
         "seed": int(args.seed),
         "split": args.split,

@@ -171,20 +171,14 @@ def main():
         em_fit, prep_bins, corpus_indel_loglik, corpus_substitution_loglik)
     from train_mixfrag_cherry_em import _substitution_model
     Q, pi = _substitution_model(args.subst)
-    if args.logspace:
-        from tkfmixdom.jax.train.mixfrag_cherry_em import em_fit_logspace
 
     print(f"[3/3] em_fit MixFrag F={args.n_frag} ({args.n_iter} iters) "
           f"logspace={args.logspace}")
-    if args.logspace:
-        out = em_fit_logspace(agg, n_fragtypes=args.n_frag, Q=Q, pi=pi,
-                              n_iter=args.n_iter, max_gap=args.max_gap, log_every=25)
-    else:
-        out = em_fit(agg, n_fragtypes=args.n_frag, Q=Q, pi=pi, n_iter=args.n_iter,
-                     max_gap=args.max_gap, log_every=25)
+    out = em_fit(agg, n_fragtypes=args.n_frag, Q=Q, pi=pi, n_iter=args.n_iter,
+                 max_gap=args.max_gap, log_every=25)   # the log-space run factor is unconditional on main (since c566e1d1f)
     vbins = prep_bins(vagg, max_gap=args.max_gap)
     v_ind = float(corpus_indel_loglik(vbins, out["lam"], out["mu"], out["exts"],
-                                      out["weights"], use_logspace=args.logspace))
+                                      out["weights"]))
     v_sub = float(corpus_substitution_loglik(vbins, Q, pi))
     ncv = vagg["n_pairs"]
     res = dict(lam=float(out["lam"]), mu=float(out["mu"]),

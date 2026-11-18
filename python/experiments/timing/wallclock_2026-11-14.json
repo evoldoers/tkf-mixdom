@@ -1,0 +1,208 @@
+{
+ "date": "2026-11-14",
+ "gpu": 1,
+ "runs": {
+  "T2_d1f_iter20_timed": {
+   "seconds": 340.0,
+   "note": "rc=0"
+  },
+  "T2_d2f_iter20_timed": {
+   "seconds": 423.9,
+   "note": "rc=0"
+  },
+  "T2_d3f_iter20_timed": {
+   "seconds": 985.2,
+   "note": "rc=0"
+  },
+  "T2_d4f_iter20_timed": {
+   "seconds": 975.9,
+   "note": "rc=0"
+  },
+  "T2_d5f_iter20_timed": {
+   "seconds": 525.8,
+   "note": "rc=0"
+  },
+  "T2_mixfrags_F2_iter20_timed": {
+   "seconds": 176.7,
+   "note": "rc=0"
+  },
+  "T2_mixfrags_F3_iter20_timed": {
+   "seconds": 209.1,
+   "note": "rc=0"
+  },
+  "T3_adam_d2f1_steps25_timed": {
+   "seconds": 420.6,
+   "note": "rc=0"
+  },
+  "T3_adam_d3f1_steps25_timed": {
+   "seconds": 237.8,
+   "note": "rc=0"
+  },
+  "T1_tkf92_pfam_rep1_timed": {
+   "seconds": 443.1,
+   "note": "rc=0"
+  },
+  "T1_tkf92_pfam_rep2_timed": {
+   "seconds": 447.0,
+   "note": "rc=0"
+  },
+  "T1_tkf92_pfam_rep3_timed": {
+   "seconds": 447.7,
+   "note": "rc=0"
+  },
+  "T1_mixfrag_pfam_timed": {
+   "seconds": 192.6,
+   "note": "rc=1"
+  },
+  "T2_d1f1_iter80_timed": {
+   "seconds": 241.0,
+   "note": "rc=0"
+  },
+  "T2_d1f1_iter20_timed": {
+   "seconds": 148.5,
+   "note": "rc=0"
+  },
+  "T2_d2f1_iter20_timed": {
+   "seconds": 294.9,
+   "note": "rc=0"
+  },
+  "T2_d3f1_iter20_timed": {
+   "seconds": 263.0,
+   "note": "rc=0"
+  },
+  "T2_d4f1_iter20_timed": {
+   "seconds": 293.2,
+   "note": "rc=0"
+  },
+  "T2_d5f1_iter20_timed": {
+   "seconds": 329.5,
+   "note": "rc=0"
+  },
+  "T2_d1f2_iter20_timed": {
+   "seconds": 165.2,
+   "note": "rc=0"
+  },
+  "T2_d2f2_iter20_timed": {
+   "seconds": 228.6,
+   "note": "rc=0"
+  },
+  "T2_d2f1_iter80_timed": {
+   "seconds": 440.1,
+   "note": "rc=0"
+  },
+  "T2_d3f1_iter80_timed": {
+   "seconds": 522.4,
+   "note": "rc=0"
+  },
+  "T2_d4f1_iter80_timed": {
+   "seconds": 654.8,
+   "note": "rc=0"
+  },
+  "T2_d5f1_iter80_timed": {
+   "seconds": 786.4,
+   "note": "rc=0"
+  },
+  "T2_d1f2_iter80_timed": {
+   "seconds": 292.1,
+   "note": "rc=0"
+  },
+  "T2_d2f2_iter80_timed": {
+   "seconds": 491.2,
+   "note": "rc=0"
+  },
+  "T2_mixfrags_F2_iter80_timed": {
+   "seconds": 266.6,
+   "note": "rc=0"
+  },
+  "T2_mixfrags_F3_iter80_timed": {
+   "seconds": 355.9,
+   "note": "rc=0"
+  },
+  "T3_adam_d2f1_steps125_timed": {
+   "seconds": 702.4,
+   "note": "rc=0"
+  },
+  "T3_adam_d3f1_steps125_timed": {
+   "seconds": 532.4,
+   "note": "rc=0"
+  },
+  "T4_counts_F2_iter10_timed": {
+   "seconds": 126.7,
+   "note": "rc=0"
+  }
+ },
+ "summary": {
+  "d1f1": {
+   "per_iter_median": 1.4000000000000057,
+   "per_iter_mean": 1.8329113924050633,
+   "per_iter_max": 17.400000000000006,
+   "n_intervals": 79,
+   "startup": 88.8,
+   "total_h": 0.6546666666666693
+  },
+  "d2f1": {
+   "per_iter_median": 3.8000000000000114,
+   "per_iter_mean": 4.318987341772152,
+   "per_iter_max": 22.39999999999999,
+   "n_intervals": 79,
+   "startup": 88.7,
+   "total_h": 1.734638888888894
+  },
+  "d3f1": {
+   "per_iter_median": 4.699999999999989,
+   "per_iter_mean": 5.327848101265823,
+   "per_iter_max": 31.19999999999999,
+   "n_intervals": 79,
+   "startup": 89.9,
+   "total_h": 2.1399722222222173
+  },
+  "d4f1": {
+   "per_iter_median": 6.300000000000011,
+   "per_iter_mean": 6.973417721518987,
+   "per_iter_max": 32.8,
+   "n_intervals": 79,
+   "startup": 90.5,
+   "total_h": 2.860138888888894
+  },
+  "d5f1": {
+   "per_iter_median": 8.0,
+   "per_iter_mean": 8.634177215189874,
+   "per_iter_max": 35.89999999999999,
+   "n_intervals": 79,
+   "startup": 88.9,
+   "total_h": 3.624694444444444
+  },
+  "d1f2": {
+   "per_iter_median": 2.1000000000000227,
+   "per_iter_mean": 2.4696202531645572,
+   "per_iter_max": 17.89999999999999,
+   "n_intervals": 79,
+   "startup": 88.7,
+   "total_h": 0.969638888888899
+  },
+  "d2f2": {
+   "per_iter_median": 4.399999999999977,
+   "per_iter_mean": 4.951898734177215,
+   "per_iter_max": 29.900000000000006,
+   "n_intervals": 79,
+   "startup": 88.8,
+   "total_h": 2.004666666666657
+  },
+  "adam_d2f1": {
+   "per_iter_median": 2.3999999999999773,
+   "per_iter_mean": 3.744715447154472,
+   "per_iter_max": 28.0,
+   "n_intervals": 123,
+   "startup": 238.0,
+   "total_h": 1.3994444444444318
+  },
+  "adam_d3f1": {
+   "per_iter_median": 2.9000000000000057,
+   "per_iter_mean": 3.178861788617886,
+   "per_iter_max": 10.300000000000011,
+   "n_intervals": 123,
+   "startup": 137.9,
+   "total_h": 1.6494166666666696
+  }
+ }
+}

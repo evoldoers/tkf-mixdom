@@ -1,0 +1,17 @@
+{
+ "shards": "pfam/precompiled_v3_test",
+ "lam": 0.04608,
+ "mu": 0.04709,
+ "exts": [
+  0.37466,
+  0.83325
+ ],
+ "weights": [
+  0.62848,
+  0.37152
+ ],
+ "n_pairs": 213562,
+ "indel_ll": NaN,
+ "sub_ll": -143473436.3684082,
+ "ll_per_pair": NaN
+}

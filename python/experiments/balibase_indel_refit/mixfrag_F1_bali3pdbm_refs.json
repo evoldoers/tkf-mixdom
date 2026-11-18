@@ -1,0 +1,16 @@
+{
+ "model": "mixfrag",
+ "F": 1,
+ "lam": 0.09286,
+ "mu": 0.09406,
+ "exts": [
+  0.74
+ ],
+ "weights": [
+  1.0
+ ],
+ "final_ll": -2539569.6002,
+ "n_pairs": 1686,
+ "source": "BAliBASE bali3pdbm reference alignments, summarised-count EM (gap blocks <= 120 residues, 400 iterations, LG08 fixed)",
+ "t_cache": "experiments/balibase_indel_refit/tkf92_bali3pdbm_tcache.json"
+}
