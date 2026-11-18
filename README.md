@@ -11,6 +11,20 @@ this repo has since been rebuilt around **MixDom2** — a Markovian
 fragchar variant whose null-state count restoration gives an exact
 closed-form M-step at every level.
 
+## Paper: closed-form Baum–Welch for TKF-family models
+
+This repository accompanies the paper on closed-form Baum–Welch for
+TKF-family models. Beyond what the paper itself contains, it has:
+
+- the code for every model, trainer and benchmark in the paper;
+- the scripts that regenerate its tables, with the result files they read
+  attached to a release (`python/experiments/figs/README.md`);
+- a more detailed version of the proof in the paper's appendix on the
+  integral equations of the earlier EM algorithm for TKF91 (Holmes 2005),
+  with symbolic and numerical checks of each identity (`tkf/holmes2005/`);
+- the profile-mixture and CherryML C=20 comparison runs
+  (`python/experiments/profile_mixture/`).
+
 ## What's here
 
 ### Paper (`tkf/`)
