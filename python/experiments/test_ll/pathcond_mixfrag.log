@@ -1,0 +1,93 @@
+[mixfrag] read 213930 records, 213930 scorable pairs, 61.1s
+[mixfrag] ns=8 state_types=[0 1 1 2 2 3 3 4]
+W1107 09:49:27.054160 1401766 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 4.00MiB (rounded to 4194304)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+W1107 09:49:27.054277 1401766 bfc_allocator.cc:513] ************xxxxxxxx**********************xxxxxxxxxxxxxxxxx***************xxxxx************xxxxxxx*_
+W1107 09:49:37.137847 1401766 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 18.75MiB (rounded to 19660800)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+W1107 09:49:37.137955 1401766 bfc_allocator.cc:513] ************xxxxxxxx**********************xxxxxxxxxxxxxxxxx***************xxxxx************xxxxxxx*_
+[mixfrag] precomputed log_trans+subs for 213930 pairs, 105.8s
+  [mixfrag] grid (16,16) x108 done  n_done=108/213930  107.2s
+  [mixfrag] grid (16,24) x16 done  n_done=124/213930  108.2s
+  [mixfrag] grid (24,16) x16 done  n_done=140/213930  109.2s
+  [mixfrag] grid (24,24) x1484 done  n_done=1624/213930  111.3s
+  [mixfrag] grid (32,24) x70 done  n_done=1694/213930  112.6s
+  [mixfrag] grid (24,32) x70 done  n_done=1764/213930  113.8s
+  [mixfrag] grid (32,32) x1210 done  n_done=2974/213930  116.1s
+  [mixfrag] grid (48,24) x1 done  n_done=2975/213930  117.2s
+  [mixfrag] grid (24,48) x1 done  n_done=2976/213930  118.1s
+  [mixfrag] grid (48,32) x137 done  n_done=3113/213930  119.4s
+  [mixfrag] grid (32,48) x137 done  n_done=3250/213930  120.7s
+  [mixfrag] grid (96,16) x1 done  n_done=3251/213930  121.8s
+  [mixfrag] grid (16,96) x1 done  n_done=3252/213930  122.7s
+  [mixfrag] grid (64,32) x4 done  n_done=3256/213930  123.8s
+  [mixfrag] grid (32,64) x4 done  n_done=3260/213930  124.8s
+  [mixfrag] grid (48,48) x8938 done  n_done=12198/213930  135.0s
+  [mixfrag] grid (64,48) x408 done  n_done=12606/213930  137.2s
+  [mixfrag] grid (48,64) x408 done  n_done=13014/213930  139.4s
+  [mixfrag] grid (64,64) x19994 done  n_done=33008/213930  161.4s
+  [mixfrag] grid (96,48) x7 done  n_done=33015/213930  162.5s
+  [mixfrag] grid (48,96) x7 done  n_done=33022/213930  163.5s
+  [mixfrag] grid (64,96) x1164 done  n_done=34186/213930  166.2s
+  [mixfrag] grid (96,64) x1164 done  n_done=35350/213930  169.0s
+  [mixfrag] grid (128,64) x7 done  n_done=35357/213930  170.3s
+  [mixfrag] grid (64,128) x7 done  n_done=35364/213930  171.3s
+  [mixfrag] grid (96,96) x49794 done  n_done=85158/213930  268.5s
+  [mixfrag] grid (192,48) x1 done  n_done=85159/213930  269.5s
+  [mixfrag] grid (48,192) x1 done  n_done=85160/213930  270.4s
+  [mixfrag] grid (128,96) x2251 done  n_done=87411/213930  278.2s
+  [mixfrag] grid (96,128) x2251 done  n_done=89662/213930  285.9s
+  [mixfrag] grid (64,192) x2 done  n_done=89664/213930  287.3s
+  [mixfrag] grid (192,64) x2 done  n_done=89666/213930  288.5s
+  [mixfrag] grid (128,128) x35550 done  n_done=125216/213930  400.2s
+  [mixfrag] grid (96,192) x24 done  n_done=125240/213930  401.9s
+  [mixfrag] grid (192,96) x24 done  n_done=125264/213930  403.1s
+  [mixfrag] grid (128,192) x2116 done  n_done=127380/213930  415.6s
+  [mixfrag] grid (192,128) x2116 done  n_done=129496/213930  428.0s
+  [mixfrag] grid (64,384) x1 done  n_done=129497/213930  429.2s
+  [mixfrag] grid (96,256) x3 done  n_done=129500/213930  430.2s
+  [mixfrag] grid (256,96) x3 done  n_done=129503/213930  431.3s
+  [mixfrag] grid (384,64) x1 done  n_done=129504/213930  432.4s
+  [mixfrag] grid (256,128) x7 done  n_done=129511/213930  434.0s
+  [mixfrag] grid (128,256) x7 done  n_done=129518/213930  435.5s
+  [mixfrag] grid (192,192) x34884 done  n_done=164402/213930  701.9s
+  [mixfrag] grid (192,256) x1122 done  n_done=165524/213930  716.2s
+  [mixfrag] grid (256,192) x1122 done  n_done=166646/213930  729.8s
+  [mixfrag] grid (256,256) x18938 done  n_done=185584/213930  981.7s
+  [mixfrag] grid (384,192) x43 done  n_done=185627/213930  984.1s
+  [mixfrag] grid (192,384) x43 done  n_done=185670/213930  986.4s
+  [mixfrag] grid (384,256) x975 done  n_done=186645/213930  1008.2s
+  [mixfrag] grid (256,384) x975 done  n_done=187620/213930  1029.2s
+  [mixfrag] grid (512,192) x1 done  n_done=187621/213930  1030.3s
+  [mixfrag] grid (192,512) x1 done  n_done=187622/213930  1031.4s
+  [mixfrag] grid (512,256) x9 done  n_done=187631/213930  1032.8s
+  [mixfrag] grid (256,512) x9 done  n_done=187640/213930  1034.3s
+  [mixfrag] grid (384,384) x17988 done  n_done=205628/213930  1639.4s
+  [mixfrag] grid (512,384) x436 done  n_done=206064/213930  1660.2s
+  [mixfrag] grid (384,512) x436 done  n_done=206500/213930  1679.6s
+  [mixfrag] grid (256,768) x1 done  n_done=206501/213930  1680.8s
+  [mixfrag] grid (768,256) x1 done  n_done=206502/213930  1681.9s
+  [mixfrag] grid (512,512) x4946 done  n_done=211448/213930  1967.3s
+  [mixfrag] grid (768,384) x14 done  n_done=211462/213930  1968.9s
+  [mixfrag] grid (384,768) x14 done  n_done=211476/213930  1970.4s
+  [mixfrag] grid (512,768) x91 done  n_done=211567/213930  1979.0s
+  [mixfrag] grid (768,512) x91 done  n_done=211658/213930  1987.9s
+  [mixfrag] grid (768,768) x1992 done  n_done=213650/213930  2250.4s
+  [mixfrag] grid (1536,384) x1 done  n_done=213651/213930  2252.8s
+  [mixfrag] grid (384,1536) x1 done  n_done=213652/213930  2253.8s
+  [mixfrag] grid (1024,768) x36 done  n_done=213688/213930  2260.1s
+  [mixfrag] grid (768,1024) x36 done  n_done=213724/213930  2267.4s
+  [mixfrag] grid (1024,1024) x180 done  n_done=213904/213930  2311.6s
+  [mixfrag] grid (1536,1024) x2 done  n_done=213906/213930  2313.1s
+  [mixfrag] grid (1024,1536) x2 done  n_done=213908/213930  2314.7s
+  [mixfrag] grid (1536,1536) x22 done  n_done=213930/213930  2326.0s
+============================================================
+[mixfrag] PATH-CONDITIONED (full path fixed) RESULT
+  n_pairs=213930  n_bad=0
+  total_ll = -156726655.5169
+  LL/pair  = -732.607187
+============================================================

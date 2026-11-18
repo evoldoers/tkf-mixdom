@@ -1,0 +1,4561 @@
+{
+ "method": "mixdom_d5f1_nobali_1620__sabrem",
+ "gap_factors": [
+  0.0
+ ],
+ "n_families": 303,
+ "summary": {
+  "g0": {
+   "sp": 0.6722157606906396,
+   "tc": 0.4803486511985375,
+   "f1_pairs": 0.2623404994286922
+  }
+ },
+ "rows": [
+  {
+   "family": "sup_003",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.9545454545454546,
+   "msa_tc_g0": 0.9090909090909091,
+   "micro_hard_g0": {
+    "e_tp": 210.0,
+    "total_mass": 702.0,
+    "gold": 220,
+    "n_cells": 70337
+   },
+   "time_g0": 3.275200605392456
+  },
+  {
+   "family": "sup_005",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.8865546218487395,
+   "msa_tc_g0": 0.6862745098039216,
+   "micro_hard_g0": {
+    "e_tp": 1266.0,
+    "total_mass": 2331.0,
+    "gold": 1428,
+    "n_cells": 221667
+   },
+   "time_g0": 8.573589086532593
+  },
+  {
+   "family": "sup_008",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8873873873873874,
+   "msa_tc_g0": 0.8378378378378378,
+   "micro_hard_g0": {
+    "e_tp": 197.0,
+    "total_mass": 247.0,
+    "gold": 222,
+    "n_cells": 22167
+   },
+   "time_g0": 0.9557065963745117
+  },
+  {
+   "family": "sup_009",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8431372549019608,
+   "msa_tc_g0": 0.7647058823529411,
+   "micro_hard_g0": {
+    "e_tp": 43.0,
+    "total_mass": 309.0,
+    "gold": 51,
+    "n_cells": 37666
+   },
+   "time_g0": 0.8491308689117432
+  },
+  {
+   "family": "sup_013",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.925,
+   "msa_tc_g0": 0.8125,
+   "micro_hard_g0": {
+    "e_tp": 444.0,
+    "total_mass": 790.0,
+    "gold": 480,
+    "n_cells": 88835
+   },
+   "time_g0": 1.9959492683410645
+  },
+  {
+   "family": "sup_016",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.8457831325301205,
+   "msa_tc_g0": 0.6506024096385542,
+   "micro_hard_g0": {
+    "e_tp": 702.0,
+    "total_mass": 1201.0,
+    "gold": 830,
+    "n_cells": 209337
+   },
+   "time_g0": 3.4627480506896973
+  },
+  {
+   "family": "sup_017",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 12.0,
+    "total_mass": 154.0,
+    "gold": 36,
+    "n_cells": 9581
+   },
+   "time_g0": 0.8191807270050049
+  },
+  {
+   "family": "sup_018",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 156.0,
+    "total_mass": 218.0,
+    "gold": 156,
+    "n_cells": 9006
+   },
+   "time_g0": 1.2977275848388672
+  },
+  {
+   "family": "sup_019",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 246.0,
+    "total_mass": 317.0,
+    "gold": 246,
+    "n_cells": 36950
+   },
+   "time_g0": 0.8728296756744385
+  },
+  {
+   "family": "sup_030",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 141.0,
+    "total_mass": 233.0,
+    "gold": 141,
+    "n_cells": 19501
+   },
+   "time_g0": 0.9350752830505371
+  },
+  {
+   "family": "sup_032",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 126.0,
+    "total_mass": 661.0,
+    "gold": 126,
+    "n_cells": 90797
+   },
+   "time_g0": 2.1026484966278076
+  },
+  {
+   "family": "sup_036",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.9437939110070258,
+   "msa_tc_g0": 0.8032786885245902,
+   "micro_hard_g0": {
+    "e_tp": 1209.0,
+    "total_mass": 2194.0,
+    "gold": 1281,
+    "n_cells": 285059
+   },
+   "time_g0": 5.558146238327026
+  },
+  {
+   "family": "sup_038",
+   "n_seqs": 16,
+   "n_pairs": 120,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 3840.0,
+    "total_mass": 14561.0,
+    "gold": 3840,
+    "n_cells": 2119718
+   },
+   "time_g0": 64.9618616104126
+  },
+  {
+   "family": "sup_039",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9863387978142076,
+   "msa_tc_g0": 0.9836065573770492,
+   "micro_hard_g0": {
+    "e_tp": 361.0,
+    "total_mass": 414.0,
+    "gold": 366,
+    "n_cells": 29190
+   },
+   "time_g0": 0.7467520236968994
+  },
+  {
+   "family": "sup_040",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 273.0,
+    "gold": 12,
+    "n_cells": 35454
+   },
+   "time_g0": 1.1144225597381592
+  },
+  {
+   "family": "sup_043",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9800995024875622,
+   "msa_tc_g0": 0.9701492537313433,
+   "micro_hard_g0": {
+    "e_tp": 197.0,
+    "total_mass": 229.0,
+    "gold": 201,
+    "n_cells": 24040
+   },
+   "time_g0": 1.229684591293335
+  },
+  {
+   "family": "sup_044",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.45294117647058824,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 77.0,
+    "total_mass": 582.0,
+    "gold": 170,
+    "n_cells": 55687
+   },
+   "time_g0": 3.9191513061523438
+  },
+  {
+   "family": "sup_045",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6296296296296297,
+   "msa_tc_g0": 0.4444444444444444,
+   "micro_hard_g0": {
+    "e_tp": 34.0,
+    "total_mass": 388.0,
+    "gold": 54,
+    "n_cells": 52452
+   },
+   "time_g0": 2.3836326599121094
+  },
+  {
+   "family": "sup_049",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 1035.0,
+    "total_mass": 3520.0,
+    "gold": 1035,
+    "n_cells": 1163660
+   },
+   "time_g0": 6.6702117919921875
+  },
+  {
+   "family": "sup_050",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9298245614035088,
+   "msa_tc_g0": 0.8947368421052632,
+   "micro_hard_g0": {
+    "e_tp": 106.0,
+    "total_mass": 344.0,
+    "gold": 114,
+    "n_cells": 48338
+   },
+   "time_g0": 1.2118680477142334
+  },
+  {
+   "family": "sup_051",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7611940298507462,
+   "msa_tc_g0": 0.6417910447761194,
+   "micro_hard_g0": {
+    "e_tp": 153.0,
+    "total_mass": 383.0,
+    "gold": 201,
+    "n_cells": 60123
+   },
+   "time_g0": 0.7775478363037109
+  },
+  {
+   "family": "sup_054",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.25170068027210885,
+   "msa_tc_g0": 0.08163265306122448,
+   "micro_hard_g0": {
+    "e_tp": 37.0,
+    "total_mass": 275.0,
+    "gold": 147,
+    "n_cells": 40736
+   },
+   "time_g0": 0.7567505836486816
+  },
+  {
+   "family": "sup_055",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 6.0,
+    "total_mass": 582.0,
+    "gold": 18,
+    "n_cells": 131459
+   },
+   "time_g0": 1.20979642868042
+  },
+  {
+   "family": "sup_057",
+   "n_seqs": 9,
+   "n_pairs": 32,
+   "kind": "soft",
+   "msa_sp_g0": 0.7777777777777778,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 140.0,
+    "total_mass": 8709.0,
+    "gold": 160,
+    "n_cells": 3598020
+   },
+   "time_g0": 16.35102415084839
+  },
+  {
+   "family": "sup_059",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9681742043551089,
+   "msa_tc_g0": 0.9396984924623115,
+   "micro_hard_g0": {
+    "e_tp": 1156.0,
+    "total_mass": 1510.0,
+    "gold": 1194,
+    "n_cells": 427412
+   },
+   "time_g0": 2.796734571456909
+  },
+  {
+   "family": "sup_062",
+   "n_seqs": 5,
+   "n_pairs": 9,
+   "kind": "soft",
+   "msa_sp_g0": 0.7647058823529411,
+   "msa_tc_g0": 0.4117647058823529,
+   "micro_hard_g0": {
+    "e_tp": 123.0,
+    "total_mass": 2868.0,
+    "gold": 153,
+    "n_cells": 1154088
+   },
+   "time_g0": 4.233599662780762
+  },
+  {
+   "family": "sup_064",
+   "n_seqs": 5,
+   "n_pairs": 9,
+   "kind": "soft",
+   "msa_sp_g0": 0.9971153846153846,
+   "msa_tc_g0": 0.9951923076923077,
+   "micro_hard_g0": {
+    "e_tp": 1866.0,
+    "total_mass": 3275.0,
+    "gold": 1872,
+    "n_cells": 1374398
+   },
+   "time_g0": 4.260194301605225
+  },
+  {
+   "family": "sup_065",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.9878048780487805,
+   "msa_tc_g0": 0.9512195121951219,
+   "micro_hard_g0": {
+    "e_tp": 1134.0,
+    "total_mass": 10460.0,
+    "gold": 1148,
+    "n_cells": 4737874
+   },
+   "time_g0": 16.903992414474487
+  },
+  {
+   "family": "sup_072",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.9868421052631579,
+   "msa_tc_g0": 0.9473684210526315,
+   "micro_hard_g0": {
+    "e_tp": 3150.0,
+    "total_mass": 6342.0,
+    "gold": 3192,
+    "n_cells": 1676426
+   },
+   "time_g0": 13.453328609466553
+  },
+  {
+   "family": "sup_073",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.4084967320261438,
+   "msa_tc_g0": 0.23529411764705882,
+   "micro_hard_g0": {
+    "e_tp": 125.0,
+    "total_mass": 661.0,
+    "gold": 306,
+    "n_cells": 191421
+   },
+   "time_g0": 1.2413349151611328
+  },
+  {
+   "family": "sup_075",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9182389937106918,
+   "msa_tc_g0": 0.8364779874213837,
+   "micro_hard_g0": {
+    "e_tp": 876.0,
+    "total_mass": 2562.0,
+    "gold": 954,
+    "n_cells": 1247553
+   },
+   "time_g0": 3.0509443283081055
+  },
+  {
+   "family": "sup_080",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 5.0,
+    "total_mass": 282.0,
+    "gold": 15,
+    "n_cells": 35174
+   },
+   "time_g0": 0.9941704273223877
+  },
+  {
+   "family": "sup_081",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.6283846872082166,
+   "msa_tc_g0": 0.35294117647058826,
+   "micro_hard_g0": {
+    "e_tp": 673.0,
+    "total_mass": 2076.0,
+    "gold": 1071,
+    "n_cells": 242837
+   },
+   "time_g0": 7.587825775146484
+  },
+  {
+   "family": "sup_082",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.47126436781609193,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 82.0,
+    "total_mass": 615.0,
+    "gold": 174,
+    "n_cells": 73578
+   },
+   "time_g0": 1.2658979892730713
+  },
+  {
+   "family": "sup_083",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 414.0,
+    "total_mass": 659.0,
+    "gold": 414,
+    "n_cells": 75257
+   },
+   "time_g0": 2.4016942977905273
+  },
+  {
+   "family": "sup_084",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.717687074829932,
+   "msa_tc_g0": 0.46938775510204084,
+   "micro_hard_g0": {
+    "e_tp": 211.0,
+    "total_mass": 827.0,
+    "gold": 294,
+    "n_cells": 134484
+   },
+   "time_g0": 1.6613104343414307
+  },
+  {
+   "family": "sup_085",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6794871794871795,
+   "msa_tc_g0": 0.5384615384615384,
+   "micro_hard_g0": {
+    "e_tp": 106.0,
+    "total_mass": 683.0,
+    "gold": 156,
+    "n_cells": 100405
+   },
+   "time_g0": 1.6846394538879395
+  },
+  {
+   "family": "sup_086",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.6666666666666666,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 60.0,
+    "total_mass": 1334.0,
+    "gold": 90,
+    "n_cells": 136267
+   },
+   "time_g0": 6.813220262527466
+  },
+  {
+   "family": "sup_090",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.8936170212765957,
+   "msa_tc_g0": 0.7872340425531915,
+   "micro_hard_g0": {
+    "e_tp": 252.0,
+    "total_mass": 599.0,
+    "gold": 282,
+    "n_cells": 67383
+   },
+   "time_g0": 2.3134849071502686
+  },
+  {
+   "family": "sup_091",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 54.0,
+    "total_mass": 616.0,
+    "gold": 54,
+    "n_cells": 184547
+   },
+   "time_g0": 1.3507030010223389
+  },
+  {
+   "family": "sup_092",
+   "n_seqs": 23,
+   "n_pairs": 253,
+   "kind": "soft",
+   "msa_sp_g0": 0.6091897233201581,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 1233.0,
+    "total_mass": 33109.0,
+    "gold": 2024,
+    "n_cells": 7019514
+   },
+   "time_g0": 230.24030756950378
+  },
+  {
+   "family": "sup_093",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.9567567567567568,
+   "msa_tc_g0": 0.9459459459459459,
+   "micro_hard_g0": {
+    "e_tp": 708.0,
+    "total_mass": 1250.0,
+    "gold": 740,
+    "n_cells": 185356
+   },
+   "time_g0": 4.454850912094116
+  },
+  {
+   "family": "sup_094",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.42424242424242425,
+   "msa_tc_g0": 0.21212121212121213,
+   "micro_hard_g0": {
+    "e_tp": 42.0,
+    "total_mass": 396.0,
+    "gold": 99,
+    "n_cells": 82235
+   },
+   "time_g0": 0.8271064758300781
+  },
+  {
+   "family": "sup_096",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.16666666666666666,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 393.0,
+    "gold": 24,
+    "n_cells": 72959
+   },
+   "time_g0": 1.1552910804748535
+  },
+  {
+   "family": "sup_097",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.0,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 0.0,
+    "total_mass": 532.0,
+    "gold": 57,
+    "n_cells": 171503
+   },
+   "time_g0": 1.4264960289001465
+  },
+  {
+   "family": "sup_098",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 27.0,
+    "total_mass": 324.0,
+    "gold": 81,
+    "n_cells": 46400
+   },
+   "time_g0": 1.1046030521392822
+  },
+  {
+   "family": "sup_102",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.776829268292683,
+   "msa_tc_g0": 0.6097560975609756,
+   "micro_hard_g0": {
+    "e_tp": 637.0,
+    "total_mass": 1298.0,
+    "gold": 820,
+    "n_cells": 203840
+   },
+   "time_g0": 3.610372543334961
+  },
+  {
+   "family": "sup_103",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8632478632478633,
+   "msa_tc_g0": 0.7948717948717948,
+   "micro_hard_g0": {
+    "e_tp": 101.0,
+    "total_mass": 259.0,
+    "gold": 117,
+    "n_cells": 32545
+   },
+   "time_g0": 1.1240630149841309
+  },
+  {
+   "family": "sup_106",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.7042553191489361,
+   "msa_tc_g0": 0.6382978723404256,
+   "micro_hard_g0": {
+    "e_tp": 331.0,
+    "total_mass": 1210.0,
+    "gold": 470,
+    "n_cells": 194469
+   },
+   "time_g0": 3.413273811340332
+  },
+  {
+   "family": "sup_107",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.08333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 1.0,
+    "total_mass": 141.0,
+    "gold": 12,
+    "n_cells": 11466
+   },
+   "time_g0": 1.1040220260620117
+  },
+  {
+   "family": "sup_109",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.327027027027027,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 121.0,
+    "total_mass": 710.0,
+    "gold": 370,
+    "n_cells": 152332
+   },
+   "time_g0": 4.548931121826172
+  },
+  {
+   "family": "sup_110",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.13333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 18.0,
+    "total_mass": 1038.0,
+    "gold": 135,
+    "n_cells": 134038
+   },
+   "time_g0": 7.324006080627441
+  },
+  {
+   "family": "sup_111",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6571428571428571,
+   "msa_tc_g0": 0.4857142857142857,
+   "micro_hard_g0": {
+    "e_tp": 69.0,
+    "total_mass": 291.0,
+    "gold": 105,
+    "n_cells": 30781
+   },
+   "time_g0": 1.249657392501831
+  },
+  {
+   "family": "sup_112",
+   "n_seqs": 16,
+   "n_pairs": 120,
+   "kind": "soft",
+   "msa_sp_g0": 0.8283333333333334,
+   "msa_tc_g0": 0.32,
+   "micro_hard_g0": {
+    "e_tp": 2485.0,
+    "total_mass": 10321.0,
+    "gold": 3000,
+    "n_cells": 1168701
+   },
+   "time_g0": 72.78957867622375
+  },
+  {
+   "family": "sup_113",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.743859649122807,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 636.0,
+    "total_mass": 2941.0,
+    "gold": 855,
+    "n_cells": 233751
+   },
+   "time_g0": 18.947898864746094
+  },
+  {
+   "family": "sup_115",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.49612403100775193,
+   "msa_tc_g0": 0.3023255813953488,
+   "micro_hard_g0": {
+    "e_tp": 128.0,
+    "total_mass": 693.0,
+    "gold": 258,
+    "n_cells": 143673
+   },
+   "time_g0": 1.6451735496520996
+  },
+  {
+   "family": "sup_118",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.8559670781893004,
+   "msa_tc_g0": 0.48148148148148145,
+   "micro_hard_g0": {
+    "e_tp": 832.0,
+    "total_mass": 2290.0,
+    "gold": 972,
+    "n_cells": 193303
+   },
+   "time_g0": 14.800611972808838
+  },
+  {
+   "family": "sup_119",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.8987341772151899,
+   "msa_tc_g0": 0.6962025316455697,
+   "micro_hard_g0": {
+    "e_tp": 1065.0,
+    "total_mass": 1902.0,
+    "gold": 1185,
+    "n_cells": 283930
+   },
+   "time_g0": 7.087640047073364
+  },
+  {
+   "family": "sup_120",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.9078947368421053,
+   "msa_tc_g0": 0.7105263157894737,
+   "micro_hard_g0": {
+    "e_tp": 1932.0,
+    "total_mass": 3455.0,
+    "gold": 2128,
+    "n_cells": 480458
+   },
+   "time_g0": 9.8906831741333
+  },
+  {
+   "family": "sup_121",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.8170995670995671,
+   "msa_tc_g0": 0.5909090909090909,
+   "micro_hard_g0": {
+    "e_tp": 1510.0,
+    "total_mass": 3525.0,
+    "gold": 1848,
+    "n_cells": 768353
+   },
+   "time_g0": 10.70711350440979
+  },
+  {
+   "family": "sup_122",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6609195402298851,
+   "msa_tc_g0": 0.5689655172413793,
+   "micro_hard_g0": {
+    "e_tp": 115.0,
+    "total_mass": 330.0,
+    "gold": 174,
+    "n_cells": 40816
+   },
+   "time_g0": 1.0681164264678955
+  },
+  {
+   "family": "sup_123",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.41228070175438597,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 47.0,
+    "total_mass": 630.0,
+    "gold": 114,
+    "n_cells": 160365
+   },
+   "time_g0": 2.513575792312622
+  },
+  {
+   "family": "sup_124",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9588477366255144,
+   "msa_tc_g0": 0.9382716049382716,
+   "micro_hard_g0": {
+    "e_tp": 233.0,
+    "total_mass": 272.0,
+    "gold": 243,
+    "n_cells": 31160
+   },
+   "time_g0": 1.0745513439178467
+  },
+  {
+   "family": "sup_125",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.45555555555555555,
+   "msa_tc_g0": 0.1111111111111111,
+   "micro_hard_g0": {
+    "e_tp": 82.0,
+    "total_mass": 1438.0,
+    "gold": 180,
+    "n_cells": 316193
+   },
+   "time_g0": 4.621149063110352
+  },
+  {
+   "family": "sup_126",
+   "n_seqs": 21,
+   "n_pairs": 210,
+   "kind": "soft",
+   "msa_sp_g0": 0.8057142857142857,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 1692.0,
+    "total_mass": 44870.0,
+    "gold": 2100,
+    "n_cells": 12011742
+   },
+   "time_g0": 189.1935043334961
+  },
+  {
+   "family": "sup_127",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5833333333333334,
+   "msa_tc_g0": 0.375,
+   "micro_hard_g0": {
+    "e_tp": 98.0,
+    "total_mass": 222.0,
+    "gold": 168,
+    "n_cells": 17624
+   },
+   "time_g0": 0.47672390937805176
+  },
+  {
+   "family": "sup_129",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.8169398907103825,
+   "msa_tc_g0": 0.6885245901639344,
+   "micro_hard_g0": {
+    "e_tp": 299.0,
+    "total_mass": 972.0,
+    "gold": 366,
+    "n_cells": 200367
+   },
+   "time_g0": 3.002476692199707
+  },
+  {
+   "family": "sup_130",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.5760869565217391,
+   "msa_tc_g0": 0.10869565217391304,
+   "micro_hard_g0": {
+    "e_tp": 742.0,
+    "total_mass": 2762.0,
+    "gold": 1288,
+    "n_cells": 447830
+   },
+   "time_g0": 14.00604796409607
+  },
+  {
+   "family": "sup_131",
+   "n_seqs": 19,
+   "n_pairs": 171,
+   "kind": "soft",
+   "msa_sp_g0": 0.49122807017543857,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 1596.0,
+    "total_mass": 16717.0,
+    "gold": 3249,
+    "n_cells": 2379753
+   },
+   "time_g0": 99.25205564498901
+  },
+  {
+   "family": "sup_132",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9633699633699634,
+   "msa_tc_g0": 0.945054945054945,
+   "micro_hard_g0": {
+    "e_tp": 263.0,
+    "total_mass": 295.0,
+    "gold": 273,
+    "n_cells": 30397
+   },
+   "time_g0": 0.7775590419769287
+  },
+  {
+   "family": "sup_134",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8858858858858859,
+   "msa_tc_g0": 0.8288288288288288,
+   "micro_hard_g0": {
+    "e_tp": 295.0,
+    "total_mass": 465.0,
+    "gold": 333,
+    "n_cells": 83968
+   },
+   "time_g0": 1.136540412902832
+  },
+  {
+   "family": "sup_135",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9773809523809524,
+   "msa_tc_g0": 0.9571428571428572,
+   "micro_hard_g0": {
+    "e_tp": 821.0,
+    "total_mass": 1142.0,
+    "gold": 840,
+    "n_cells": 229892
+   },
+   "time_g0": 2.4281327724456787
+  },
+  {
+   "family": "sup_136",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.31398809523809523,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 422.0,
+    "total_mass": 7113.0,
+    "gold": 1344,
+    "n_cells": 3507626
+   },
+   "time_g0": 10.48496675491333
+  },
+  {
+   "family": "sup_137",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.2324561403508772,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 53.0,
+    "total_mass": 1573.0,
+    "gold": 228,
+    "n_cells": 580634
+   },
+   "time_g0": 3.8342041969299316
+  },
+  {
+   "family": "sup_139",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 170.0,
+    "total_mass": 375.0,
+    "gold": 170,
+    "n_cells": 18400
+   },
+   "time_g0": 4.47210955619812
+  },
+  {
+   "family": "sup_140",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9337121212121212,
+   "msa_tc_g0": 0.9147727272727273,
+   "micro_hard_g0": {
+    "e_tp": 493.0,
+    "total_mass": 683.0,
+    "gold": 528,
+    "n_cells": 181628
+   },
+   "time_g0": 1.3805959224700928
+  },
+  {
+   "family": "sup_141",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5932203389830508,
+   "msa_tc_g0": 0.3898305084745763,
+   "micro_hard_g0": {
+    "e_tp": 105.0,
+    "total_mass": 589.0,
+    "gold": 177,
+    "n_cells": 132291
+   },
+   "time_g0": 1.337660312652588
+  },
+  {
+   "family": "sup_142",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9716312056737588,
+   "msa_tc_g0": 0.9574468085106383,
+   "micro_hard_g0": {
+    "e_tp": 137.0,
+    "total_mass": 324.0,
+    "gold": 141,
+    "n_cells": 37822
+   },
+   "time_g0": 1.155998945236206
+  },
+  {
+   "family": "sup_146",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.08333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 1.0,
+    "total_mass": 805.0,
+    "gold": 12,
+    "n_cells": 300215
+   },
+   "time_g0": 1.477996587753296
+  },
+  {
+   "family": "sup_147",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.9297820823244553,
+   "msa_tc_g0": 0.7796610169491526,
+   "micro_hard_g0": {
+    "e_tp": 1152.0,
+    "total_mass": 2483.0,
+    "gold": 1239,
+    "n_cells": 382459
+   },
+   "time_g0": 6.394198179244995
+  },
+  {
+   "family": "sup_148",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 252.0,
+    "total_mass": 2197.0,
+    "gold": 252,
+    "n_cells": 225532
+   },
+   "time_g0": 8.700574398040771
+  },
+  {
+   "family": "sup_150",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 366.0,
+    "total_mass": 449.0,
+    "gold": 366,
+    "n_cells": 71132
+   },
+   "time_g0": 1.2054901123046875
+  },
+  {
+   "family": "sup_151",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 300.0,
+    "total_mass": 325.0,
+    "gold": 300,
+    "n_cells": 42696
+   },
+   "time_g0": 1.1379332542419434
+  },
+  {
+   "family": "sup_154",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.3711734693877551,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 291.0,
+    "total_mass": 5565.0,
+    "gold": 784,
+    "n_cells": 1613239
+   },
+   "time_g0": 16.720038890838623
+  },
+  {
+   "family": "sup_155",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.5542372881355933,
+   "msa_tc_g0": 0.3050847457627119,
+   "micro_hard_g0": {
+    "e_tp": 327.0,
+    "total_mass": 2873.0,
+    "gold": 590,
+    "n_cells": 1184721
+   },
+   "time_g0": 4.253408908843994
+  },
+  {
+   "family": "sup_156",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.9506666666666667,
+   "msa_tc_g0": 0.9066666666666666,
+   "micro_hard_g0": {
+    "e_tp": 1426.0,
+    "total_mass": 2928.0,
+    "gold": 1500,
+    "n_cells": 1079588
+   },
+   "time_g0": 3.77229905128479
+  },
+  {
+   "family": "sup_160",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.8738601823708206,
+   "msa_tc_g0": 0.6595744680851063,
+   "micro_hard_g0": {
+    "e_tp": 1150.0,
+    "total_mass": 6245.0,
+    "gold": 1316,
+    "n_cells": 1848210
+   },
+   "time_g0": 16.328477382659912
+  },
+  {
+   "family": "sup_167",
+   "n_seqs": 21,
+   "n_pairs": 210,
+   "kind": "soft",
+   "msa_sp_g0": 0.6470418470418471,
+   "msa_tc_g0": 0.15151515151515152,
+   "micro_hard_g0": {
+    "e_tp": 4484.0,
+    "total_mass": 24275.0,
+    "gold": 6930,
+    "n_cells": 3661043
+   },
+   "time_g0": 107.15847444534302
+  },
+  {
+   "family": "sup_168",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7766666666666666,
+   "msa_tc_g0": 0.675,
+   "micro_hard_g0": {
+    "e_tp": 466.0,
+    "total_mass": 896.0,
+    "gold": 600,
+    "n_cells": 328354
+   },
+   "time_g0": 1.255575180053711
+  },
+  {
+   "family": "sup_172",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.5025740025740025,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 781.0,
+    "total_mass": 4140.0,
+    "gold": 1554,
+    "n_cells": 1324567
+   },
+   "time_g0": 11.941544771194458
+  },
+  {
+   "family": "sup_174",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 1100.0,
+    "total_mass": 1499.0,
+    "gold": 1100,
+    "n_cells": 242628
+   },
+   "time_g0": 3.5908515453338623
+  },
+  {
+   "family": "sup_176",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.7615740740740741,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 329.0,
+    "total_mass": 4315.0,
+    "gold": 432,
+    "n_cells": 647619
+   },
+   "time_g0": 16.789878845214844
+  },
+  {
+   "family": "sup_177",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.8096096096096096,
+   "msa_tc_g0": 0.6756756756756757,
+   "micro_hard_g0": {
+    "e_tp": 1348.0,
+    "total_mass": 6822.0,
+    "gold": 1665,
+    "n_cells": 1472050
+   },
+   "time_g0": 25.75675344467163
+  },
+  {
+   "family": "sup_178",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 216.0,
+    "total_mass": 801.0,
+    "gold": 216,
+    "n_cells": 147127
+   },
+   "time_g0": 2.4898407459259033
+  },
+  {
+   "family": "sup_179",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.47368421052631576,
+   "msa_tc_g0": 0.3684210526315789,
+   "micro_hard_g0": {
+    "e_tp": 54.0,
+    "total_mass": 563.0,
+    "gold": 114,
+    "n_cells": 183786
+   },
+   "time_g0": 1.3402318954467773
+  },
+  {
+   "family": "sup_180",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.974937343358396,
+   "msa_tc_g0": 0.9624060150375939,
+   "micro_hard_g0": {
+    "e_tp": 389.0,
+    "total_mass": 425.0,
+    "gold": 399,
+    "n_cells": 66829
+   },
+   "time_g0": 1.1519718170166016
+  },
+  {
+   "family": "sup_181",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.39021164021164023,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 295.0,
+    "total_mass": 4634.0,
+    "gold": 756,
+    "n_cells": 1024712
+   },
+   "time_g0": 14.96304702758789
+  },
+  {
+   "family": "sup_182",
+   "n_seqs": 14,
+   "n_pairs": 91,
+   "kind": "soft",
+   "msa_sp_g0": 0.8394532296971321,
+   "msa_tc_g0": 0.6829268292682927,
+   "micro_hard_g0": {
+    "e_tp": 3132.0,
+    "total_mass": 12125.0,
+    "gold": 3731,
+    "n_cells": 2019220
+   },
+   "time_g0": 62.53254818916321
+  },
+  {
+   "family": "sup_184",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.1746031746031746,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 44.0,
+    "total_mass": 4545.0,
+    "gold": 252,
+    "n_cells": 1124541
+   },
+   "time_g0": 17.22329354286194
+  },
+  {
+   "family": "sup_185",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.8543417366946778,
+   "msa_tc_g0": 0.7478991596638656,
+   "micro_hard_g0": {
+    "e_tp": 610.0,
+    "total_mass": 1079.0,
+    "gold": 714,
+    "n_cells": 226576
+   },
+   "time_g0": 2.1552228927612305
+  },
+  {
+   "family": "sup_187",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 0.48484848484848486,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 448.0,
+    "total_mass": 9392.0,
+    "gold": 924,
+    "n_cells": 2258064
+   },
+   "time_g0": 46.509567737579346
+  },
+  {
+   "family": "sup_189",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6834733893557423,
+   "msa_tc_g0": 0.5546218487394958,
+   "micro_hard_g0": {
+    "e_tp": 244.0,
+    "total_mass": 564.0,
+    "gold": 357,
+    "n_cells": 146211
+   },
+   "time_g0": 1.2190232276916504
+  },
+  {
+   "family": "sup_190",
+   "n_seqs": 17,
+   "n_pairs": 136,
+   "kind": "soft",
+   "msa_sp_g0": 0.5772058823529411,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 1099.0,
+    "total_mass": 23346.0,
+    "gold": 1904,
+    "n_cells": 6433601
+   },
+   "time_g0": 107.41538619995117
+  },
+  {
+   "family": "sup_192",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.6735537190082644,
+   "msa_tc_g0": 0.4462809917355372,
+   "micro_hard_g0": {
+    "e_tp": 815.0,
+    "total_mass": 2824.0,
+    "gold": 1210,
+    "n_cells": 1019579
+   },
+   "time_g0": 4.439210653305054
+  },
+  {
+   "family": "sup_193",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5102040816326531,
+   "msa_tc_g0": 0.2653061224489796,
+   "micro_hard_g0": {
+    "e_tp": 75.0,
+    "total_mass": 876.0,
+    "gold": 147,
+    "n_cells": 317216
+   },
+   "time_g0": 1.4224648475646973
+  },
+  {
+   "family": "sup_195",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8920634920634921,
+   "msa_tc_g0": 0.8380952380952381,
+   "micro_hard_g0": {
+    "e_tp": 281.0,
+    "total_mass": 410.0,
+    "gold": 315,
+    "n_cells": 65176
+   },
+   "time_g0": 0.7922382354736328
+  },
+  {
+   "family": "sup_196",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 0.4909090909090909,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 216.0,
+    "total_mass": 9063.0,
+    "gold": 440,
+    "n_cells": 2627122
+   },
+   "time_g0": 29.637138605117798
+  },
+  {
+   "family": "sup_199",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.8178861788617886,
+   "msa_tc_g0": 0.7317073170731707,
+   "micro_hard_g0": {
+    "e_tp": 503.0,
+    "total_mass": 1925.0,
+    "gold": 615,
+    "n_cells": 340312
+   },
+   "time_g0": 4.94662880897522
+  },
+  {
+   "family": "sup_200",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9930555555555556,
+   "msa_tc_g0": 0.9895833333333334,
+   "micro_hard_g0": {
+    "e_tp": 286.0,
+    "total_mass": 371.0,
+    "gold": 288,
+    "n_cells": 50338
+   },
+   "time_g0": 1.0566437244415283
+  },
+  {
+   "family": "sup_201",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.2222222222222222,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 40.0,
+    "total_mass": 456.0,
+    "gold": 180,
+    "n_cells": 93006
+   },
+   "time_g0": 1.1495301723480225
+  },
+  {
+   "family": "sup_202",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.9081632653061225,
+   "msa_tc_g0": 0.6326530612244898,
+   "micro_hard_g0": {
+    "e_tp": 1246.0,
+    "total_mass": 2847.0,
+    "gold": 1372,
+    "n_cells": 352907
+   },
+   "time_g0": 12.58415174484253
+  },
+  {
+   "family": "sup_207",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.5,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 18.0,
+    "total_mass": 564.0,
+    "gold": 36,
+    "n_cells": 103665
+   },
+   "time_g0": 3.6324362754821777
+  },
+  {
+   "family": "sup_209",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.5238095238095238,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 396.0,
+    "total_mass": 5859.0,
+    "gold": 756,
+    "n_cells": 2090981
+   },
+   "time_g0": 8.768569946289062
+  },
+  {
+   "family": "sup_211",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.75,
+   "msa_tc_g0": 0.5,
+   "micro_hard_g0": {
+    "e_tp": 126.0,
+    "total_mass": 1215.0,
+    "gold": 168,
+    "n_cells": 371612
+   },
+   "time_g0": 2.680241584777832
+  },
+  {
+   "family": "sup_212",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.7590277777777777,
+   "msa_tc_g0": 0.5625,
+   "micro_hard_g0": {
+    "e_tp": 1093.0,
+    "total_mass": 8164.0,
+    "gold": 1440,
+    "n_cells": 2076221
+   },
+   "time_g0": 28.273216247558594
+  },
+  {
+   "family": "sup_213",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.801025641025641,
+   "msa_tc_g0": 0.4153846153846154,
+   "micro_hard_g0": {
+    "e_tp": 781.0,
+    "total_mass": 2694.0,
+    "gold": 975,
+    "n_cells": 598399
+   },
+   "time_g0": 7.41746973991394
+  },
+  {
+   "family": "sup_215",
+   "n_seqs": 24,
+   "n_pairs": 276,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 1380.0,
+    "total_mass": 96575.0,
+    "gold": 1380,
+    "n_cells": 45842189
+   },
+   "time_g0": 214.93936824798584
+  },
+  {
+   "family": "sup_218",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.9490196078431372,
+   "msa_tc_g0": 0.8705882352941177,
+   "micro_hard_g0": {
+    "e_tp": 1694.0,
+    "total_mass": 3304.0,
+    "gold": 1785,
+    "n_cells": 613982
+   },
+   "time_g0": 8.031883955001831
+  },
+  {
+   "family": "sup_219",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6717557251908397,
+   "msa_tc_g0": 0.5419847328244275,
+   "micro_hard_g0": {
+    "e_tp": 264.0,
+    "total_mass": 875.0,
+    "gold": 393,
+    "n_cells": 311364
+   },
+   "time_g0": 1.302231788635254
+  },
+  {
+   "family": "sup_220",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8062015503875969,
+   "msa_tc_g0": 0.7093023255813954,
+   "micro_hard_g0": {
+    "e_tp": 208.0,
+    "total_mass": 806.0,
+    "gold": 258,
+    "n_cells": 256051
+   },
+   "time_g0": 2.866806745529175
+  },
+  {
+   "family": "sup_221",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9551282051282052,
+   "msa_tc_g0": 0.9326923076923077,
+   "micro_hard_g0": {
+    "e_tp": 298.0,
+    "total_mass": 614.0,
+    "gold": 312,
+    "n_cells": 163484
+   },
+   "time_g0": 1.19877028465271
+  },
+  {
+   "family": "sup_223",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6125,
+   "msa_tc_g0": 0.35,
+   "micro_hard_g0": {
+    "e_tp": 147.0,
+    "total_mass": 2008.0,
+    "gold": 240,
+    "n_cells": 1247179
+   },
+   "time_g0": 2.8086965084075928
+  },
+  {
+   "family": "sup_225",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.875,
+   "msa_tc_g0": 0.75,
+   "micro_hard_g0": {
+    "e_tp": 21.0,
+    "total_mass": 579.0,
+    "gold": 24,
+    "n_cells": 86587
+   },
+   "time_g0": 2.4813249111175537
+  },
+  {
+   "family": "sup_226",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.8921259842519685,
+   "msa_tc_g0": 0.8031496062992126,
+   "micro_hard_g0": {
+    "e_tp": 1133.0,
+    "total_mass": 3020.0,
+    "gold": 1270,
+    "n_cells": 1126394
+   },
+   "time_g0": 4.76906156539917
+  },
+  {
+   "family": "sup_227",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.4603174603174603,
+   "msa_tc_g0": 0.19047619047619047,
+   "micro_hard_g0": {
+    "e_tp": 58.0,
+    "total_mass": 1002.0,
+    "gold": 126,
+    "n_cells": 611020
+   },
+   "time_g0": 1.425642728805542
+  },
+  {
+   "family": "sup_228",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7324561403508771,
+   "msa_tc_g0": 0.631578947368421,
+   "micro_hard_g0": {
+    "e_tp": 167.0,
+    "total_mass": 1669.0,
+    "gold": 228,
+    "n_cells": 1205415
+   },
+   "time_g0": 1.658475637435913
+  },
+  {
+   "family": "sup_229",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.9360730593607306,
+   "msa_tc_g0": 0.8401826484018264,
+   "micro_hard_g0": {
+    "e_tp": 2050.0,
+    "total_mass": 4507.0,
+    "gold": 2190,
+    "n_cells": 2352929
+   },
+   "time_g0": 5.147065877914429
+  },
+  {
+   "family": "sup_230",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.17333333333333334,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 13.0,
+    "total_mass": 1475.0,
+    "gold": 75,
+    "n_cells": 263123
+   },
+   "time_g0": 7.119529962539673
+  },
+  {
+   "family": "sup_231",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9904761904761905,
+   "msa_tc_g0": 0.9857142857142858,
+   "micro_hard_g0": {
+    "e_tp": 832.0,
+    "total_mass": 1179.0,
+    "gold": 840,
+    "n_cells": 497627
+   },
+   "time_g0": 1.311166524887085
+  },
+  {
+   "family": "sup_233",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9851301115241635,
+   "msa_tc_g0": 0.9776951672862454,
+   "micro_hard_g0": {
+    "e_tp": 795.0,
+    "total_mass": 970.0,
+    "gold": 807,
+    "n_cells": 321436
+   },
+   "time_g0": 0.6260256767272949
+  },
+  {
+   "family": "sup_234",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.7065217391304348,
+   "msa_tc_g0": 0.41304347826086957,
+   "micro_hard_g0": {
+    "e_tp": 195.0,
+    "total_mass": 1679.0,
+    "gold": 276,
+    "n_cells": 611907
+   },
+   "time_g0": 3.168440818786621
+  },
+  {
+   "family": "sup_238",
+   "n_seqs": 15,
+   "n_pairs": 105,
+   "kind": "soft",
+   "msa_sp_g0": 0.5967032967032967,
+   "msa_tc_g0": 0.2692307692307692,
+   "micro_hard_g0": {
+    "e_tp": 1629.0,
+    "total_mass": 14987.0,
+    "gold": 2730,
+    "n_cells": 3450457
+   },
+   "time_g0": 60.39431285858154
+  },
+  {
+   "family": "sup_239",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.5,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 24.0,
+    "total_mass": 635.0,
+    "gold": 48,
+    "n_cells": 124721
+   },
+   "time_g0": 2.4091544151306152
+  },
+  {
+   "family": "sup_244",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8860759493670886,
+   "msa_tc_g0": 0.8354430379746836,
+   "micro_hard_g0": {
+    "e_tp": 210.0,
+    "total_mass": 352.0,
+    "gold": 237,
+    "n_cells": 48075
+   },
+   "time_g0": 1.1245479583740234
+  },
+  {
+   "family": "sup_245",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 0.8654545454545455,
+   "msa_tc_g0": 0.5,
+   "micro_hard_g0": {
+    "e_tp": 952.0,
+    "total_mass": 3470.0,
+    "gold": 1100,
+    "n_cells": 264926
+   },
+   "time_g0": 25.98938250541687
+  },
+  {
+   "family": "sup_248",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 258.0,
+    "gold": 12,
+    "n_cells": 42582
+   },
+   "time_g0": 1.1113853454589844
+  },
+  {
+   "family": "sup_249",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.19540229885057472,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 17.0,
+    "total_mass": 341.0,
+    "gold": 87,
+    "n_cells": 68900
+   },
+   "time_g0": 1.1883351802825928
+  },
+  {
+   "family": "sup_253",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8803418803418803,
+   "msa_tc_g0": 0.8205128205128205,
+   "micro_hard_g0": {
+    "e_tp": 103.0,
+    "total_mass": 187.0,
+    "gold": 117,
+    "n_cells": 15636
+   },
+   "time_g0": 1.1607756614685059
+  },
+  {
+   "family": "sup_255",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.0,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 0.0,
+    "total_mass": 263.0,
+    "gold": 12,
+    "n_cells": 39749
+   },
+   "time_g0": 1.0914976596832275
+  },
+  {
+   "family": "sup_256",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.9470899470899471,
+   "msa_tc_g0": 0.8148148148148148,
+   "micro_hard_g0": {
+    "e_tp": 1074.0,
+    "total_mass": 2198.0,
+    "gold": 1134,
+    "n_cells": 258644
+   },
+   "time_g0": 3.957310914993286
+  },
+  {
+   "family": "sup_259",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.701530612244898,
+   "msa_tc_g0": 0.5476190476190477,
+   "micro_hard_g0": {
+    "e_tp": 825.0,
+    "total_mass": 2556.0,
+    "gold": 1176,
+    "n_cells": 306677
+   },
+   "time_g0": 11.380454778671265
+  },
+  {
+   "family": "sup_262",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.9183673469387755,
+   "msa_tc_g0": 0.7142857142857143,
+   "micro_hard_g0": {
+    "e_tp": 540.0,
+    "total_mass": 2811.0,
+    "gold": 588,
+    "n_cells": 463369
+   },
+   "time_g0": 10.23530888557434
+  },
+  {
+   "family": "sup_264",
+   "n_seqs": 13,
+   "n_pairs": 78,
+   "kind": "soft",
+   "msa_sp_g0": 0.4497863247863248,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 421.0,
+    "total_mass": 6845.0,
+    "gold": 936,
+    "n_cells": 1137034
+   },
+   "time_g0": 45.16476273536682
+  },
+  {
+   "family": "sup_265",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.8041666666666667,
+   "msa_tc_g0": 0.625,
+   "micro_hard_g0": {
+    "e_tp": 386.0,
+    "total_mass": 984.0,
+    "gold": 480,
+    "n_cells": 83940
+   },
+   "time_g0": 6.000340461730957
+  },
+  {
+   "family": "sup_267",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.44,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 176.0,
+    "total_mass": 1209.0,
+    "gold": 400,
+    "n_cells": 211298
+   },
+   "time_g0": 4.581511497497559
+  },
+  {
+   "family": "sup_268",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 108.0,
+    "total_mass": 190.0,
+    "gold": 108,
+    "n_cells": 12928
+   },
+   "time_g0": 0.7545433044433594
+  },
+  {
+   "family": "sup_269",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9488636363636364,
+   "msa_tc_g0": 0.8977272727272727,
+   "micro_hard_g0": {
+    "e_tp": 501.0,
+    "total_mass": 698.0,
+    "gold": 528,
+    "n_cells": 109633
+   },
+   "time_g0": 2.340693473815918
+  },
+  {
+   "family": "sup_270",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6590909090909091,
+   "msa_tc_g0": 0.5,
+   "micro_hard_g0": {
+    "e_tp": 87.0,
+    "total_mass": 313.0,
+    "gold": 132,
+    "n_cells": 38441
+   },
+   "time_g0": 1.1137075424194336
+  },
+  {
+   "family": "sup_271",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.7523809523809524,
+   "msa_tc_g0": 0.6666666666666666,
+   "micro_hard_g0": {
+    "e_tp": 237.0,
+    "total_mass": 1228.0,
+    "gold": 315,
+    "n_cells": 144090
+   },
+   "time_g0": 6.77268123626709
+  },
+  {
+   "family": "sup_273",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.9975308641975309,
+   "msa_tc_g0": 0.9888888888888889,
+   "micro_hard_g0": {
+    "e_tp": 3232.0,
+    "total_mass": 4004.0,
+    "gold": 3240,
+    "n_cells": 476940
+   },
+   "time_g0": 16.446651935577393
+  },
+  {
+   "family": "sup_275",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.8033126293995859,
+   "msa_tc_g0": 0.4782608695652174,
+   "micro_hard_g0": {
+    "e_tp": 388.0,
+    "total_mass": 1443.0,
+    "gold": 483,
+    "n_cells": 136641
+   },
+   "time_g0": 7.434064865112305
+  },
+  {
+   "family": "sup_277",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6284153005464481,
+   "msa_tc_g0": 0.3442622950819672,
+   "micro_hard_g0": {
+    "e_tp": 230.0,
+    "total_mass": 726.0,
+    "gold": 366,
+    "n_cells": 102101
+   },
+   "time_g0": 2.370943546295166
+  },
+  {
+   "family": "sup_278",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 0.8545454545454545,
+   "msa_tc_g0": 0.3076923076923077,
+   "micro_hard_g0": {
+    "e_tp": 611.0,
+    "total_mass": 4063.0,
+    "gold": 715,
+    "n_cells": 751044
+   },
+   "time_g0": 29.994577169418335
+  },
+  {
+   "family": "sup_280",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 5.0,
+    "total_mass": 259.0,
+    "gold": 15,
+    "n_cells": 30688
+   },
+   "time_g0": 1.0550057888031006
+  },
+  {
+   "family": "sup_281",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.2833333333333333,
+   "msa_tc_g0": 0.06,
+   "micro_hard_g0": {
+    "e_tp": 85.0,
+    "total_mass": 503.0,
+    "gold": 300,
+    "n_cells": 57241
+   },
+   "time_g0": 2.381389617919922
+  },
+  {
+   "family": "sup_282",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 768.0,
+    "total_mass": 826.0,
+    "gold": 768,
+    "n_cells": 122209
+   },
+   "time_g0": 2.0364110469818115
+  },
+  {
+   "family": "sup_284",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.4126984126984127,
+   "msa_tc_g0": 0.3333333333333333,
+   "micro_hard_g0": {
+    "e_tp": 26.0,
+    "total_mass": 222.0,
+    "gold": 63,
+    "n_cells": 20960
+   },
+   "time_g0": 0.664299726486206
+  },
+  {
+   "family": "sup_285",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.9186507936507936,
+   "msa_tc_g0": 0.7857142857142857,
+   "micro_hard_g0": {
+    "e_tp": 926.0,
+    "total_mass": 2480.0,
+    "gold": 1008,
+    "n_cells": 186565
+   },
+   "time_g0": 6.7159178256988525
+  },
+  {
+   "family": "sup_286",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5225225225225225,
+   "msa_tc_g0": 0.4594594594594595,
+   "micro_hard_g0": {
+    "e_tp": 58.0,
+    "total_mass": 213.0,
+    "gold": 111,
+    "n_cells": 24443
+   },
+   "time_g0": 1.1390528678894043
+  },
+  {
+   "family": "sup_287",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3741496598639456,
+   "msa_tc_g0": 0.20408163265306123,
+   "micro_hard_g0": {
+    "e_tp": 55.0,
+    "total_mass": 364.0,
+    "gold": 147,
+    "n_cells": 60728
+   },
+   "time_g0": 1.171095371246338
+  },
+  {
+   "family": "sup_290",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.8947368421052632,
+   "msa_tc_g0": 0.8421052631578947,
+   "micro_hard_g0": {
+    "e_tp": 204.0,
+    "total_mass": 494.0,
+    "gold": 228,
+    "n_cells": 86507
+   },
+   "time_g0": 2.477004289627075
+  },
+  {
+   "family": "sup_291",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 36.0,
+    "total_mass": 1093.0,
+    "gold": 36,
+    "n_cells": 204241
+   },
+   "time_g0": 1.643859624862671
+  },
+  {
+   "family": "sup_292",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9703703703703703,
+   "msa_tc_g0": 0.9555555555555556,
+   "micro_hard_g0": {
+    "e_tp": 262.0,
+    "total_mass": 314.0,
+    "gold": 270,
+    "n_cells": 46664
+   },
+   "time_g0": 1.3074803352355957
+  },
+  {
+   "family": "sup_294",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.6,
+   "msa_tc_g0": 0.3333333333333333,
+   "micro_hard_g0": {
+    "e_tp": 162.0,
+    "total_mass": 1063.0,
+    "gold": 270,
+    "n_cells": 160719
+   },
+   "time_g0": 4.529320001602173
+  },
+  {
+   "family": "sup_295",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.45098039215686275,
+   "msa_tc_g0": 0.17647058823529413,
+   "micro_hard_g0": {
+    "e_tp": 92.0,
+    "total_mass": 654.0,
+    "gold": 204,
+    "n_cells": 140036
+   },
+   "time_g0": 2.1983344554901123
+  },
+  {
+   "family": "sup_296",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7923497267759563,
+   "msa_tc_g0": 0.6885245901639344,
+   "micro_hard_g0": {
+    "e_tp": 145.0,
+    "total_mass": 323.0,
+    "gold": 183,
+    "n_cells": 40480
+   },
+   "time_g0": 0.7045943737030029
+  },
+  {
+   "family": "sup_297",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.4411764705882353,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 150.0,
+    "total_mass": 919.0,
+    "gold": 340,
+    "n_cells": 111768
+   },
+   "time_g0": 4.185168027877808
+  },
+  {
+   "family": "sup_300",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9035087719298246,
+   "msa_tc_g0": 0.8552631578947368,
+   "micro_hard_g0": {
+    "e_tp": 206.0,
+    "total_mass": 331.0,
+    "gold": 228,
+    "n_cells": 39884
+   },
+   "time_g0": 0.5181238651275635
+  },
+  {
+   "family": "sup_302",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.981651376146789,
+   "msa_tc_g0": 0.963302752293578,
+   "micro_hard_g0": {
+    "e_tp": 642.0,
+    "total_mass": 1137.0,
+    "gold": 654,
+    "n_cells": 285392
+   },
+   "time_g0": 2.4693424701690674
+  },
+  {
+   "family": "sup_304",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6266666666666667,
+   "msa_tc_g0": 0.56,
+   "micro_hard_g0": {
+    "e_tp": 47.0,
+    "total_mass": 389.0,
+    "gold": 75,
+    "n_cells": 61041
+   },
+   "time_g0": 1.210536241531372
+  },
+  {
+   "family": "sup_306",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9262820512820513,
+   "msa_tc_g0": 0.8653846153846154,
+   "micro_hard_g0": {
+    "e_tp": 289.0,
+    "total_mass": 507.0,
+    "gold": 312,
+    "n_cells": 44371
+   },
+   "time_g0": 2.437730550765991
+  },
+  {
+   "family": "sup_308",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.3616161616161616,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 179.0,
+    "total_mass": 1802.0,
+    "gold": 495,
+    "n_cells": 330121
+   },
+   "time_g0": 8.475503921508789
+  },
+  {
+   "family": "sup_309",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.3438775510204082,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 337.0,
+    "total_mass": 6394.0,
+    "gold": 980,
+    "n_cells": 2428803
+   },
+   "time_g0": 16.73291277885437
+  },
+  {
+   "family": "sup_310",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 0.5909090909090909,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 819.0,
+    "total_mass": 9469.0,
+    "gold": 1386,
+    "n_cells": 2246213
+   },
+   "time_g0": 42.06842350959778
+  },
+  {
+   "family": "sup_311",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 0.7506493506493507,
+   "msa_tc_g0": 0.47619047619047616,
+   "micro_hard_g0": {
+    "e_tp": 867.0,
+    "total_mass": 5988.0,
+    "gold": 1155,
+    "n_cells": 924711
+   },
+   "time_g0": 30.759433269500732
+  },
+  {
+   "family": "sup_312",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.959349593495935,
+   "msa_tc_g0": 0.9390243902439024,
+   "micro_hard_g0": {
+    "e_tp": 236.0,
+    "total_mass": 369.0,
+    "gold": 246,
+    "n_cells": 50375
+   },
+   "time_g0": 0.44991230964660645
+  },
+  {
+   "family": "sup_313",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.39351851851851855,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 85.0,
+    "total_mass": 780.0,
+    "gold": 216,
+    "n_cells": 178273
+   },
+   "time_g0": 2.3442203998565674
+  },
+  {
+   "family": "sup_314",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.8717948717948718,
+   "msa_tc_g0": 0.717948717948718,
+   "micro_hard_g0": {
+    "e_tp": 510.0,
+    "total_mass": 1550.0,
+    "gold": 585,
+    "n_cells": 194737
+   },
+   "time_g0": 6.786523342132568
+  },
+  {
+   "family": "sup_315",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6770833333333334,
+   "msa_tc_g0": 0.515625,
+   "micro_hard_g0": {
+    "e_tp": 130.0,
+    "total_mass": 435.0,
+    "gold": 192,
+    "n_cells": 108185
+   },
+   "time_g0": 0.845930814743042
+  },
+  {
+   "family": "sup_316",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.525,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 42.0,
+    "total_mass": 1267.0,
+    "gold": 80,
+    "n_cells": 216274
+   },
+   "time_g0": 4.472734212875366
+  },
+  {
+   "family": "sup_317",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9662162162162162,
+   "msa_tc_g0": 0.9324324324324325,
+   "micro_hard_g0": {
+    "e_tp": 429.0,
+    "total_mass": 1456.0,
+    "gold": 444,
+    "n_cells": 453729
+   },
+   "time_g0": 2.845386028289795
+  },
+  {
+   "family": "sup_318",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.907103825136612,
+   "msa_tc_g0": 0.8688524590163934,
+   "micro_hard_g0": {
+    "e_tp": 166.0,
+    "total_mass": 237.0,
+    "gold": 183,
+    "n_cells": 23521
+   },
+   "time_g0": 1.0509207248687744
+  },
+  {
+   "family": "sup_320",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.8742857142857143,
+   "msa_tc_g0": 0.6857142857142857,
+   "micro_hard_g0": {
+    "e_tp": 918.0,
+    "total_mass": 1867.0,
+    "gold": 1050,
+    "n_cells": 412596
+   },
+   "time_g0": 4.527443885803223
+  },
+  {
+   "family": "sup_322",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9038031319910514,
+   "msa_tc_g0": 0.8456375838926175,
+   "micro_hard_g0": {
+    "e_tp": 808.0,
+    "total_mass": 1404.0,
+    "gold": 894,
+    "n_cells": 392325
+   },
+   "time_g0": 2.6202502250671387
+  },
+  {
+   "family": "sup_325",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5882352941176471,
+   "msa_tc_g0": 0.38235294117647056,
+   "micro_hard_g0": {
+    "e_tp": 60.0,
+    "total_mass": 324.0,
+    "gold": 102,
+    "n_cells": 44844
+   },
+   "time_g0": 1.1362874507904053
+  },
+  {
+   "family": "sup_326",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.12,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 6.0,
+    "total_mass": 1527.0,
+    "gold": 50,
+    "n_cells": 374566
+   },
+   "time_g0": 4.727071046829224
+  },
+  {
+   "family": "sup_328",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.26666666666666666,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 48.0,
+    "total_mass": 4964.0,
+    "gold": 180,
+    "n_cells": 689375
+   },
+   "time_g0": 13.911179304122925
+  },
+  {
+   "family": "sup_330",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 21.0,
+    "total_mass": 276.0,
+    "gold": 21,
+    "n_cells": 36252
+   },
+   "time_g0": 1.0671794414520264
+  },
+  {
+   "family": "sup_331",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6910569105691057,
+   "msa_tc_g0": 0.5365853658536586,
+   "micro_hard_g0": {
+    "e_tp": 170.0,
+    "total_mass": 472.0,
+    "gold": 246,
+    "n_cells": 42980
+   },
+   "time_g0": 2.3111212253570557
+  },
+  {
+   "family": "sup_333",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 0.8181818181818182,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 270.0,
+    "total_mass": 14010.0,
+    "gold": 330,
+    "n_cells": 4996910
+   },
+   "time_g0": 31.540688037872314
+  },
+  {
+   "family": "sup_337",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6904761904761905,
+   "msa_tc_g0": 0.5306122448979592,
+   "micro_hard_g0": {
+    "e_tp": 203.0,
+    "total_mass": 1251.0,
+    "gold": 294,
+    "n_cells": 354222
+   },
+   "time_g0": 4.740566730499268
+  },
+  {
+   "family": "sup_338",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.6428571428571429,
+   "msa_tc_g0": 0.42857142857142855,
+   "micro_hard_g0": {
+    "e_tp": 270.0,
+    "total_mass": 3165.0,
+    "gold": 420,
+    "n_cells": 1216742
+   },
+   "time_g0": 7.860525369644165
+  },
+  {
+   "family": "sup_339",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 0.9259259259259259,
+   "msa_tc_g0": 0.5555555555555556,
+   "micro_hard_g0": {
+    "e_tp": 2750.0,
+    "total_mass": 10807.0,
+    "gold": 2970,
+    "n_cells": 1944699
+   },
+   "time_g0": 34.629791259765625
+  },
+  {
+   "family": "sup_340",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.9731543624161074,
+   "msa_tc_g0": 0.912751677852349,
+   "micro_hard_g0": {
+    "e_tp": 4060.0,
+    "total_mass": 6664.0,
+    "gold": 4172,
+    "n_cells": 1756764
+   },
+   "time_g0": 13.62770414352417
+  },
+  {
+   "family": "sup_344",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9867549668874173,
+   "msa_tc_g0": 0.9801324503311258,
+   "micro_hard_g0": {
+    "e_tp": 447.0,
+    "total_mass": 580.0,
+    "gold": 453,
+    "n_cells": 151760
+   },
+   "time_g0": 0.9013378620147705
+  },
+  {
+   "family": "sup_345",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9432624113475178,
+   "msa_tc_g0": 0.9148936170212766,
+   "micro_hard_g0": {
+    "e_tp": 266.0,
+    "total_mass": 1098.0,
+    "gold": 282,
+    "n_cells": 423364
+   },
+   "time_g0": 1.2806377410888672
+  },
+  {
+   "family": "sup_346",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.8493827160493828,
+   "msa_tc_g0": 0.5925925925925926,
+   "micro_hard_g0": {
+    "e_tp": 1032.0,
+    "total_mass": 11250.0,
+    "gold": 1215,
+    "n_cells": 3782555
+   },
+   "time_g0": 22.888099431991577
+  },
+  {
+   "family": "sup_348",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.9504424778761061,
+   "msa_tc_g0": 0.8761061946902655,
+   "micro_hard_g0": {
+    "e_tp": 1074.0,
+    "total_mass": 2221.0,
+    "gold": 1130,
+    "n_cells": 572639
+   },
+   "time_g0": 3.9753143787384033
+  },
+  {
+   "family": "sup_349",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.7068965517241379,
+   "msa_tc_g0": 0.6091954022988506,
+   "micro_hard_g0": {
+    "e_tp": 369.0,
+    "total_mass": 1554.0,
+    "gold": 522,
+    "n_cells": 585120
+   },
+   "time_g0": 1.8576834201812744
+  },
+  {
+   "family": "sup_351",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.855072463768116,
+   "msa_tc_g0": 0.7874396135265701,
+   "micro_hard_g0": {
+    "e_tp": 531.0,
+    "total_mass": 839.0,
+    "gold": 621,
+    "n_cells": 296273
+   },
+   "time_g0": 1.3963260650634766
+  },
+  {
+   "family": "sup_352",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.44857142857142857,
+   "msa_tc_g0": 0.11428571428571428,
+   "micro_hard_g0": {
+    "e_tp": 157.0,
+    "total_mass": 1743.0,
+    "gold": 350,
+    "n_cells": 454441
+   },
+   "time_g0": 4.713296175003052
+  },
+  {
+   "family": "sup_354",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9393939393939394,
+   "msa_tc_g0": 0.9090909090909091,
+   "micro_hard_g0": {
+    "e_tp": 186.0,
+    "total_mass": 544.0,
+    "gold": 198,
+    "n_cells": 144959
+   },
+   "time_g0": 1.3153407573699951
+  },
+  {
+   "family": "sup_355",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9012345679012346,
+   "msa_tc_g0": 0.8765432098765432,
+   "micro_hard_g0": {
+    "e_tp": 438.0,
+    "total_mass": 649.0,
+    "gold": 486,
+    "n_cells": 168971
+   },
+   "time_g0": 1.4055728912353516
+  },
+  {
+   "family": "sup_360",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 69.0,
+    "total_mass": 87.0,
+    "gold": 69,
+    "n_cells": 3845
+   },
+   "time_g0": 1.7058486938476562
+  },
+  {
+   "family": "sup_364",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.5555555555555556,
+   "msa_tc_g0": 0.3333333333333333,
+   "micro_hard_g0": {
+    "e_tp": 50.0,
+    "total_mass": 201.0,
+    "gold": 90,
+    "n_cells": 10419
+   },
+   "time_g0": 2.6487696170806885
+  },
+  {
+   "family": "sup_367",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.890625,
+   "msa_tc_g0": 0.5625,
+   "micro_hard_g0": {
+    "e_tp": 399.0,
+    "total_mass": 1677.0,
+    "gold": 448,
+    "n_cells": 129632
+   },
+   "time_g0": 10.363557577133179
+  },
+  {
+   "family": "sup_368",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 0.9132231404958677,
+   "msa_tc_g0": 0.7272727272727273,
+   "micro_hard_g0": {
+    "e_tp": 1326.0,
+    "total_mass": 3711.0,
+    "gold": 1452,
+    "n_cells": 233600
+   },
+   "time_g0": 29.010819673538208
+  },
+  {
+   "family": "sup_370",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7111111111111111,
+   "msa_tc_g0": 0.7,
+   "micro_hard_g0": {
+    "e_tp": 64.0,
+    "total_mass": 258.0,
+    "gold": 90,
+    "n_cells": 23754
+   },
+   "time_g0": 1.1628937721252441
+  },
+  {
+   "family": "sup_371",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 504.0,
+    "total_mass": 1408.0,
+    "gold": 504,
+    "n_cells": 67540
+   },
+   "time_g0": 12.270959854125977
+  },
+  {
+   "family": "sup_373",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 858.0,
+    "total_mass": 4095.0,
+    "gold": 858,
+    "n_cells": 356650
+   },
+   "time_g0": 24.695783138275146
+  },
+  {
+   "family": "sup_375",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 105.0,
+    "total_mass": 163.0,
+    "gold": 105,
+    "n_cells": 9966
+   },
+   "time_g0": 0.7238359451293945
+  },
+  {
+   "family": "sup_379",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 80.0,
+    "total_mass": 573.0,
+    "gold": 80,
+    "n_cells": 41988
+   },
+   "time_g0": 1.7543666362762451
+  },
+  {
+   "family": "sup_381",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.9523809523809523,
+   "msa_tc_g0": 0.9285714285714286,
+   "micro_hard_g0": {
+    "e_tp": 400.0,
+    "total_mass": 644.0,
+    "gold": 420,
+    "n_cells": 32402
+   },
+   "time_g0": 5.397022724151611
+  },
+  {
+   "family": "sup_382",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.990909090909091,
+   "msa_tc_g0": 0.9772727272727273,
+   "micro_hard_g0": {
+    "e_tp": 436.0,
+    "total_mass": 659.0,
+    "gold": 440,
+    "n_cells": 52302
+   },
+   "time_g0": 4.019307374954224
+  },
+  {
+   "family": "sup_387",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 57.0,
+    "total_mass": 100.0,
+    "gold": 57,
+    "n_cells": 3804
+   },
+   "time_g0": 1.5737035274505615
+  },
+  {
+   "family": "sup_391",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 220.0,
+    "total_mass": 3334.0,
+    "gold": 220,
+    "n_cells": 314698
+   },
+   "time_g0": 34.685168504714966
+  },
+  {
+   "family": "sup_393",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.7727272727272727,
+   "msa_tc_g0": 0.5454545454545454,
+   "micro_hard_g0": {
+    "e_tp": 51.0,
+    "total_mass": 284.0,
+    "gold": 66,
+    "n_cells": 16507
+   },
+   "time_g0": 2.6631433963775635
+  },
+  {
+   "family": "sup_395",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 210.0,
+    "total_mass": 901.0,
+    "gold": 210,
+    "n_cells": 117785
+   },
+   "time_g0": 4.772486448287964
+  },
+  {
+   "family": "sup_396",
+   "n_seqs": 16,
+   "n_pairs": 120,
+   "kind": "soft",
+   "msa_sp_g0": 0.5664930555555555,
+   "msa_tc_g0": 0.125,
+   "micro_hard_g0": {
+    "e_tp": 3263.0,
+    "total_mass": 12203.0,
+    "gold": 5760,
+    "n_cells": 2141782
+   },
+   "time_g0": 92.93331861495972
+  },
+  {
+   "family": "sup_397",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 0.7241532976827094,
+   "msa_tc_g0": 0.14705882352941177,
+   "micro_hard_g0": {
+    "e_tp": 1625.0,
+    "total_mass": 12418.0,
+    "gold": 2244,
+    "n_cells": 2991713
+   },
+   "time_g0": 41.66704273223877
+  },
+  {
+   "family": "sup_398",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 90.0,
+    "total_mass": 132.0,
+    "gold": 90,
+    "n_cells": 7182
+   },
+   "time_g0": 0.8470125198364258
+  },
+  {
+   "family": "sup_400",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.2676767676767677,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 53.0,
+    "total_mass": 477.0,
+    "gold": 198,
+    "n_cells": 51923
+   },
+   "time_g0": 2.5049679279327393
+  },
+  {
+   "family": "sup_401",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 42.0,
+    "total_mass": 488.0,
+    "gold": 42,
+    "n_cells": 46829
+   },
+   "time_g0": 2.325040578842163
+  },
+  {
+   "family": "sup_402",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.36538461538461536,
+   "msa_tc_g0": 0.11538461538461539,
+   "micro_hard_g0": {
+    "e_tp": 57.0,
+    "total_mass": 747.0,
+    "gold": 156,
+    "n_cells": 119706
+   },
+   "time_g0": 2.7454185485839844
+  },
+  {
+   "family": "sup_403",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9215686274509803,
+   "msa_tc_g0": 0.8823529411764706,
+   "micro_hard_g0": {
+    "e_tp": 94.0,
+    "total_mass": 190.0,
+    "gold": 102,
+    "n_cells": 14661
+   },
+   "time_g0": 1.1782479286193848
+  },
+  {
+   "family": "sup_405",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5575757575757576,
+   "msa_tc_g0": 0.4090909090909091,
+   "micro_hard_g0": {
+    "e_tp": 184.0,
+    "total_mass": 603.0,
+    "gold": 330,
+    "n_cells": 151673
+   },
+   "time_g0": 1.4890429973602295
+  },
+  {
+   "family": "sup_407",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.2857142857142857,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 90.0,
+    "total_mass": 5216.0,
+    "gold": 315,
+    "n_cells": 1724417
+   },
+   "time_g0": 14.903327226638794
+  },
+  {
+   "family": "sup_409",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.16666666666666666,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 821.0,
+    "gold": 24,
+    "n_cells": 178361
+   },
+   "time_g0": 2.525974750518799
+  },
+  {
+   "family": "sup_413",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8415300546448088,
+   "msa_tc_g0": 0.7622950819672131,
+   "micro_hard_g0": {
+    "e_tp": 308.0,
+    "total_mass": 627.0,
+    "gold": 366,
+    "n_cells": 167900
+   },
+   "time_g0": 0.8574345111846924
+  },
+  {
+   "family": "sup_417",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8172043010752689,
+   "msa_tc_g0": 0.7580645161290323,
+   "micro_hard_g0": {
+    "e_tp": 152.0,
+    "total_mass": 230.0,
+    "gold": 186,
+    "n_cells": 19489
+   },
+   "time_g0": 1.189173936843872
+  },
+  {
+   "family": "sup_418",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 57.0,
+    "total_mass": 380.0,
+    "gold": 57,
+    "n_cells": 90987
+   },
+   "time_g0": 1.2662618160247803
+  },
+  {
+   "family": "sup_421",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7777777777777778,
+   "msa_tc_g0": 0.6666666666666666,
+   "micro_hard_g0": {
+    "e_tp": 35.0,
+    "total_mass": 822.0,
+    "gold": 45,
+    "n_cells": 387195
+   },
+   "time_g0": 3.470196485519409
+  },
+  {
+   "family": "sup_422",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.0,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 0.0,
+    "total_mass": 363.0,
+    "gold": 69,
+    "n_cells": 73719
+   },
+   "time_g0": 1.2326807975769043
+  },
+  {
+   "family": "sup_424",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.14814814814814814,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 315.0,
+    "gold": 27,
+    "n_cells": 55411
+   },
+   "time_g0": 0.8711934089660645
+  },
+  {
+   "family": "sup_425",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 11.0,
+    "total_mass": 240.0,
+    "gold": 33,
+    "n_cells": 43255
+   },
+   "time_g0": 1.2630276679992676
+  },
+  {
+   "family": "twi_009",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8205128205128205,
+   "msa_tc_g0": 0.7307692307692307,
+   "micro_hard_g0": {
+    "e_tp": 64.0,
+    "total_mass": 106.0,
+    "gold": 78,
+    "n_cells": 4560
+   },
+   "time_g0": 0.43824267387390137
+  },
+  {
+   "family": "twi_011",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 27.0,
+    "total_mass": 228.0,
+    "gold": 27,
+    "n_cells": 20747
+   },
+   "time_g0": 1.1635222434997559
+  },
+  {
+   "family": "twi_022",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9791666666666666,
+   "msa_tc_g0": 0.9583333333333334,
+   "micro_hard_g0": {
+    "e_tp": 141.0,
+    "total_mass": 371.0,
+    "gold": 144,
+    "n_cells": 33113
+   },
+   "time_g0": 2.749910354614258
+  },
+  {
+   "family": "twi_026",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.8,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 576.0,
+    "total_mass": 5241.0,
+    "gold": 720,
+    "n_cells": 833834
+   },
+   "time_g0": 23.87671136856079
+  },
+  {
+   "family": "twi_027",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 8.0,
+    "total_mass": 208.0,
+    "gold": 24,
+    "n_cells": 17340
+   },
+   "time_g0": 1.162524700164795
+  },
+  {
+   "family": "twi_028",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 273.0,
+    "gold": 12,
+    "n_cells": 35454
+   },
+   "time_g0": 1.1823866367340088
+  },
+  {
+   "family": "twi_034",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 5.0,
+    "total_mass": 304.0,
+    "gold": 15,
+    "n_cells": 33704
+   },
+   "time_g0": 1.1548054218292236
+  },
+  {
+   "family": "twi_037",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.25170068027210885,
+   "msa_tc_g0": 0.08163265306122448,
+   "micro_hard_g0": {
+    "e_tp": 37.0,
+    "total_mass": 275.0,
+    "gold": 147,
+    "n_cells": 40736
+   },
+   "time_g0": 1.2702653408050537
+  },
+  {
+   "family": "twi_038",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.5142857142857142,
+   "msa_tc_g0": 0.2857142857142857,
+   "micro_hard_g0": {
+    "e_tp": 144.0,
+    "total_mass": 1414.0,
+    "gold": 280,
+    "n_cells": 343567
+   },
+   "time_g0": 4.631237030029297
+  },
+  {
+   "family": "twi_049",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.3472222222222222,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 150.0,
+    "total_mass": 4355.0,
+    "gold": 432,
+    "n_cells": 808363
+   },
+   "time_g0": 23.652608156204224
+  },
+  {
+   "family": "twi_050",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.0,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 0.0,
+    "total_mass": 270.0,
+    "gold": 12,
+    "n_cells": 29108
+   },
+   "time_g0": 1.2031409740447998
+  },
+  {
+   "family": "twi_054",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6265060240963856,
+   "msa_tc_g0": 0.5542168674698795,
+   "micro_hard_g0": {
+    "e_tp": 156.0,
+    "total_mass": 336.0,
+    "gold": 249,
+    "n_cells": 53126
+   },
+   "time_g0": 1.2065389156341553
+  },
+  {
+   "family": "twi_056",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.03333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 3.0,
+    "total_mass": 1472.0,
+    "gold": 90,
+    "n_cells": 526103
+   },
+   "time_g0": 2.000739574432373
+  },
+  {
+   "family": "twi_059",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.0,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 0.0,
+    "total_mass": 206.0,
+    "gold": 15,
+    "n_cells": 21923
+   },
+   "time_g0": 1.2823474407196045
+  },
+  {
+   "family": "twi_060",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.6994047619047619,
+   "msa_tc_g0": 0.3333333333333333,
+   "micro_hard_g0": {
+    "e_tp": 705.0,
+    "total_mass": 2294.0,
+    "gold": 1008,
+    "n_cells": 249103
+   },
+   "time_g0": 14.690924882888794
+  },
+  {
+   "family": "twi_061",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.48,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 48.0,
+    "total_mass": 625.0,
+    "gold": 100,
+    "n_cells": 48646
+   },
+   "time_g0": 4.462115049362183
+  },
+  {
+   "family": "twi_063",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.21236559139784947,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 237.0,
+    "total_mass": 4190.0,
+    "gold": 1116,
+    "n_cells": 746647
+   },
+   "time_g0": 21.0547935962677
+  },
+  {
+   "family": "twi_065",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 4.0,
+    "total_mass": 391.0,
+    "gold": 12,
+    "n_cells": 73978
+   },
+   "time_g0": 1.1044600009918213
+  },
+  {
+   "family": "twi_066",
+   "n_seqs": 9,
+   "n_pairs": 36,
+   "kind": "soft",
+   "msa_sp_g0": 0.7831196581196581,
+   "msa_tc_g0": 0.6923076923076923,
+   "micro_hard_g0": {
+    "e_tp": 733.0,
+    "total_mass": 5450.0,
+    "gold": 936,
+    "n_cells": 1425691
+   },
+   "time_g0": 21.661828994750977
+  },
+  {
+   "family": "twi_067",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.46551724137931033,
+   "msa_tc_g0": 0.1724137931034483,
+   "micro_hard_g0": {
+    "e_tp": 135.0,
+    "total_mass": 919.0,
+    "gold": 290,
+    "n_cells": 143015
+   },
+   "time_g0": 4.062608480453491
+  },
+  {
+   "family": "twi_068",
+   "n_seqs": 11,
+   "n_pairs": 55,
+   "kind": "soft",
+   "msa_sp_g0": 0.42077922077922075,
+   "msa_tc_g0": 0.10714285714285714,
+   "micro_hard_g0": {
+    "e_tp": 648.0,
+    "total_mass": 5231.0,
+    "gold": 1540,
+    "n_cells": 733718
+   },
+   "time_g0": 29.48013138771057
+  },
+  {
+   "family": "twi_069",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.8611111111111112,
+   "msa_tc_g0": 0.4444444444444444,
+   "micro_hard_g0": {
+    "e_tp": 217.0,
+    "total_mass": 4114.0,
+    "gold": 252,
+    "n_cells": 784752
+   },
+   "time_g0": 12.426334142684937
+  },
+  {
+   "family": "twi_075",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.13636363636363635,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 9.0,
+    "total_mass": 496.0,
+    "gold": 66,
+    "n_cells": 111441
+   },
+   "time_g0": 1.3203260898590088
+  },
+  {
+   "family": "twi_083",
+   "n_seqs": 7,
+   "n_pairs": 21,
+   "kind": "soft",
+   "msa_sp_g0": 0.5498866213151927,
+   "msa_tc_g0": 0.09523809523809523,
+   "micro_hard_g0": {
+    "e_tp": 485.0,
+    "total_mass": 2574.0,
+    "gold": 882,
+    "n_cells": 401035
+   },
+   "time_g0": 10.77818250656128
+  },
+  {
+   "family": "twi_087",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.14761904761904762,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 31.0,
+    "total_mass": 1079.0,
+    "gold": 210,
+    "n_cells": 354614
+   },
+   "time_g0": 2.4678280353546143
+  },
+  {
+   "family": "twi_088",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7333333333333333,
+   "msa_tc_g0": 0.6,
+   "micro_hard_g0": {
+    "e_tp": 22.0,
+    "total_mass": 245.0,
+    "gold": 30,
+    "n_cells": 27392
+   },
+   "time_g0": 1.202760934829712
+  },
+  {
+   "family": "twi_089",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.4731182795698925,
+   "msa_tc_g0": 0.2903225806451613,
+   "micro_hard_g0": {
+    "e_tp": 88.0,
+    "total_mass": 1015.0,
+    "gold": 186,
+    "n_cells": 254541
+   },
+   "time_g0": 2.7900474071502686
+  },
+  {
+   "family": "twi_091",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.7818181818181819,
+   "msa_tc_g0": 0.6545454545454545,
+   "micro_hard_g0": {
+    "e_tp": 258.0,
+    "total_mass": 737.0,
+    "gold": 330,
+    "n_cells": 119253
+   },
+   "time_g0": 2.5080368518829346
+  },
+  {
+   "family": "twi_094",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.6857142857142857,
+   "msa_tc_g0": 0.6,
+   "micro_hard_g0": {
+    "e_tp": 192.0,
+    "total_mass": 3931.0,
+    "gold": 280,
+    "n_cells": 1082765
+   },
+   "time_g0": 16.2825984954834
+  },
+  {
+   "family": "twi_096",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.21428571428571427,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 72.0,
+    "total_mass": 4586.0,
+    "gold": 336,
+    "n_cells": 1640039
+   },
+   "time_g0": 16.850903749465942
+  },
+  {
+   "family": "twi_100",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.6412698412698413,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 202.0,
+    "total_mass": 2450.0,
+    "gold": 315,
+    "n_cells": 657171
+   },
+   "time_g0": 8.356244325637817
+  },
+  {
+   "family": "twi_102",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7163120567375887,
+   "msa_tc_g0": 0.6170212765957447,
+   "micro_hard_g0": {
+    "e_tp": 101.0,
+    "total_mass": 374.0,
+    "gold": 141,
+    "n_cells": 76811
+   },
+   "time_g0": 1.3415305614471436
+  },
+  {
+   "family": "twi_103",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.2222222222222222,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 40.0,
+    "total_mass": 456.0,
+    "gold": 180,
+    "n_cells": 93006
+   },
+   "time_g0": 1.3169176578521729
+  },
+  {
+   "family": "twi_109",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.6266666666666667,
+   "msa_tc_g0": 0.52,
+   "micro_hard_g0": {
+    "e_tp": 94.0,
+    "total_mass": 1083.0,
+    "gold": 150,
+    "n_cells": 268793
+   },
+   "time_g0": 2.869032859802246
+  },
+  {
+   "family": "twi_110",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5555555555555556,
+   "msa_tc_g0": 0.358974358974359,
+   "micro_hard_g0": {
+    "e_tp": 130.0,
+    "total_mass": 506.0,
+    "gold": 234,
+    "n_cells": 123323
+   },
+   "time_g0": 0.8912138938903809
+  },
+  {
+   "family": "twi_111",
+   "n_seqs": 12,
+   "n_pairs": 66,
+   "kind": "soft",
+   "msa_sp_g0": 0.8333333333333334,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 385.0,
+    "total_mass": 10925.0,
+    "gold": 462,
+    "n_cells": 4740049
+   },
+   "time_g0": 54.23731350898743
+  },
+  {
+   "family": "twi_112",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.4627450980392157,
+   "msa_tc_g0": 0.23529411764705882,
+   "micro_hard_g0": {
+    "e_tp": 118.0,
+    "total_mass": 4677.0,
+    "gold": 255,
+    "n_cells": 2396610
+   },
+   "time_g0": 8.587141990661621
+  },
+  {
+   "family": "twi_116",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.822429906542056,
+   "msa_tc_g0": 0.7570093457943925,
+   "micro_hard_g0": {
+    "e_tp": 264.0,
+    "total_mass": 887.0,
+    "gold": 321,
+    "n_cells": 347075
+   },
+   "time_g0": 1.4352784156799316
+  },
+  {
+   "family": "twi_121",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.3888888888888889,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 175.0,
+    "total_mass": 1962.0,
+    "gold": 450,
+    "n_cells": 519299
+   },
+   "time_g0": 7.08691143989563
+  },
+  {
+   "family": "twi_133",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.3466666666666667,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 104.0,
+    "total_mass": 1201.0,
+    "gold": 300,
+    "n_cells": 194297
+   },
+   "time_g0": 5.982892274856567
+  },
+  {
+   "family": "twi_136",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.44,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 176.0,
+    "total_mass": 1209.0,
+    "gold": 400,
+    "n_cells": 211298
+   },
+   "time_g0": 4.894746541976929
+  },
+  {
+   "family": "twi_137",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.11538461538461539,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 9.0,
+    "total_mass": 251.0,
+    "gold": 78,
+    "n_cells": 43058
+   },
+   "time_g0": 1.1425774097442627
+  },
+  {
+   "family": "twi_138",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.2753623188405797,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 19.0,
+    "total_mass": 191.0,
+    "gold": 69,
+    "n_cells": 25802
+   },
+   "time_g0": 1.1432156562805176
+  },
+  {
+   "family": "twi_140",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.5454545454545454,
+   "msa_tc_g0": 0.45454545454545453,
+   "micro_hard_g0": {
+    "e_tp": 72.0,
+    "total_mass": 402.0,
+    "gold": 132,
+    "n_cells": 40299
+   },
+   "time_g0": 2.6115880012512207
+  },
+  {
+   "family": "twi_143",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7037037037037037,
+   "msa_tc_g0": 0.5555555555555556,
+   "micro_hard_g0": {
+    "e_tp": 95.0,
+    "total_mass": 246.0,
+    "gold": 135,
+    "n_cells": 47402
+   },
+   "time_g0": 1.3071019649505615
+  },
+  {
+   "family": "twi_148",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.3333333333333333,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 10.0,
+    "total_mass": 230.0,
+    "gold": 30,
+    "n_cells": 29087
+   },
+   "time_g0": 1.182016372680664
+  },
+  {
+   "family": "twi_153",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.8627450980392157,
+   "msa_tc_g0": 0.7941176470588235,
+   "micro_hard_g0": {
+    "e_tp": 88.0,
+    "total_mass": 266.0,
+    "gold": 102,
+    "n_cells": 29715
+   },
+   "time_g0": 0.8021788597106934
+  },
+  {
+   "family": "twi_155",
+   "n_seqs": 6,
+   "n_pairs": 15,
+   "kind": "soft",
+   "msa_sp_g0": 0.3616161616161616,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 179.0,
+    "total_mass": 1802.0,
+    "gold": 495,
+    "n_cells": 330121
+   },
+   "time_g0": 7.6070287227630615
+  },
+  {
+   "family": "twi_156",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.17916666666666667,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 86.0,
+    "total_mass": 2336.0,
+    "gold": 480,
+    "n_cells": 938450
+   },
+   "time_g0": 5.438614130020142
+  },
+  {
+   "family": "twi_157",
+   "n_seqs": 10,
+   "n_pairs": 45,
+   "kind": "soft",
+   "msa_sp_g0": 0.21777777777777776,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 98.0,
+    "total_mass": 6223.0,
+    "gold": 450,
+    "n_cells": 1473849
+   },
+   "time_g0": 28.348824501037598
+  },
+  {
+   "family": "twi_158",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.5833333333333334,
+   "msa_tc_g0": 0.4166666666666667,
+   "micro_hard_g0": {
+    "e_tp": 84.0,
+    "total_mass": 672.0,
+    "gold": 144,
+    "n_cells": 100921
+   },
+   "time_g0": 2.659302234649658
+  },
+  {
+   "family": "twi_160",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5802469135802469,
+   "msa_tc_g0": 0.46296296296296297,
+   "micro_hard_g0": {
+    "e_tp": 94.0,
+    "total_mass": 398.0,
+    "gold": 162,
+    "n_cells": 65041
+   },
+   "time_g0": 1.2090256214141846
+  },
+  {
+   "family": "twi_162",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.2361111111111111,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 17.0,
+    "total_mass": 624.0,
+    "gold": 72,
+    "n_cells": 230175
+   },
+   "time_g0": 1.2500255107879639
+  },
+  {
+   "family": "twi_164",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 0.25,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 28.0,
+    "total_mass": 3044.0,
+    "gold": 112,
+    "n_cells": 419056
+   },
+   "time_g0": 7.067256689071655
+  },
+  {
+   "family": "twi_165",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.691358024691358,
+   "msa_tc_g0": 0.5555555555555556,
+   "micro_hard_g0": {
+    "e_tp": 112.0,
+    "total_mass": 236.0,
+    "gold": 162,
+    "n_cells": 22260
+   },
+   "time_g0": 1.2478973865509033
+  },
+  {
+   "family": "twi_167",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.406,
+   "msa_tc_g0": 0.1,
+   "micro_hard_g0": {
+    "e_tp": 203.0,
+    "total_mass": 1728.0,
+    "gold": 500,
+    "n_cells": 466173
+   },
+   "time_g0": 4.714268207550049
+  },
+  {
+   "family": "twi_171",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.6363636363636364,
+   "msa_tc_g0": 0.3181818181818182,
+   "micro_hard_g0": {
+    "e_tp": 140.0,
+    "total_mass": 2356.0,
+    "gold": 220,
+    "n_cells": 889775
+   },
+   "time_g0": 5.457366228103638
+  },
+  {
+   "family": "twi_172",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7490196078431373,
+   "msa_tc_g0": 0.6705882352941176,
+   "micro_hard_g0": {
+    "e_tp": 191.0,
+    "total_mass": 474.0,
+    "gold": 255,
+    "n_cells": 85676
+   },
+   "time_g0": 1.1970694065093994
+  },
+  {
+   "family": "twi_177",
+   "n_seqs": 5,
+   "n_pairs": 10,
+   "kind": "soft",
+   "msa_sp_g0": 0.44857142857142857,
+   "msa_tc_g0": 0.11428571428571428,
+   "micro_hard_g0": {
+    "e_tp": 157.0,
+    "total_mass": 1743.0,
+    "gold": 350,
+    "n_cells": 454441
+   },
+   "time_g0": 4.662959575653076
+  },
+  {
+   "family": "twi_181",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7094017094017094,
+   "msa_tc_g0": 0.5641025641025641,
+   "micro_hard_g0": {
+    "e_tp": 83.0,
+    "total_mass": 183.0,
+    "gold": 117,
+    "n_cells": 17703
+   },
+   "time_g0": 1.1746227741241455
+  },
+  {
+   "family": "twi_182",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6533333333333333,
+   "msa_tc_g0": 0.64,
+   "micro_hard_g0": {
+    "e_tp": 49.0,
+    "total_mass": 162.0,
+    "gold": 75,
+    "n_cells": 11032
+   },
+   "time_g0": 1.0979907512664795
+  },
+  {
+   "family": "twi_184",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.7111111111111111,
+   "msa_tc_g0": 0.7,
+   "micro_hard_g0": {
+    "e_tp": 64.0,
+    "total_mass": 258.0,
+    "gold": 90,
+    "n_cells": 23754
+   },
+   "time_g0": 1.1072328090667725
+  },
+  {
+   "family": "twi_185",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.6666666666666666,
+   "msa_tc_g0": 0.5217391304347826,
+   "micro_hard_g0": {
+    "e_tp": 46.0,
+    "total_mass": 128.0,
+    "gold": 69,
+    "n_cells": 11300
+   },
+   "time_g0": 1.2862060070037842
+  },
+  {
+   "family": "twi_188",
+   "n_seqs": 8,
+   "n_pairs": 28,
+   "kind": "soft",
+   "msa_sp_g0": 1.0,
+   "msa_tc_g0": 1.0,
+   "micro_hard_g0": {
+    "e_tp": 336.0,
+    "total_mass": 1639.0,
+    "gold": 336,
+    "n_cells": 118663
+   },
+   "time_g0": 5.92364764213562
+  },
+  {
+   "family": "twi_190",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.9345238095238095,
+   "msa_tc_g0": 0.8928571428571429,
+   "micro_hard_g0": {
+    "e_tp": 157.0,
+    "total_mass": 254.0,
+    "gold": 168,
+    "n_cells": 12804
+   },
+   "time_g0": 2.2749669551849365
+  },
+  {
+   "family": "twi_191",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.9841269841269841,
+   "msa_tc_g0": 0.9761904761904762,
+   "micro_hard_g0": {
+    "e_tp": 124.0,
+    "total_mass": 190.0,
+    "gold": 126,
+    "n_cells": 15441
+   },
+   "time_g0": 1.1758148670196533
+  },
+  {
+   "family": "twi_199",
+   "n_seqs": 3,
+   "n_pairs": 3,
+   "kind": "soft",
+   "msa_sp_g0": 0.5555555555555556,
+   "msa_tc_g0": 0.3333333333333333,
+   "micro_hard_g0": {
+    "e_tp": 35.0,
+    "total_mass": 142.0,
+    "gold": 63,
+    "n_cells": 8291
+   },
+   "time_g0": 1.1872320175170898
+  },
+  {
+   "family": "twi_200",
+   "n_seqs": 4,
+   "n_pairs": 6,
+   "kind": "soft",
+   "msa_sp_g0": 0.3125,
+   "msa_tc_g0": 0.0,
+   "micro_hard_g0": {
+    "e_tp": 30.0,
+    "total_mass": 1014.0,
+    "gold": 96,
+    "n_cells": 229661
+   },
+   "time_g0": 2.849902629852295
+  }
+ ]
+}

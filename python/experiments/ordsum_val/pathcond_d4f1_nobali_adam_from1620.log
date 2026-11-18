@@ -1,0 +1,10 @@
+pfam/adam_d4f1_nobali_from1620_scoring.npz: n_dom=4 n_frag=1 n_classes=4; 116640 pairs from pfam/precompiled_v3_val
+/home/yam/tkf-mixdom/python/.venv/lib/python3.12/site-packages/jax/_src/ops/scatter.py:104: FutureWarning: scatter inputs have incompatible types: cannot safely cast value from dtype=int64 to dtype=int32 with jax_numpy_dtype_promotion=standard. In future JAX releases this will result in an error.
+  warnings.warn(
+  2000/116640 pairs, LL/pair so far -588.6635 (60s)
+  22000/116640 pairs, LL/pair so far -932.3115 (567s)
+  42000/116640 pairs, LL/pair so far -848.3291 (1034s)
+  62000/116640 pairs, LL/pair so far -808.8926 (1475s)
+  82000/116640 pairs, LL/pair so far -777.6507 (1874s)
+  102000/116640 pairs, LL/pair so far -730.9285 (2193s)
+PATH-CONDITIONED: n_pairs=116640 total_ll=-83447907.6326 LL/pair=-715.431307

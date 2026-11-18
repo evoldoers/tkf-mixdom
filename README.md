@@ -154,7 +154,11 @@ The repo intentionally tracks only:
   `python/params/best/` and `python/params/test/`
 
 Result JSONs, training logs, and per-family derived data are
-`.gitignore`'d and pushed to S3 instead.
+`.gitignore`'d and pushed to S3 instead. The exception is the result
+files the paper-1 tables are built from, listed in
+`python/experiments/figs/paper_tables_inputs.txt`: these are tracked
+(force-added), so `python/experiments/figs/paper_tables.py` regenerates
+the tables from a clone.
 
 ## Other implementation targets
 

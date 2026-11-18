@@ -1,0 +1,10 @@
+pfam/svibw_d3f1_full_1620.npz: n_dom=3 n_frag=1 n_classes=3; 116640 pairs from pfam/precompiled_v3_val
+/home/yam/tkf-mixdom/python/.venv/lib/python3.12/site-packages/jax/_src/ops/scatter.py:104: FutureWarning: scatter inputs have incompatible types: cannot safely cast value from dtype=int64 to dtype=int32 with jax_numpy_dtype_promotion=standard. In future JAX releases this will result in an error.
+  warnings.warn(
+  2000/116640 pairs, LL/pair so far -589.4167 (55s)
+  22000/116640 pairs, LL/pair so far -936.7931 (530s)
+  42000/116640 pairs, LL/pair so far -852.2760 (965s)
+  62000/116640 pairs, LL/pair so far -812.3947 (1364s)
+  82000/116640 pairs, LL/pair so far -780.7531 (1726s)
+  102000/116640 pairs, LL/pair so far -733.9039 (2015s)
+PATH-CONDITIONED: n_pairs=116640 total_ll=-83771038.1640 LL/pair=-718.201630

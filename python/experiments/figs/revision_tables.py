@@ -6,7 +6,13 @@ Missing results print as blanks, so it can be re-run as the queues fill.
 Usage: revision_tables.py [--json out.json] [--latex out.tex]"""
 import argparse, glob, json, os, re, numpy as np
 PY = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); os.chdir(PY)
-TKFDP = os.path.expanduser('~/tkf-dp'); C20 = f'{TKFDP}/results/fsa_c20_balibase'
+def _tkfdp_root():
+    """The tkf-dp (published: evoldoers/tkfdp) checkout holding results/fsa_c20_balibase: $TKFDP_DIR, else the
+    superproject when this repo is its math-paper/tkf-mixdom submodule, else ~/tkf-dp."""
+    for d in (os.environ.get('TKFDP_DIR'), os.path.join(PY, '..', '..', '..'), os.path.expanduser('~/tkf-dp')):
+        if d and os.path.isdir(os.path.join(d, 'results', 'fsa_c20_balibase')): return os.path.abspath(d)
+    return os.path.expanduser('~/tkf-dp')
+TKFDP = _tkfdp_root(); C20 = f'{TKFDP}/results/fsa_c20_balibase'
 
 def grab(path, pat):
     if not os.path.exists(path): return None

@@ -8,12 +8,17 @@ Two consolidated tables (every number in the paper's alignment/likelihood tables
   decoding_table.tex posterior source x decoding (MUSCLE's HMM ablation; our models under annealing,
                      consistency, progressive MEA, refinement) on the three benchmarks
   tails_table.tex    appendix: EM 1,620 / +Adam / +L-BFGS for d1f1..d5f1 and MixFrag-S F=2,3 (likelihood + BAliBASE)
-Writes to ~/tkf-dp/molbiolevol-paper/paper1-baumwelch/tables/ (committed with the paper)."""
+Writes to ~/tkf-dp/molbiolevol-paper/paper1-baumwelch/tables/ (committed with the paper) when that directory exists,
+else to experiments/figs/tables_out/ ($PAPER_TABLES_OUT overrides). The input files it reads are listed in
+paper_tables_inputs.txt (regenerate with table_inputs.py); the CherryML C20 inputs live in the evoldoers/tkfdp
+repo (results/fsa_c20_balibase), so clone that with --recursive to get both."""
 import json, os, sys, numpy as np
 from scipy.stats import wilcoxon
 HERE = os.path.dirname(os.path.abspath(__file__)); PY = os.path.dirname(os.path.dirname(HERE)); os.chdir(PY)
 sys.argv = ['x']; exec(open(os.path.join(HERE, 'revision_tables.py')).read().split("ap = argparse.ArgumentParser()")[0])   # collectors + MODELS
-OUT = os.environ.get('PAPER_TABLES_OUT') or os.path.expanduser('~/tkf-dp/molbiolevol-paper/paper1-baumwelch/tables'); os.makedirs(OUT, exist_ok=True)
+_PAPER = os.path.expanduser('~/tkf-dp/molbiolevol-paper/paper1-baumwelch/tables')
+OUT = os.environ.get('PAPER_TABLES_OUT') or (_PAPER if os.path.isdir(_PAPER) else os.path.join(HERE, 'tables_out')); os.makedirs(OUT, exist_ok=True)
+if not os.path.isdir(C20): print(f'warning: {C20} not found; CherryML C20 cells will be blank (set TKFDP_DIR to an evoldoers/tkfdp checkout)', file=sys.stderr)
 EB, BM = 'experiments/expected_balibase', 'experiments/benchmarks'
 BENCHES = ('bali3pdbm', 'sabrem', 'oxm')
 
